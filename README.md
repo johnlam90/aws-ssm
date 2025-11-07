@@ -1,38 +1,32 @@
 # AWS SSM Manager CLI
 
-A native Golang CLI tool for managing AWS SSM (Systems Manager) sessions with EC2 instances. Connect to your instances using instance ID, DNS name, IP address, or tags - no bastion host required!
+A native Golang CLI tool for managing AWS SSM (Systems Manager) sessions with EC2 instances. Connect to your instances using instance ID, DNS name, IP address, or tags - **no bastion host or AWS session-manager-plugin required!**
 
 ## Features
 
 - 🚀 **Multiple Connection Methods**: Connect using instance ID, DNS name, IP address, tags, or instance name
 - 📋 **List Instances**: View all your EC2 instances with filtering capabilities
 - 🔐 **Secure**: Uses AWS SSM Session Manager for secure, auditable connections
-- ⚡ **Native Go**: Fast, single binary with no dependencies (except AWS session-manager-plugin)
+- ⚡ **Pure Go Implementation**: Single binary with **NO external dependencies** - no session-manager-plugin needed!
 - 🎯 **Smart Instance Discovery**: Automatically detects identifier type and finds matching instances
+- 🔌 **Port Forwarding**: Forward local ports to remote services on EC2 instances
+
+## Why This Tool?
+
+Unlike the official AWS CLI and session-manager-plugin, this tool:
+- ✅ **No Plugin Required**: Pure Go implementation of the SSM protocol (uses [ssm-session-client](https://github.com/mmmorris1975/ssm-session-client))
+- ✅ **Single Binary**: Just download and run - no Python, no Node.js, no external dependencies
+- ✅ **Smart Discovery**: Find instances by name, tags, IP, or DNS - not just instance ID
+- ✅ **Better UX**: Clean, intuitive command-line interface with helpful error messages
 
 ## Prerequisites
 
 - Go 1.21 or later (for building from source)
-- [AWS Session Manager Plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html)
 - AWS credentials configured (via `~/.aws/credentials` or environment variables)
 - SSM Agent version 2.3.68.0 or later on target EC2 instances
 - Proper IAM permissions for SSM and EC2
 
-### Installing AWS Session Manager Plugin
-
-**macOS:**
-```bash
-brew install --cask session-manager-plugin
-```
-
-**Linux:**
-```bash
-curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" -o "session-manager-plugin.deb"
-sudo dpkg -i session-manager-plugin.deb
-```
-
-**Windows:**
-Download from [AWS Documentation](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html)
+**Note**: The AWS Session Manager Plugin is **NOT required** when using the default native mode (`--native` flag, which is enabled by default). If you want to use the plugin-based mode, you can disable native mode with `--native=false`.
 
 ## Installation
 
@@ -131,6 +125,28 @@ aws-ssm session ip-10-0-1-100.us-west-2.compute.internal
 aws-ssm session web-server --region us-west-2 --profile production
 ```
 
+**Using Plugin Mode (if you have session-manager-plugin installed):**
+```bash
+aws-ssm session web-server --native=false
+```
+
+### Port Forwarding
+
+Forward a local port to a remote port on an EC2 instance:
+
+```bash
+# Forward local port 3306 to remote MySQL port 3306
+aws-ssm port-forward db-server --remote-port 3306 --local-port 3306
+
+# Forward local port 8080 to remote port 80
+aws-ssm port-forward web-server --remote-port 80 --local-port 8080
+
+# Access RDS through a bastion instance
+aws-ssm port-forward bastion --remote-port 5432 --local-port 5432
+```
+
+Then connect to `localhost:3306` (or your chosen local port) to access the remote service.
+
 ### Global Flags
 
 All commands support these flags:
@@ -222,11 +238,14 @@ EC2 instances need an IAM role with:
 
 ## Troubleshooting
 
-**Session Manager Plugin Not Found:**
-```
-Error: session-manager-plugin not found in PATH
-```
-Install the AWS Session Manager Plugin (see Prerequisites section).
+**Connection Issues:**
+
+By default, the CLI uses the **native Go implementation** which doesn't require the session-manager-plugin. If you encounter issues:
+
+1. Make sure SSM Agent is running on the target instance
+2. Verify your IAM permissions (see IAM Permissions section)
+3. Check that the instance is in the "running" state
+4. Try using plugin mode: `aws-ssm session <instance> --native=false` (requires session-manager-plugin)
 
 **No Instances Found:**
 ```
