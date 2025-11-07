@@ -13,8 +13,9 @@ var (
 )
 
 var sessionCmd = &cobra.Command{
-	Use:   "session [instance-identifier] [command]",
-	Short: "Start an SSM session with an EC2 instance or execute a command",
+	Use:     "session [instance-identifier] [command]",
+	Aliases: []string{"s"},
+	Short:   "Start an SSM session with an EC2 instance or execute a command",
 	Long: `Start an interactive SSM session with an EC2 instance or execute a remote command.
 
 If no instance identifier is provided, an interactive fuzzy finder will be displayed

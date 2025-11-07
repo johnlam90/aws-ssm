@@ -16,8 +16,9 @@ var (
 )
 
 var interfacesCmd = &cobra.Command{
-	Use:   "interfaces [instance-identifier]",
-	Short: "List network interfaces for EC2 instances",
+	Use:     "interfaces [instance-identifier]",
+	Aliases: []string{"i"},
+	Short:   "List network interfaces for EC2 instances",
 	Long: `Display all network interfaces attached to EC2 instances in a formatted table.
 Shows interface names (ens5, ens6, etc.), subnet IDs, CIDRs, and security groups.
 
