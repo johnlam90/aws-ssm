@@ -42,14 +42,20 @@ Unlike the official AWS CLI and session-manager-plugin, this tool:
 #### Homebrew (Recommended)
 
 ```bash
-# Coming soon - Homebrew tap
-brew tap johnlam90/aws-ssm
+# Add the tap
+brew tap johnlam90/tap
+
+# Install aws-ssm
 brew install aws-ssm
+
+# Verify installation
+aws-ssm version
 ```
 
 #### Manual Installation
 
 **Intel (amd64):**
+
 ```bash
 curl -L https://github.com/johnlam90/aws-ssm/releases/latest/download/aws-ssm-darwin-amd64.tar.gz | tar xz
 chmod +x aws-ssm-darwin-amd64
@@ -57,6 +63,7 @@ sudo mv aws-ssm-darwin-amd64 /usr/local/bin/aws-ssm
 ```
 
 **Apple Silicon (arm64):**
+
 ```bash
 curl -L https://github.com/johnlam90/aws-ssm/releases/latest/download/aws-ssm-darwin-arm64.tar.gz | tar xz
 chmod +x aws-ssm-darwin-arm64
@@ -66,6 +73,7 @@ sudo mv aws-ssm-darwin-arm64 /usr/local/bin/aws-ssm
 ### Linux
 
 **amd64:**
+
 ```bash
 curl -L https://github.com/johnlam90/aws-ssm/releases/latest/download/aws-ssm-linux-amd64.tar.gz | tar xz
 chmod +x aws-ssm-linux-amd64
@@ -73,6 +81,7 @@ sudo mv aws-ssm-linux-amd64 /usr/local/bin/aws-ssm
 ```
 
 **arm64:**
+
 ```bash
 curl -L https://github.com/johnlam90/aws-ssm/releases/latest/download/aws-ssm-linux-arm64.tar.gz | tar xz
 chmod +x aws-ssm-linux-arm64
@@ -88,6 +97,7 @@ Download the latest release from [GitHub Releases](https://github.com/johnlam90/
 3. Add the directory to your PATH
 
 Or using PowerShell:
+
 ```powershell
 # Download and extract
 Invoke-WebRequest -Uri "https://github.com/johnlam90/aws-ssm/releases/latest/download/aws-ssm-windows-amd64.zip" -OutFile "aws-ssm.zip"
@@ -131,7 +141,8 @@ aws-ssm version
 ```
 
 You should see output like:
-```
+
+```sh
 aws-ssm version 0.1.0 (commit: abc1234, built: 2025-01-07T12:00:00Z, go: go1.24)
 ```
 
@@ -176,6 +187,7 @@ aws-ssm session
 ```
 
 This will:
+
 1. Fetch all running EC2 instances in your current region
 2. Display an interactive fuzzy finder interface (fzf-like)
 3. Allow you to search/filter instances by typing (searches name, instance ID, IP, state)
@@ -184,12 +196,14 @@ This will:
 6. Cancel with Esc or Ctrl+C
 
 The fuzzy finder displays each instance with:
+
 - **Instance Name** (from Name tag)
 - **Instance ID**
 - **Private IP Address**
 - **State**
 
 And shows a detailed preview panel with:
+
 - Full instance details
 - All tags
 - Public/Private DNS names
@@ -349,7 +363,7 @@ aws-ssm interfaces --all
 
 **Example Output:**
 
-```
+```sh
 Instance: i-07792557b9c1167a4 | DNS Name: ip-100-64-149-165.ec2.internal | Instance Name: nk-rdc-upf-d-mg-worker-node
 Interface | Subnet ID                 | CIDR               | SG ID
 --------------------------------------------------------------------------------------
@@ -536,6 +550,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Additional Documentation
 
 ### User Guides
+
 - [INSTALLATION.md](INSTALLATION.md) - Detailed installation instructions for all platforms
 - [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - Quick command reference
 - [FUZZY_FINDER.md](FUZZY_FINDER.md) - Interactive instance selection guide
@@ -543,11 +558,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [NETWORK_INTERFACES.md](NETWORK_INTERFACES.md) - Network interface inspection guide
 
 ### Technical Documentation
+
 - [ARCHITECTURE.md](ARCHITECTURE.md) - Technical architecture
 - [NATIVE_IMPLEMENTATION.md](NATIVE_IMPLEMENTATION.md) - Pure Go implementation details
 - [CHANGELOG.md](CHANGELOG.md) - Version history and release notes
 
 ### Development
+
 - [CONTRIBUTING.md](CONTRIBUTING.md) - Contributing guidelines
 
 ## Acknowledgments

@@ -19,14 +19,34 @@ This guide provides detailed installation instructions for aws-ssm on different 
 The easiest way to install on macOS is using Homebrew:
 
 ```bash
-# Add the tap (coming soon)
-brew tap johnlam90/aws-ssm
+# Add the tap
+brew tap johnlam90/tap
 
-# Install
+# Install aws-ssm
 brew install aws-ssm
 
 # Verify installation
 aws-ssm version
+```
+
+**Updating:**
+
+```bash
+# Update the tap
+brew update
+
+# Upgrade aws-ssm
+brew upgrade aws-ssm
+```
+
+**Uninstalling:**
+
+```bash
+# Uninstall aws-ssm
+brew uninstall aws-ssm
+
+# Optionally remove the tap
+brew untap johnlam90/tap
 ```
 
 ### Manual Installation
@@ -323,6 +343,48 @@ aws-ssm list
 
 ## Troubleshooting
 
+### Homebrew Installation Issues
+
+#### Tap Not Found
+
+**Problem**: `Error: No available formula with the name "aws-ssm"`
+
+**Solution**: Make sure you've added the tap first:
+
+```bash
+brew tap johnlam90/tap
+brew install aws-ssm
+```
+
+#### Old Version Installed
+
+**Problem**: Running `aws-ssm version` shows an old version
+
+**Solution**: Update Homebrew and upgrade aws-ssm:
+
+```bash
+brew update
+brew upgrade aws-ssm
+```
+
+#### Conflicting Binary
+
+**Problem**: `aws-ssm` command uses a different binary than the Homebrew installation
+
+**Solution**: Check which binary is being used and remove conflicts:
+
+```bash
+# Check which binary is being used
+which aws-ssm
+
+# If it's not /opt/homebrew/bin/aws-ssm (Apple Silicon) or /usr/local/bin/aws-ssm (Intel)
+# Remove the conflicting binary
+sudo rm /path/to/conflicting/aws-ssm
+
+# Verify Homebrew installation
+brew info aws-ssm
+```
+
 ### Command Not Found
 
 **Problem**: `aws-ssm: command not found`
@@ -330,11 +392,13 @@ aws-ssm list
 **Solutions**:
 
 1. **Check if binary is in PATH**:
+
    ```bash
    which aws-ssm
    ```
 
 2. **Add directory to PATH**:
+
    ```bash
    # For bash
    echo 'export PATH="/usr/local/bin:$PATH"' >> ~/.bashrc
@@ -346,8 +410,11 @@ aws-ssm list
    ```
 
 3. **Use full path**:
+
    ```bash
    /usr/local/bin/aws-ssm version
+   # or for Apple Silicon
+   /opt/homebrew/bin/aws-ssm version
    ```
 
 ### Permission Denied
@@ -355,6 +422,7 @@ aws-ssm list
 **Problem**: `Permission denied` when running aws-ssm
 
 **Solution**: Make the binary executable:
+
 ```bash
 chmod +x /usr/local/bin/aws-ssm
 ```
