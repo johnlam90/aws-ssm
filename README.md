@@ -4,6 +4,7 @@ A native Golang CLI tool for managing AWS SSM (Systems Manager) sessions with EC
 
 ## Features
 
+- 🔍 **Interactive Fuzzy Finder**: Select instances interactively with real-time filtering (fzf-like interface)
 - 🚀 **Multiple Connection Methods**: Connect using instance ID, DNS name, IP address, tags, or instance name
 - 📋 **List Instances**: View all your EC2 instances with filtering capabilities
 - 🔐 **Secure**: Uses AWS SSM Session Manager for secure, auditable connections
@@ -14,6 +15,7 @@ A native Golang CLI tool for managing AWS SSM (Systems Manager) sessions with EC
 ## Why This Tool?
 
 Unlike the official AWS CLI and session-manager-plugin, this tool:
+
 - ✅ **No Plugin Required**: Pure Go implementation of the SSM protocol (uses [ssm-session-client](https://github.com/mmmorris1975/ssm-session-client))
 - ✅ **Single Binary**: Just download and run - no Python, no Node.js, no external dependencies
 - ✅ **Smart Discovery**: Find instances by name, tags, IP, or DNS - not just instance ID
@@ -84,25 +86,61 @@ aws-ssm list --region us-west-2 --profile production
 
 ### Start SSM Session
 
-Connect to an instance using various identifiers:
+#### Interactive Fuzzy Finder (Recommended)
+
+The easiest way to connect is using the **interactive fuzzy finder**:
+
+```bash
+# No argument - opens interactive selector
+aws-ssm session
+```
+
+This will:
+1. Fetch all running EC2 instances in your current region
+2. Display an interactive fuzzy finder interface (fzf-like)
+3. Allow you to search/filter instances by typing (searches name, instance ID, IP, state)
+4. Navigate with arrow keys (↑/↓)
+5. Select an instance with Enter
+6. Cancel with Esc or Ctrl+C
+
+The fuzzy finder displays each instance with:
+- **Instance Name** (from Name tag)
+- **Instance ID**
+- **Private IP Address**
+- **State**
+
+And shows a detailed preview panel with:
+- Full instance details
+- All tags
+- Public/Private DNS names
+- Availability zone
+- Instance type
+
+#### Direct Connection
+
+Connect to an instance directly using various identifiers:
 
 **By Instance ID:**
+
 ```bash
 aws-ssm session i-1234567890abcdef0
 ```
 
 **By Instance Name (Name tag):**
+
 ```bash
 aws-ssm session web-server
 ```
 
 **By Tag (Key:Value format):**
+
 ```bash
 aws-ssm session Environment:production
 aws-ssm session Team:backend
 ```
 
 **By IP Address:**
+
 ```bash
 # Private IP
 aws-ssm session 10.0.1.100
@@ -112,6 +150,7 @@ aws-ssm session 54.123.45.67
 ```
 
 **By DNS Name:**
+
 ```bash
 # Public DNS
 aws-ssm session ec2-54-123-45-67.us-west-2.compute.amazonaws.com
@@ -121,11 +160,13 @@ aws-ssm session ip-10-0-1-100.us-west-2.compute.internal
 ```
 
 **With Specific Region and Profile:**
+
 ```bash
 aws-ssm session web-server --region us-west-2 --profile production
 ```
 
 **Using Plugin Mode (if you have session-manager-plugin installed):**
+
 ```bash
 aws-ssm session web-server --native=false
 ```
@@ -159,6 +200,7 @@ All commands support these flags:
 ### Common Workflows
 
 **1. Find and connect to a production web server:**
+
 ```bash
 # First, list instances to find the right one
 aws-ssm list --tag Environment=production --tag Role=web
@@ -168,18 +210,20 @@ aws-ssm session prod-web-01 --profile production
 ```
 
 **2. Connect to an instance in a different region:**
+
 ```bash
 aws-ssm session my-instance --region eu-west-1
 ```
 
 **3. Quick connection by IP:**
+
 ```bash
 aws-ssm session 10.0.1.50
 ```
 
 ## Project Structure
 
-```
+```sh
 aws-ssm/
 ├── main.go              # Application entry point
 ├── cmd/                 # CLI commands
@@ -248,23 +292,29 @@ By default, the CLI uses the **native Go implementation** which doesn't require 
 4. Try using plugin mode: `aws-ssm session <instance> --native=false` (requires session-manager-plugin)
 
 **No Instances Found:**
-```
+
+```sh
 Error: no instances found matching: web-server
 ```
+
 - Check that the instance exists and is running
 - Verify you're using the correct region and profile
 - Ensure your AWS credentials have EC2 describe permissions
 
 **Multiple Instances Found:**
-```
+
+```sh
 Error: multiple instances found, please use a more specific identifier
 ```
+
 Use a more specific identifier like the full instance ID or a unique tag combination.
 
 **Instance Not Running:**
-```
+
+```sh
 Error: instance i-xxx is not running (current state: stopped)
 ```
+
 The instance must be in the "running" state to start an SSM session.
 
 ## Development

@@ -25,7 +25,7 @@ The traditional AWS CLI approach requires two components:
    - Manages terminal I/O
    - Implements the SSM protocol
 
-```
+```sh
 ┌─────────────┐      StartSession API      ┌─────────────┐
 │   AWS CLI   │ ──────────────────────────> │  AWS SSM    │
 └─────────────┘                             └─────────────┘
@@ -42,7 +42,7 @@ The traditional AWS CLI approach requires two components:
 
 Our implementation combines both components into a single Go binary:
 
-```
+```sh
 ┌─────────────────────────────────────────┐
 │         aws-ssm CLI (Go)                │
 │  ┌────────────────────────────────────┐ │
@@ -125,7 +125,7 @@ The native implementation supports all major SSM features:
 
 You can switch between native and plugin-based modes using the `--native` flag:
 
-```bash
+```sh
 # Use native Go implementation (default)
 aws-ssm session web-server
 
@@ -173,7 +173,8 @@ The native implementation uses the same AWS SDK and follows the same security be
 If you encounter issues with native mode:
 
 1. **Check SSM Agent version** on the instance (must be 2.3.68.0+)
-   ```bash
+
+   ```sh
    # On the instance
    sudo systemctl status amazon-ssm-agent
    ```
@@ -181,7 +182,8 @@ If you encounter issues with native mode:
 2. **Verify IAM permissions** - same permissions required as plugin mode
 
 3. **Try plugin mode** to isolate the issue:
-   ```bash
+
+   ```sh
    aws-ssm session <instance> --native=false
    ```
 
@@ -190,11 +192,13 @@ If you encounter issues with native mode:
 ### Common Errors
 
 **"failed to start native session: websocket: bad handshake"**
+
 - Usually indicates network/firewall issues
 - Check that outbound HTTPS (443) is allowed
 - Verify SSM endpoints are accessible
 
 **"failed to start native session: TargetNotConnected"**
+
 - SSM Agent is not running on the instance
 - Instance doesn't have proper IAM role
 - Instance is not registered with SSM
@@ -212,4 +216,3 @@ This implementation is powered by:
 - [AWS Systems Manager Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html)
 - [SSM Session Manager Plugin Source](https://github.com/aws/session-manager-plugin)
 - [SSM Protocol Documentation](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-sessions-start.html)
-

@@ -43,6 +43,9 @@ aws-ssm list --profile production
 ### Start Session
 
 ```bash
+# Interactive fuzzy finder (recommended - no argument)
+aws-ssm session
+
 # By instance ID
 aws-ssm session i-1234567890abcdef0
 
@@ -136,6 +139,18 @@ export AWS_SESSION_TOKEN=<token>  # Optional, for temporary credentials
 
 ### 1. Find and Connect to Instance
 
+**Using Interactive Fuzzy Finder (Easiest):**
+```bash
+# Just run session without arguments
+aws-ssm session
+
+# Then:
+# - Type to filter instances
+# - Use arrow keys to navigate
+# - Press Enter to connect
+```
+
+**Using List and Connect:**
 ```bash
 # Step 1: List instances to find the right one
 aws-ssm list --tag Environment=production
