@@ -16,6 +16,7 @@ var rootCmd = &cobra.Command{
 Connect to EC2 instances using instance ID, DNS name, IP address, or tags.`,
 }
 
+// Execute runs the root command
 func Execute() error {
 	return rootCmd.Execute()
 }
@@ -24,4 +25,3 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&region, "region", "r", "", "AWS region (defaults to AWS_REGION env var or default profile region)")
 	rootCmd.PersistentFlags().StringVarP(&profile, "profile", "p", "", "AWS profile to use (defaults to AWS_PROFILE env var or default profile)")
 }
-

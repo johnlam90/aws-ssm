@@ -74,8 +74,8 @@ func formatInstancePreview(instance Instance) string {
 		name = "(no name)"
 	}
 
-	preview.WriteString(fmt.Sprintf("Instance Details\n"))
-	preview.WriteString(fmt.Sprintf("================\n\n"))
+	preview.WriteString("Instance Details\n")
+	preview.WriteString("================\n\n")
 	preview.WriteString(fmt.Sprintf("Name:          %s\n", name))
 	preview.WriteString(fmt.Sprintf("Instance ID:   %s\n", instance.InstanceID))
 	preview.WriteString(fmt.Sprintf("State:         %s\n", instance.State))
@@ -98,7 +98,7 @@ func formatInstancePreview(instance Instance) string {
 
 	// Display tags
 	if len(instance.Tags) > 0 {
-		preview.WriteString(fmt.Sprintf("\nTags:\n"))
+		preview.WriteString("\nTags:\n")
 		for key, value := range instance.Tags {
 			if key != "Name" { // Skip Name tag as it's already displayed
 				preview.WriteString(fmt.Sprintf("  %s: %s\n", key, value))

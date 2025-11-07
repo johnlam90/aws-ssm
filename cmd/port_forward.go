@@ -46,8 +46,8 @@ func init() {
 	rootCmd.AddCommand(portForwardCmd)
 	portForwardCmd.Flags().IntVarP(&remotePort, "remote-port", "R", 0, "Remote port on the instance (required)")
 	portForwardCmd.Flags().IntVarP(&localPort, "local-port", "L", 0, "Local port to listen on (required)")
-	portForwardCmd.MarkFlagRequired("remote-port")
-	portForwardCmd.MarkFlagRequired("local-port")
+	_ = portForwardCmd.MarkFlagRequired("remote-port")
+	_ = portForwardCmd.MarkFlagRequired("local-port")
 }
 
 func runPortForward(cmd *cobra.Command, args []string) error {
@@ -116,4 +116,3 @@ func runPortForward(cmd *cobra.Command, args []string) error {
 
 	return nil
 }
-

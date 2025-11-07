@@ -32,10 +32,10 @@ func (c *Client) StartSession(ctx context.Context, instanceID string) error {
 
 	// Prepare session data for the plugin
 	sessionData := map[string]interface{}{
-		"SessionId":   aws.ToString(result.SessionId),
-		"TokenValue":  aws.ToString(result.TokenValue),
-		"StreamUrl":   aws.ToString(result.StreamUrl),
-		"Target":      instanceID,
+		"SessionId":  aws.ToString(result.SessionId),
+		"TokenValue": aws.ToString(result.TokenValue),
+		"StreamUrl":  aws.ToString(result.StreamUrl),
+		"Target":     instanceID,
 	}
 
 	sessionJSON, err := json.Marshal(sessionData)
@@ -76,7 +76,7 @@ func (c *Client) StartSession(ctx context.Context, instanceID string) error {
 	go func() {
 		<-sigChan
 		if cmd.Process != nil {
-			cmd.Process.Signal(os.Interrupt)
+			_ = cmd.Process.Signal(os.Interrupt)
 		}
 	}()
 
@@ -89,7 +89,10 @@ func (c *Client) StartSession(ctx context.Context, instanceID string) error {
 	terminateInput := &ssm.TerminateSessionInput{
 		SessionId: result.SessionId,
 	}
-	_, _ = c.SSMClient.TerminateSession(ctx, terminateInput)
+	if _, err := c.SSMClient.TerminateSession(ctx, terminateInput); err != nil {
+		// Log but don't fail - session might already be terminated
+		fmt.Printf("Warning: failed to terminate session: %v\n", err)
+	}
 
 	return nil
 }
@@ -102,4 +105,3 @@ func checkSessionManagerPlugin() error {
 	}
 	return nil
 }
-

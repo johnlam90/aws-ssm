@@ -74,8 +74,8 @@ func runList(cmd *cobra.Command, args []string) error {
 
 	// Display instances in a table
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "INSTANCE ID\tNAME\tSTATE\tINSTANCE TYPE\tPRIVATE IP\tPUBLIC IP\tAVAILABILITY ZONE")
-	fmt.Fprintln(w, strings.Repeat("-", 11)+"\t"+strings.Repeat("-", 4)+"\t"+strings.Repeat("-", 5)+"\t"+strings.Repeat("-", 13)+"\t"+strings.Repeat("-", 10)+"\t"+strings.Repeat("-", 9)+"\t"+strings.Repeat("-", 17))
+	_, _ = fmt.Fprintln(w, "INSTANCE ID\tNAME\tSTATE\tINSTANCE TYPE\tPRIVATE IP\tPUBLIC IP\tAVAILABILITY ZONE")
+	_, _ = fmt.Fprintln(w, strings.Repeat("-", 11)+"\t"+strings.Repeat("-", 4)+"\t"+strings.Repeat("-", 5)+"\t"+strings.Repeat("-", 13)+"\t"+strings.Repeat("-", 10)+"\t"+strings.Repeat("-", 9)+"\t"+strings.Repeat("-", 17))
 
 	for _, instance := range instances {
 		// Skip non-running instances unless --all flag is set
@@ -93,7 +93,7 @@ func runList(cmd *cobra.Command, args []string) error {
 			publicIP = "-"
 		}
 
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			instance.InstanceID,
 			name,
 			instance.State,
@@ -104,8 +104,7 @@ func runList(cmd *cobra.Command, args []string) error {
 		)
 	}
 
-	w.Flush()
+	_ = w.Flush()
 
 	return nil
 }
-

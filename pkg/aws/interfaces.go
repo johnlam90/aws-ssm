@@ -283,4 +283,3 @@ func (c *Client) ListNetworkInterfaces(ctx context.Context, opts InterfacesOptio
 
 	return nil
 }
-

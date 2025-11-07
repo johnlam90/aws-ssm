@@ -41,4 +41,3 @@ func GetBuildInfo() map[string]string {
 		"arch":       runtime.GOARCH,
 	}
 }
-

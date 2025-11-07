@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
 
+// Instance represents an EC2 instance with its metadata
 type Instance struct {
 	InstanceID       string
 	Name             string
@@ -29,13 +30,14 @@ func (c *Client) FindInstances(ctx context.Context, identifier string) ([]Instan
 	var filters []types.Filter
 
 	// Determine the type of identifier and build appropriate filters
-	if strings.HasPrefix(identifier, "i-") {
+	switch {
+	case strings.HasPrefix(identifier, "i-"):
 		// Instance ID
 		filters = append(filters, types.Filter{
 			Name:   aws.String("instance-id"),
 			Values: []string{identifier},
 		})
-	} else if strings.Contains(identifier, ":") {
+	case strings.Contains(identifier, ":"):
 		// Tag format (Key:Value)
 		parts := strings.SplitN(identifier, ":", 2)
 		if len(parts) == 2 {
@@ -44,7 +46,7 @@ func (c *Client) FindInstances(ctx context.Context, identifier string) ([]Instan
 				Values: []string{parts[1]},
 			})
 		}
-	} else if isIPAddress(identifier) {
+	case isIPAddress(identifier):
 		// IP address (public or private)
 		filters = append(filters, types.Filter{
 			Name:   aws.String("private-ip-address"),
@@ -58,11 +60,11 @@ func (c *Client) FindInstances(ctx context.Context, identifier string) ([]Instan
 			},
 		}
 		// Try public IP search as well
-		publicInstances, _ := c.describeInstances(ctx, publicFilters)
-		if len(publicInstances) > 0 {
+		publicInstances, err := c.describeInstances(ctx, publicFilters)
+		if err == nil && len(publicInstances) > 0 {
 			return publicInstances, nil
 		}
-	} else if isDNSName(identifier) {
+	case isDNSName(identifier):
 		// DNS name (public or private)
 		filters = append(filters, types.Filter{
 			Name:   aws.String("private-dns-name"),
@@ -75,11 +77,11 @@ func (c *Client) FindInstances(ctx context.Context, identifier string) ([]Instan
 				Values: []string{identifier},
 			},
 		}
-		publicInstances, _ := c.describeInstances(ctx, publicFilters)
-		if len(publicInstances) > 0 {
+		publicInstances, err := c.describeInstances(ctx, publicFilters)
+		if err == nil && len(publicInstances) > 0 {
 			return publicInstances, nil
 		}
-	} else {
+	default:
 		// Assume it's a name tag
 		filters = append(filters, types.Filter{
 			Name:   aws.String("tag:Name"),
@@ -170,4 +172,3 @@ func isDNSName(s string) bool {
 		strings.Contains(s, "compute.internal") ||
 		strings.Count(s, ".") >= 2)
 }
-

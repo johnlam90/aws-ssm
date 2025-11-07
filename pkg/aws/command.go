@@ -86,4 +86,3 @@ func (c *Client) ExecuteCommand(ctx context.Context, instanceID, command string)
 
 	return "", fmt.Errorf("command execution timed out after waiting for 2 minutes")
 }
-

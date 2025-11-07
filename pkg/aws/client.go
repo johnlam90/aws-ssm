@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 )
 
+// Client is an AWS client that provides access to EC2 and SSM services
 type Client struct {
 	EC2Client *ec2.Client
 	SSMClient *ssm.Client
@@ -46,4 +47,3 @@ func NewClient(ctx context.Context, region, profile string) (*Client, error) {
 		Config:    cfg,
 	}, nil
 }
-
