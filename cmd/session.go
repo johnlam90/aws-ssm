@@ -13,12 +13,15 @@ var (
 )
 
 var sessionCmd = &cobra.Command{
-	Use:   "session [instance-identifier]",
-	Short: "Start an SSM session with an EC2 instance",
-	Long: `Start an interactive SSM session with an EC2 instance.
+	Use:   "session [instance-identifier] [command]",
+	Short: "Start an SSM session with an EC2 instance or execute a command",
+	Long: `Start an interactive SSM session with an EC2 instance or execute a remote command.
 
 If no instance identifier is provided, an interactive fuzzy finder will be displayed
 to select from all running instances.
+
+If a command is provided as the second argument, it will be executed on the remote
+instance and the output will be displayed, instead of starting an interactive shell.
 
 The instance can be identified by:
   - Instance ID (e.g., i-1234567890abcdef0)
@@ -32,11 +35,17 @@ Examples:
   # Interactive fuzzy finder (no argument)
   aws-ssm session
 
-  # Connect by instance ID
+  # Connect by instance ID (interactive shell)
   aws-ssm session i-1234567890abcdef0
 
-  # Connect by name
-  aws-ssm session web-server
+  # Execute a command on instance
+  aws-ssm session i-1234567890abcdef0 "df -h"
+
+  # Execute command by instance name
+  aws-ssm session web-server "uptime"
+
+  # Execute multi-word command
+  aws-ssm session web-server "ps aux | grep nginx"
 
   # Connect by tag
   aws-ssm session Environment:production
@@ -47,9 +56,9 @@ Examples:
   # Connect by DNS name
   aws-ssm session ec2-1-2-3-4.us-west-2.compute.amazonaws.com
 
-  # Connect with specific region and profile
-  aws-ssm session web-server --region us-west-2 --profile production`,
-	Args: cobra.MaximumNArgs(1),
+  # Execute command with specific region and profile
+  aws-ssm session web-server "systemctl status nginx" --region us-west-2 --profile production`,
+	Args: cobra.MaximumNArgs(2),
 	RunE: runSession,
 }
 
@@ -68,9 +77,11 @@ func runSession(cmd *cobra.Command, args []string) error {
 	}
 
 	var instance *aws.Instance
+	var command string
 
-	// If no argument provided, use interactive fuzzy finder
+	// Parse arguments
 	if len(args) == 0 {
+		// No arguments - use interactive fuzzy finder
 		fmt.Println("Opening interactive instance selector...")
 		fmt.Println("(Use arrow keys to navigate, type to filter, Enter to select, Esc to cancel)")
 		fmt.Println()
@@ -80,9 +91,37 @@ func runSession(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to select instance: %w", err)
 		}
 		instance = selectedInstance
-	} else {
-		// Find the instance using the provided identifier
+	} else if len(args) == 1 {
+		// One argument - instance identifier only (interactive shell)
 		identifier := args[0]
+		fmt.Printf("Searching for instance: %s\n", identifier)
+		instances, err := client.FindInstances(ctx, identifier)
+		if err != nil {
+			return fmt.Errorf("failed to find instance: %w", err)
+		}
+
+		if len(instances) == 0 {
+			return fmt.Errorf("no instances found matching: %s", identifier)
+		}
+
+		if len(instances) > 1 {
+			fmt.Printf("Found %d instances matching '%s':\n\n", len(instances), identifier)
+			for i, inst := range instances {
+				name := inst.Name
+				if name == "" {
+					name = "(no name)"
+				}
+				fmt.Printf("%d. %s - %s [%s] - %s\n", i+1, inst.InstanceID, name, inst.State, inst.PrivateIP)
+			}
+			return fmt.Errorf("multiple instances found, please use a more specific identifier")
+		}
+
+		instance = &instances[0]
+	} else {
+		// Two arguments - instance identifier and command
+		identifier := args[0]
+		command = args[1]
+
 		fmt.Printf("Searching for instance: %s\n", identifier)
 		instances, err := client.FindInstances(ctx, identifier)
 		if err != nil {
@@ -118,6 +157,25 @@ func runSession(cmd *cobra.Command, args []string) error {
 	if name == "" {
 		name = "(no name)"
 	}
+
+	// If command is provided, execute it and return
+	if command != "" {
+		fmt.Printf("Executing command on instance:\n")
+		fmt.Printf("  ID:          %s\n", instance.InstanceID)
+		fmt.Printf("  Name:        %s\n", name)
+		fmt.Printf("  Command:     %s\n\n", command)
+
+		output, err := client.ExecuteCommand(ctx, instance.InstanceID, command)
+		if err != nil {
+			return fmt.Errorf("failed to execute command: %w", err)
+		}
+
+		// Print the output
+		fmt.Print(output)
+		return nil
+	}
+
+	// Otherwise, start an interactive session
 	fmt.Printf("Connecting to instance:\n")
 	fmt.Printf("  ID:          %s\n", instance.InstanceID)
 	fmt.Printf("  Name:        %s\n", name)

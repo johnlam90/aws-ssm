@@ -71,6 +71,20 @@ aws-ssm session web-server --region us-west-2 --profile production
 aws-ssm session web-server --native=false
 ```
 
+### Execute Remote Commands
+
+```bash
+# Execute a command on an instance
+aws-ssm session <instance> "<command>"
+
+# Examples:
+aws-ssm session web-server "uptime"
+aws-ssm session i-1234567890abcdef0 "df -h"
+aws-ssm session web-server "ps aux | grep nginx"
+aws-ssm session web-server "systemctl status nginx"
+aws-ssm session web-server "docker ps" --region us-west-2 --profile production
+```
+
 ### Port Forwarding
 
 ```bash
@@ -92,6 +106,33 @@ aws-ssm port-forward cache-server --remote-port 6379 --local-port 6379
 
 # Then connect to localhost:<local-port>
 mysql -h 127.0.0.1 -P 3306 -u user -p
+```
+
+### List Network Interfaces
+
+```bash
+# Interactive fuzzy finder (recommended - no argument)
+aws-ssm interfaces
+
+# List interfaces for specific instance
+aws-ssm interfaces i-1234567890abcdef0
+aws-ssm interfaces web-server
+
+# List interfaces by Kubernetes node name
+aws-ssm interfaces ip-100-64-149-165.ec2.internal
+aws-ssm interfaces -n ip-100-64-149-165.ec2.internal
+
+# List interfaces for multiple nodes
+aws-ssm interfaces -n ip-100-64-149-165.ec2.internal -n ip-100-64-87-43.ec2.internal
+
+# List interfaces with tag filter
+aws-ssm interfaces --tag Environment:production
+
+# List interfaces for all instances (including stopped)
+aws-ssm interfaces --all
+
+# With region and profile
+aws-ssm interfaces web-server --region us-west-2 --profile production
 ```
 
 ## Global Flags
@@ -161,7 +202,36 @@ aws-ssm session i-1234567890abcdef0
 aws-ssm session web-server-1
 ```
 
-### 2. Access Database Through Bastion
+### 2. Execute Quick Health Checks
+
+```bash
+# Check if web server is responding
+aws-ssm session web-server "curl -s localhost:8080/health"
+
+# Check disk space
+aws-ssm session web-server "df -h"
+
+# Check service status
+aws-ssm session web-server "systemctl status nginx"
+
+# View recent logs
+aws-ssm session app-server "tail -n 50 /var/log/app.log"
+```
+
+### 3. Inspect Network Interfaces (Multus/EKS)
+
+```bash
+# List all network interfaces for a Kubernetes node
+aws-ssm interfaces ip-100-64-149-165.ec2.internal
+
+# Check network configuration for all worker nodes
+aws-ssm interfaces --tag Role:worker
+
+# Verify network setup for specific instance
+aws-ssm interfaces web-server
+```
+
+### 4. Access Database Through Bastion
 
 ```bash
 # Start port forwarding
@@ -171,7 +241,7 @@ aws-ssm port-forward bastion --remote-port 5432 --local-port 5432
 psql -h localhost -p 5432 -U dbuser -d mydb
 ```
 
-### 3. Multi-Region Management
+### 5. Multi-Region Management
 
 ```bash
 # List instances in different regions
@@ -183,7 +253,7 @@ aws-ssm list --region ap-southeast-1
 aws-ssm session web-server --region eu-west-1
 ```
 
-### 4. Multi-Account Management
+### 6. Multi-Account Management
 
 ```bash
 # List instances in different accounts
