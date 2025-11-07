@@ -23,17 +23,19 @@ func NewClient(ctx context.Context, region, profile string) (*Client, error) {
 	var opts []func(*config.LoadOptions) error
 
 	// Set region if provided
-	if region != "" {
+	switch {
+	case region != "":
 		opts = append(opts, config.WithRegion(region))
-	} else if r := os.Getenv("AWS_REGION"); r != "" {
-		opts = append(opts, config.WithRegion(r))
+	case os.Getenv("AWS_REGION") != "":
+		opts = append(opts, config.WithRegion(os.Getenv("AWS_REGION")))
 	}
 
 	// Set profile if provided
-	if profile != "" {
+	switch {
+	case profile != "":
 		opts = append(opts, config.WithSharedConfigProfile(profile))
-	} else if p := os.Getenv("AWS_PROFILE"); p != "" {
-		opts = append(opts, config.WithSharedConfigProfile(p))
+	case os.Getenv("AWS_PROFILE") != "":
+		opts = append(opts, config.WithSharedConfigProfile(os.Getenv("AWS_PROFILE")))
 	}
 
 	cfg, err := config.LoadDefaultConfig(ctx, opts...)

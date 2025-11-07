@@ -46,8 +46,12 @@ func init() {
 	rootCmd.AddCommand(portForwardCmd)
 	portForwardCmd.Flags().IntVarP(&remotePort, "remote-port", "R", 0, "Remote port on the instance (required)")
 	portForwardCmd.Flags().IntVarP(&localPort, "local-port", "L", 0, "Local port to listen on (required)")
-	_ = portForwardCmd.MarkFlagRequired("remote-port")
-	_ = portForwardCmd.MarkFlagRequired("local-port")
+	if err := portForwardCmd.MarkFlagRequired("remote-port"); err != nil {
+		panic(fmt.Sprintf("failed to mark remote-port as required: %v", err))
+	}
+	if err := portForwardCmd.MarkFlagRequired("local-port"); err != nil {
+		panic(fmt.Sprintf("failed to mark local-port as required: %v", err))
+	}
 }
 
 func runPortForward(cmd *cobra.Command, args []string) error {

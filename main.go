@@ -9,7 +9,10 @@ import (
 
 func main() {
 	if err := cmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		if _, writeErr := fmt.Fprintf(os.Stderr, "Error: %v\n", err); writeErr != nil {
+			// If we can't even print the error, just exit with error code
+			os.Exit(1)
+		}
 		os.Exit(1)
 	}
 }

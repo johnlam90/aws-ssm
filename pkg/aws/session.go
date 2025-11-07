@@ -76,7 +76,10 @@ func (c *Client) StartSession(ctx context.Context, instanceID string) error {
 	go func() {
 		<-sigChan
 		if cmd.Process != nil {
-			_ = cmd.Process.Signal(os.Interrupt)
+			if err := cmd.Process.Signal(os.Interrupt); err != nil {
+				// Log the error but don't fail - we're already handling a signal
+				fmt.Printf("Warning: failed to send interrupt signal: %v\n", err)
+			}
 		}
 	}()
 

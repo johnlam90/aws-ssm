@@ -80,7 +80,8 @@ func runSession(cmd *cobra.Command, args []string) error {
 	var command string
 
 	// Parse arguments
-	if len(args) == 0 {
+	switch len(args) {
+	case 0:
 		// No arguments - use interactive fuzzy finder
 		fmt.Println("Opening interactive instance selector...")
 		fmt.Println("(Use arrow keys to navigate, type to filter, Enter to select, Esc to cancel)")
@@ -91,7 +92,7 @@ func runSession(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to select instance: %w", err)
 		}
 		instance = selectedInstance
-	} else if len(args) == 1 {
+	case 1:
 		// One argument - instance identifier only (interactive shell)
 		identifier := args[0]
 		fmt.Printf("Searching for instance: %s\n", identifier)
@@ -117,8 +118,8 @@ func runSession(cmd *cobra.Command, args []string) error {
 		}
 
 		instance = &instances[0]
-	} else {
-		// Two arguments - instance identifier and command
+	default:
+		// Two or more arguments - instance identifier and command
 		identifier := args[0]
 		command = args[1]
 

@@ -74,8 +74,12 @@ func runList(cmd *cobra.Command, args []string) error {
 
 	// Display instances in a table
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	_, _ = fmt.Fprintln(w, "INSTANCE ID\tNAME\tSTATE\tINSTANCE TYPE\tPRIVATE IP\tPUBLIC IP\tAVAILABILITY ZONE")
-	_, _ = fmt.Fprintln(w, strings.Repeat("-", 11)+"\t"+strings.Repeat("-", 4)+"\t"+strings.Repeat("-", 5)+"\t"+strings.Repeat("-", 13)+"\t"+strings.Repeat("-", 10)+"\t"+strings.Repeat("-", 9)+"\t"+strings.Repeat("-", 17))
+	if _, err := fmt.Fprintln(w, "INSTANCE ID\tNAME\tSTATE\tINSTANCE TYPE\tPRIVATE IP\tPUBLIC IP\tAVAILABILITY ZONE"); err != nil {
+		return fmt.Errorf("failed to write table header: %w", err)
+	}
+	if _, err := fmt.Fprintln(w, strings.Repeat("-", 11)+"\t"+strings.Repeat("-", 4)+"\t"+strings.Repeat("-", 5)+"\t"+strings.Repeat("-", 13)+"\t"+strings.Repeat("-", 10)+"\t"+strings.Repeat("-", 9)+"\t"+strings.Repeat("-", 17)); err != nil {
+		return fmt.Errorf("failed to write table separator: %w", err)
+	}
 
 	for _, instance := range instances {
 		// Skip non-running instances unless --all flag is set
@@ -93,7 +97,7 @@ func runList(cmd *cobra.Command, args []string) error {
 			publicIP = "-"
 		}
 
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			instance.InstanceID,
 			name,
 			instance.State,
@@ -101,10 +105,14 @@ func runList(cmd *cobra.Command, args []string) error {
 			instance.PrivateIP,
 			publicIP,
 			instance.AvailabilityZone,
-		)
+		); err != nil {
+			return fmt.Errorf("failed to write table row: %w", err)
+		}
 	}
 
-	_ = w.Flush()
+	if err := w.Flush(); err != nil {
+		return fmt.Errorf("failed to flush table writer: %w", err)
+	}
 
 	return nil
 }
