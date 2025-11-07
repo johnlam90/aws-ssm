@@ -566,6 +566,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ### Development
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) - Contributing guidelines
+- [HOMEBREW_RELEASE_PROCESS.md](HOMEBREW_RELEASE_PROCESS.md) - Homebrew release and upgrade workflow
 
 ## Acknowledgments
 

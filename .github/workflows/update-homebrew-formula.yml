@@ -1,0 +1,186 @@
+name: Update Homebrew Formula
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-formula:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout aws-ssm repository
+        uses: actions/checkout@v4
+
+      - name: Get release version and checksums
+        id: release
+        run: |
+          # Extract version from tag (remove 'v' prefix)
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          
+          echo "Release version: $VERSION"
+          echo "Release tag: ${GITHUB_REF#refs/tags/}"
+          
+          # Wait a few seconds for release assets to be fully available
+          sleep 10
+          
+          # Download checksums
+          echo "Downloading checksums..."
+          curl -sL "https://github.com/johnlam90/aws-ssm/releases/download/v${VERSION}/checksums.txt" -o checksums.txt
+          
+          echo "Checksums file content:"
+          cat checksums.txt
+          
+          # Extract SHA256 hashes
+          DARWIN_AMD64_SHA=$(grep "darwin-amd64" checksums.txt | awk '{print $1}')
+          DARWIN_ARM64_SHA=$(grep "darwin-arm64" checksums.txt | awk '{print $1}')
+          LINUX_AMD64_SHA=$(grep "linux-amd64" checksums.txt | awk '{print $1}')
+          LINUX_ARM64_SHA=$(grep "linux-arm64" checksums.txt | awk '{print $1}')
+          
+          # Verify all hashes were extracted
+          if [ -z "$DARWIN_AMD64_SHA" ] || [ -z "$DARWIN_ARM64_SHA" ] || [ -z "$LINUX_AMD64_SHA" ] || [ -z "$LINUX_ARM64_SHA" ]; then
+            echo "Error: Failed to extract all SHA256 hashes"
+            exit 1
+          fi
+          
+          echo "darwin_amd64_sha=$DARWIN_AMD64_SHA" >> $GITHUB_OUTPUT
+          echo "darwin_arm64_sha=$DARWIN_ARM64_SHA" >> $GITHUB_OUTPUT
+          echo "linux_amd64_sha=$LINUX_AMD64_SHA" >> $GITHUB_OUTPUT
+          echo "linux_arm64_sha=$LINUX_ARM64_SHA" >> $GITHUB_OUTPUT
+          
+          echo "Extracted SHA256 hashes:"
+          echo "  darwin-amd64: $DARWIN_AMD64_SHA"
+          echo "  darwin-arm64: $DARWIN_ARM64_SHA"
+          echo "  linux-amd64:  $LINUX_AMD64_SHA"
+          echo "  linux-arm64:  $LINUX_ARM64_SHA"
+
+      - name: Checkout homebrew-tap repository
+        uses: actions/checkout@v4
+        with:
+          repository: johnlam90/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
+        run: |
+          cd homebrew-tap
+          
+          # Create the updated formula
+          cat > aws-ssm.rb << 'EOF'
+          # typed: false
+          # frozen_string_literal: true
+
+          class AwsSsm < Formula
+            desc "Native Golang CLI tool for managing AWS SSM sessions"
+            homepage "https://github.com/johnlam90/aws-ssm"
+            version "${{ steps.release.outputs.version }}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.intel?
+                url "https://github.com/johnlam90/aws-ssm/releases/download/${{ steps.release.outputs.tag }}/aws-ssm-darwin-amd64.tar.gz"
+                sha256 "${{ steps.release.outputs.darwin_amd64_sha }}"
+
+                def install
+                  bin.install "aws-ssm-darwin-amd64" => "aws-ssm"
+                end
+              end
+
+              if Hardware::CPU.arm?
+                url "https://github.com/johnlam90/aws-ssm/releases/download/${{ steps.release.outputs.tag }}/aws-ssm-darwin-arm64.tar.gz"
+                sha256 "${{ steps.release.outputs.darwin_arm64_sha }}"
+
+                def install
+                  bin.install "aws-ssm-darwin-arm64" => "aws-ssm"
+                end
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.intel?
+                url "https://github.com/johnlam90/aws-ssm/releases/download/${{ steps.release.outputs.tag }}/aws-ssm-linux-amd64.tar.gz"
+                sha256 "${{ steps.release.outputs.linux_amd64_sha }}"
+
+                def install
+                  bin.install "aws-ssm-linux-amd64" => "aws-ssm"
+                end
+              end
+
+              if Hardware::CPU.arm?
+                url "https://github.com/johnlam90/aws-ssm/releases/download/${{ steps.release.outputs.tag }}/aws-ssm-linux-arm64.tar.gz"
+                sha256 "${{ steps.release.outputs.linux_arm64_sha }}"
+
+                def install
+                  bin.install "aws-ssm-linux-arm64" => "aws-ssm"
+                end
+              end
+            end
+
+            test do
+              system "#{bin}/aws-ssm", "version"
+            end
+          end
+          EOF
+          
+          echo "Formula updated. Showing diff:"
+          git diff aws-ssm.rb || true
+
+      - name: Commit and push changes
+        run: |
+          cd homebrew-tap
+          
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Add and commit
+          git add aws-ssm.rb
+          
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          
+          git commit -m "Update aws-ssm formula to v${{ steps.release.outputs.version }}
+
+          Automated update triggered by release v${{ steps.release.outputs.version }}
+          
+          Changes:
+          - Updated version to ${{ steps.release.outputs.version }}
+          - Updated download URLs to v${{ steps.release.outputs.version }}
+          - Updated SHA256 checksums for all platforms"
+          
+          # Push changes
+          git push
+          
+          echo "✓ Formula updated successfully!"
+
+      - name: Create summary
+        run: |
+          echo "## Homebrew Formula Updated 🍺" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The Homebrew formula has been automatically updated to version **${{ steps.release.outputs.version }}**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Updated Components" >> $GITHUB_STEP_SUMMARY
+          echo "- Version: \`${{ steps.release.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Tag: \`${{ steps.release.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### SHA256 Checksums" >> $GITHUB_STEP_SUMMARY
+          echo "- macOS Intel: \`${{ steps.release.outputs.darwin_amd64_sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- macOS ARM: \`${{ steps.release.outputs.darwin_arm64_sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Linux amd64: \`${{ steps.release.outputs.linux_amd64_sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Linux arm64: \`${{ steps.release.outputs.linux_arm64_sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "Users can now upgrade with:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "brew update" >> $GITHUB_STEP_SUMMARY
+          echo "brew upgrade aws-ssm" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Repository" >> $GITHUB_STEP_SUMMARY
+          echo "Formula repository: https://github.com/johnlam90/homebrew-tap" >> $GITHUB_STEP_SUMMARY
+
