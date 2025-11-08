@@ -324,10 +324,9 @@ func (v *CommandValidator) Validate(value interface{}) *Result {
 			result.AddError("command", "contains control characters")
 			return result
 		}
-		if r > 127 {
-			result.AddError("command", "contains non-ASCII characters")
-			return result
-		}
+		// Note: Non-ASCII characters are allowed to support international characters
+		// and legitimate administration tasks. If strict ASCII-only validation is needed,
+		// it should be enforced at a higher security level or by the security manager.
 	}
 
 	result.AddField("command", command)

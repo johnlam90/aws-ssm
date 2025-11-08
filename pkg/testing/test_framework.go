@@ -102,7 +102,22 @@ func (a *Assertion) NotEqual(expected, actual interface{}, message string) {
 
 // Nil checks if value is nil
 func (a *Assertion) Nil(value interface{}, message string) {
-	if value != nil && !reflect.ValueOf(value).IsNil() {
+	// First check if value is nil directly
+	if value == nil {
+		return
+	}
+
+	// For pointer types, check if the pointer is nil
+	// Use reflection safely - only check IsNil for types that support it
+	rv := reflect.ValueOf(value)
+	switch rv.Kind() {
+	case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
+		if !rv.IsNil() {
+			a.errors = append(a.errors, fmt.Sprintf("Expected nil, but got %v: %s", value, message))
+			a.t.Errorf("ASSERTION_FAILED: Expected nil, but got %v: %s", value, message)
+		}
+	default:
+		// Non-nilable types are never nil
 		a.errors = append(a.errors, fmt.Sprintf("Expected nil, but got %v: %s", value, message))
 		a.t.Errorf("ASSERTION_FAILED: Expected nil, but got %v: %s", value, message)
 	}
@@ -110,9 +125,22 @@ func (a *Assertion) Nil(value interface{}, message string) {
 
 // NotNil checks if value is not nil
 func (a *Assertion) NotNil(value interface{}, message string) {
-	if value == nil || reflect.ValueOf(value).IsNil() {
+	// First check if value is nil directly
+	if value == nil {
 		a.errors = append(a.errors, fmt.Sprintf("Expected not nil, but got nil: %s", message))
 		a.t.Errorf("ASSERTION_FAILED: Expected not nil, but got nil: %s", message)
+		return
+	}
+
+	// For pointer types, check if the pointer is nil
+	// Use reflection safely - only check IsNil for types that support it
+	rv := reflect.ValueOf(value)
+	switch rv.Kind() {
+	case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
+		if rv.IsNil() {
+			a.errors = append(a.errors, fmt.Sprintf("Expected not nil, but got nil: %s", message))
+			a.t.Errorf("ASSERTION_FAILED: Expected not nil, but got nil: %s", message)
+		}
 	}
 }
 

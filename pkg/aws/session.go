@@ -20,6 +20,11 @@ func (c *Client) StartSession(ctx context.Context, instanceID string) error {
 		return err
 	}
 
+	// Check circuit breaker before making API call
+	if err := c.CircuitBreaker.Allow(); err != nil {
+		return fmt.Errorf("circuit breaker open: %w", err)
+	}
+
 	// Start SSM session
 	input := &ssm.StartSessionInput{
 		Target: aws.String(instanceID),
@@ -27,8 +32,12 @@ func (c *Client) StartSession(ctx context.Context, instanceID string) error {
 
 	result, err := c.SSMClient.StartSession(ctx, input)
 	if err != nil {
+		c.CircuitBreaker.RecordFailure()
 		return fmt.Errorf("failed to start SSM session: %w", err)
 	}
+
+	// Record success
+	c.CircuitBreaker.RecordSuccess()
 
 	// Prepare session data for the plugin
 	sessionData := map[string]interface{}{
@@ -110,7 +119,12 @@ func (c *Client) StartSession(ctx context.Context, instanceID string) error {
 func checkSessionManagerPlugin() error {
 	_, err := exec.LookPath("session-manager-plugin")
 	if err != nil {
-		return fmt.Errorf("session-manager-plugin not found in PATH. Please install it from: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html")
+		return fmt.Errorf("session-manager-plugin not found in PATH\n\n" +
+			"The session-manager-plugin is required for plugin-based mode (--native=false).\n" +
+			"By default, aws-ssm uses native mode which does NOT require the plugin.\n\n" +
+			"To install the plugin, see:\n" +
+			"https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html\n\n" +
+			"Or use native mode (default): aws-ssm session <instance>")
 	}
 	return nil
 }

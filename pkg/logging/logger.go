@@ -49,7 +49,7 @@ func (l Level) String() string {
 // Field represents a log field
 type Field struct {
 	Key   string
-	Value interface{}
+	Value any
 }
 
 // String creates a string field
@@ -88,7 +88,7 @@ func Time(key string, value time.Time) Field {
 }
 
 // Any creates a field for any value
-func Any(key string, value interface{}) Field {
+func Any(key string, value any) Field {
 	return Field{Key: key, Value: value}
 }
 
@@ -267,25 +267,7 @@ func (l *slogLogger) log(level Level, msg string, fields ...Field) {
 	defer l.mu.Unlock()
 
 	// Build the complete list of attributes
-	allAttrs := make([]any, 0, len(l.attrs)+len(fields)+2)
-	allAttrs = append(allAttrs, l.attrs...)
-
-	// Add level and timestamp
-	allAttrs = append(allAttrs, "level", level.String(), "timestamp", time.Now().Format(time.RFC3339))
-
-	// Add caller information if needed
-	if shouldAddCaller(level) {
-		if pc, file, line, ok := runtime.Caller(2); ok {
-			function := runtime.FuncForPC(pc).Name()
-			funcName := strings.TrimPrefix(function, "github.com/aws-ssm/")
-			allAttrs = append(allAttrs, "caller", fmt.Sprintf("%s:%d", file, line), "function", funcName)
-		}
-	}
-
-	// Add user fields
-	for _, field := range fields {
-		allAttrs = append(allAttrs, field.Key, field.Value)
-	}
+	allAttrs := l.buildAttributes(level, fields)
 
 	// Log the message
 	switch level {
@@ -302,20 +284,36 @@ func (l *slogLogger) log(level Level, msg string, fields ...Field) {
 
 func (l *slogLogger) logFatal(msg string, fields ...Field) {
 	// Build the complete list of attributes
-	allAttrs := make([]any, 0, len(l.attrs)+len(fields)+2)
+	allAttrs := l.buildAttributes(LevelFatal, fields)
+
+	// Log the fatal message
+	l.logger.Error(msg, allAttrs...)
+	os.Exit(1)
+}
+
+// buildAttributes constructs the complete list of attributes for logging
+func (l *slogLogger) buildAttributes(level Level, fields []Field) []any {
+	allAttrs := make([]any, 0, len(l.attrs)+len(fields)+4)
 	allAttrs = append(allAttrs, l.attrs...)
 
 	// Add level and timestamp
-	allAttrs = append(allAttrs, "level", LevelFatal.String(), "timestamp", time.Now().Format(time.RFC3339))
+	allAttrs = append(allAttrs, "level", level.String(), "timestamp", time.Now().Format(time.RFC3339))
+
+	// Add caller information if needed
+	if shouldAddCaller(level) {
+		if pc, file, line, ok := runtime.Caller(3); ok {
+			function := runtime.FuncForPC(pc).Name()
+			funcName := strings.TrimPrefix(function, "github.com/aws-ssm/")
+			allAttrs = append(allAttrs, "caller", fmt.Sprintf("%s:%d", file, line), "function", funcName)
+		}
+	}
 
 	// Add user fields
 	for _, field := range fields {
 		allAttrs = append(allAttrs, field.Key, field.Value)
 	}
 
-	// Log the fatal message
-	l.logger.Error(msg, allAttrs...)
-	os.Exit(1)
+	return allAttrs
 }
 
 func shouldAddCaller(level Level) bool {

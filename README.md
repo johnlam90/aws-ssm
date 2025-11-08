@@ -113,7 +113,7 @@ Expand-Archive -Path "aws-ssm.zip" -DestinationPath "C:\Program Files\aws-ssm"
 
 ### From Source
 
-Requires Go 1.24 or later:
+Requires Go 1.23 or later (tested with 1.23 and 1.24):
 
 ```bash
 # Clone the repository
@@ -483,16 +483,47 @@ aws-ssm/
 ├── cmd/                 # CLI commands
 │   ├── root.go         # Root command and global flags
 │   ├── list.go         # List instances command
-│   └── session.go      # Start session command
+│   ├── session.go      # Start session command
+│   └── version.go      # Version information command
 ├── pkg/
-│   └── aws/            # AWS client wrappers
-│       ├── client.go   # AWS client initialization
-│       ├── instance.go # EC2 instance queries
-│       └── session.go  # SSM session management
-└── go.mod              # Go module dependencies
+│   ├── aws/            # AWS client wrappers
+│   │   ├── client.go   # AWS client initialization
+│   │   ├── instance.go # EC2 instance queries
+│   │   ├── session.go  # SSM session management (plugin-based)
+│   │   ├── session_native.go # SSM session management (native Go)
+│   │   ├── command.go  # SSM command execution
+│   │   ├── fuzzy.go    # Fuzzy finder integration
+│   │   └── ratelimit.go # Rate limiting and retry logic
+│   ├── cache/          # Caching layer for instance data
+│   ├── config/         # Configuration management
+│   ├── logging/        # Structured logging
+│   ├── metrics/        # Metrics collection and reporting
+│   ├── security/       # Security validation and TLS
+│   ├── validation/     # Input validation
+│   ├── health/         # Health checks
+│   ├── testing/        # Testing framework
+│   ├── ui/             # User interface components
+│   │   └── fuzzy/      # Fuzzy finder UI
+│   └── version/        # Version information
+├── docs/               # Documentation
+├── examples/           # Example usage
+├── scripts/            # Build and utility scripts
+├── go.mod              # Go module dependencies
+└── Makefile            # Build automation
 ```
 
+### Key Subsystems
+
+- **AWS Integration**: EC2 instance discovery, SSM session management, command execution
+- **Security**: Command validation, pattern matching, TLS configuration
+- **Caching**: Instance enumeration caching with TTL
+- **Metrics**: Performance monitoring and reporting
+- **Health Checks**: System health validation
+- **Fuzzy Finder**: Interactive instance selection UI
+
 ## IAM Permissions
+
+### User/Role Permissions
 
 Your AWS user/role needs the following permissions:
 
@@ -505,13 +536,26 @@ Your AWS user/role needs the following permissions:
       "Action": [
         "ec2:DescribeInstances",
         "ssm:StartSession",
-        "ssm:TerminateSession"
+        "ssm:TerminateSession",
+        "ssm:SendCommand",
+        "ssm:GetCommandInvocation"
       ],
       "Resource": "*"
     }
   ]
 }
 ```
+
+### SSM Document Requirements
+
+The tool uses the following AWS Systems Manager documents:
+- `AWS-StartInteractiveCommand` - For interactive shell sessions
+- `AWS-StartPortForwardingSession` - For port forwarding
+- `AWS-RunShellScript` - For command execution
+
+These are AWS-managed documents and should be available by default in your AWS account.
+
+### EC2 Instance Requirements
 
 EC2 instances need an IAM role with:
 
@@ -625,6 +669,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ### Development & Release
 
 - [CONTRIBUTING.md](docs/CONTRIBUTING.md) - Contributing guidelines
+- [TESTING.md](docs/TESTING.md) - Testing guide and integration test harness
 - [RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) - Release checklist
 - [HOMEBREW_RELEASE_PROCESS.md](docs/HOMEBREW_RELEASE_PROCESS.md) - Homebrew release and upgrade workflow
 

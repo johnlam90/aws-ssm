@@ -53,6 +53,22 @@ func (c *Service) Get(key string) (interface{}, bool) {
 		return nil, false
 	}
 
+	// Check file size before reading to prevent reading excessively large files
+	const maxCacheFileSize = 10 * 1024 * 1024 // 10 MB limit
+	fileInfo, err := os.Stat(cleanPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			// Log error but don't fail
+			fmt.Fprintf(os.Stderr, "Warning: failed to stat cache file %s: %v\n", cacheFile, err)
+		}
+		return nil, false
+	}
+
+	if fileInfo.Size() > maxCacheFileSize {
+		fmt.Fprintf(os.Stderr, "Warning: cache file %s exceeds size limit (%d > %d bytes)\n", cacheFile, fileInfo.Size(), maxCacheFileSize)
+		return nil, false
+	}
+
 	data, err := os.ReadFile(cleanPath)
 	if err != nil {
 		if !os.IsNotExist(err) {

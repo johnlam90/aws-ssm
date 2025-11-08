@@ -76,8 +76,8 @@ func runSession(cmd *cobra.Command, args []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// Create AWS client
-	client, err := aws.NewClient(ctx, region, profile)
+	// Create AWS client with interactive flags
+	client, err := aws.NewClientWithFlags(ctx, region, profile, interactive, interactiveCols, noColor, width, favorites)
 	if err != nil {
 		return fmt.Errorf("failed to create AWS client: %w", err)
 	}

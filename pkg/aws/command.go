@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -19,11 +20,15 @@ const (
 )
 
 // ExecuteCommand executes a command on an EC2 instance via SSM and returns the output
+// Note: Commands with spaces should be properly quoted when passed from the shell.
+// Example: aws-ssm session i-1234567890abcdef0 "echo 'hello world'"
 func (c *Client) ExecuteCommand(ctx context.Context, instanceID, command string) (string, error) {
 	return c.ExecuteCommandWithTimeout(ctx, instanceID, command, DefaultCommandTimeout)
 }
 
 // ExecuteCommandWithTimeout executes a command with a configurable timeout
+// The command parameter should be a complete shell command string.
+// Multi-word commands must be properly quoted to be treated as a single command.
 func (c *Client) ExecuteCommandWithTimeout(ctx context.Context, instanceID, command string, timeout time.Duration) (string, error) {
 	// Validate timeout
 	if timeout > MaxCommandTimeout {
@@ -37,6 +42,11 @@ func (c *Client) ExecuteCommandWithTimeout(ctx context.Context, instanceID, comm
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	// Check circuit breaker before making API call
+	if err := c.CircuitBreaker.Allow(); err != nil {
+		return "", fmt.Errorf("circuit breaker open: %w", err)
+	}
+
 	// Send the command using SSM SendCommand API
 	sendInput := &ssm.SendCommandInput{
 		InstanceIds:  []string{instanceID},
@@ -49,6 +59,7 @@ func (c *Client) ExecuteCommandWithTimeout(ctx context.Context, instanceID, comm
 
 	sendResult, err := c.SSMClient.SendCommand(ctx, sendInput)
 	if err != nil {
+		c.CircuitBreaker.RecordFailure()
 		return "", fmt.Errorf("failed to send command: %w", err)
 	}
 
@@ -86,6 +97,9 @@ func (c *Client) ExecuteCommandWithTimeout(ctx context.Context, instanceID, comm
 			continue
 		}
 
+		// Record success for the API call
+		c.CircuitBreaker.RecordSuccess()
+
 		status := invocationResult.Status
 
 		switch status {
@@ -94,10 +108,19 @@ func (c *Client) ExecuteCommandWithTimeout(ctx context.Context, instanceID, comm
 			output := aws.ToString(invocationResult.StandardOutputContent)
 			stderr := aws.ToString(invocationResult.StandardErrorContent)
 
-			if stderr != "" {
-				return output + "\nStderr:\n" + stderr, nil
+			// Format output with clear separation between stdout and stderr
+			var result strings.Builder
+			if output != "" {
+				result.WriteString(output)
 			}
-			return output, nil
+			if stderr != "" {
+				if output != "" {
+					result.WriteString("\n")
+				}
+				result.WriteString("[STDERR]\n")
+				result.WriteString(stderr)
+			}
+			return result.String(), nil
 
 		case types.CommandInvocationStatusFailed:
 			// Command failed

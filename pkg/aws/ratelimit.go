@@ -2,10 +2,10 @@ package aws
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
 	"math"
-	"math/big"
+	"math/rand"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,37 +33,46 @@ func NewRateLimiter(ratePerSecond float64, burst int) *RateLimiter {
 	}
 }
 
-// Acquire attempts to acquire tokens for a request
+// Acquire attempts to acquire tokens for a request, waiting if necessary
+// Returns an error if the context is cancelled before tokens are available
 func (r *RateLimiter) Acquire(ctx context.Context, tokens float64) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	for {
+		r.mu.Lock()
 
-	// Calculate tokens to add based on time passed
-	now := time.Now()
-	elapsed := now.Sub(r.lastRefill)
-	tokensToAdd := elapsed.Seconds() * r.refill
+		// Calculate tokens to add based on time passed
+		now := time.Now()
+		elapsed := now.Sub(r.lastRefill)
+		tokensToAdd := elapsed.Seconds() * r.refill
 
-	// Don't let tokens exceed capacity
-	r.tokens = math.Min(r.tokens+tokensToAdd, r.capacity)
-	r.lastRefill = now
+		// Don't let tokens exceed capacity
+		r.tokens = math.Min(r.tokens+tokensToAdd, r.capacity)
+		r.lastRefill = now
 
-	if r.tokens >= tokens {
-		r.tokens -= tokens
-		r.logger.Debug("Token acquired", logging.Float64("tokens", tokens), logging.Float64("remaining", r.tokens))
-		return nil
-	}
+		if r.tokens >= tokens {
+			r.tokens -= tokens
+			r.logger.Debug("Token acquired", logging.Float64("tokens", tokens), logging.Float64("remaining", r.tokens))
+			r.mu.Unlock()
+			return nil
+		}
 
-	// Calculate wait time
-	waitTime := time.Duration((tokens - r.tokens) / r.rate() * float64(time.Second))
+		// Calculate wait time until tokens are available
+		waitTime := time.Duration((tokens - r.tokens) / r.rate() * float64(time.Second))
 
-	r.logger.Warn("Rate limit exceeded",
-		logging.Float64("requested", tokens),
-		logging.Float64("available", r.tokens),
-		logging.Duration("wait_time", waitTime))
+		r.logger.Debug("Rate limit: waiting for tokens",
+			logging.Float64("requested", tokens),
+			logging.Float64("available", r.tokens),
+			logging.Duration("wait_time", waitTime))
 
-	return &RateLimitError{
-		WaitTime: waitTime,
-		Reason:   "rate limit exceeded",
+		r.mu.Unlock()
+
+		// Wait for either the wait time to elapse or context to be cancelled
+		select {
+		case <-time.After(waitTime):
+			// Try again after waiting
+			continue
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 }
 
@@ -119,7 +128,7 @@ func (cfg *RetryConfig) RetryableError(err error) bool {
 
 	errMsg := err.Error()
 	for _, retryableErr := range cfg.RetryableErrors {
-		if containsString(errMsg, retryableErr) {
+		if strings.Contains(errMsg, retryableErr) {
 			return true
 		}
 	}
@@ -148,16 +157,9 @@ func (cfg *RetryConfig) CalculateDelay(attempt int) time.Duration {
 
 	// Add jitter to avoid thundering herd
 	if cfg.Jitter {
-		// Add ±25% jitter
+		// Add ±25% jitter using math/rand (sufficient for rate limiting)
 		jitterRange := int64(delay / 4)
-		// Use crypto/rand for secure random number generation
-		maxJitter := big.NewInt(jitterRange * 2)
-		randomBig, err := rand.Int(rand.Reader, maxJitter)
-		if err != nil {
-			// If crypto/rand fails, use a smaller jitter
-			randomBig = big.NewInt(0)
-		}
-		randomJitter := randomBig.Int64() - jitterRange
+		randomJitter := rand.Int63n(jitterRange*2) - jitterRange
 		delay += time.Duration(randomJitter)
 	}
 
@@ -443,20 +445,4 @@ func (cb *CircuitBreaker) GetMetrics() map[string]interface{} {
 		"reset_timeout":     cb.resetTimeout.String(),
 		"failure_threshold": cb.failureThreshold,
 	}
-}
-
-// Utility function
-func containsString(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
-		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
-			indexOf(s, substr) >= 0))
-}
-
-func indexOf(s, substr string) int {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
 }

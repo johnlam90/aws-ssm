@@ -32,6 +32,9 @@ func (c *Client) FindInstances(ctx context.Context, identifier string) ([]Instan
 	idInfo := ParseIdentifier(identifier)
 
 	// Build filters based on identifier type
+	// Note: For IP and DNS lookups, we need to check both private and public variants
+	// AWS EC2 filters use AND logic, so we can't combine private+public in one filter
+	// Instead, we try private first, then public if needed
 	switch idInfo.Type {
 	case IdentifierTypeInstanceID:
 		filters = append(filters, types.Filter{
@@ -49,34 +52,54 @@ func (c *Client) FindInstances(ctx context.Context, identifier string) ([]Instan
 			Name:   aws.String("private-ip-address"),
 			Values: []string{idInfo.Value},
 		})
-		// Also check public IP
+		// Add running state filter
+		filters = append(filters, types.Filter{
+			Name:   aws.String("instance-state-name"),
+			Values: []string{"running"},
+		})
+		instances, err := c.describeInstances(ctx, filters)
+		if err == nil && len(instances) > 0 {
+			return instances, nil
+		}
+		// If not found as private IP, try public IP
 		publicFilters := []types.Filter{
 			{
 				Name:   aws.String("ip-address"),
 				Values: []string{idInfo.Value},
 			},
+			{
+				Name:   aws.String("instance-state-name"),
+				Values: []string{"running"},
+			},
 		}
-		publicInstances, err := c.describeInstances(ctx, publicFilters)
-		if err == nil && len(publicInstances) > 0 {
-			return publicInstances, nil
-		}
+		return c.describeInstances(ctx, publicFilters)
 	case IdentifierTypeDNSName:
 		// Try private DNS first
 		filters = append(filters, types.Filter{
 			Name:   aws.String("private-dns-name"),
 			Values: []string{idInfo.Value},
 		})
-		// Also check public DNS
+		// Add running state filter
+		filters = append(filters, types.Filter{
+			Name:   aws.String("instance-state-name"),
+			Values: []string{"running"},
+		})
+		instances, err := c.describeInstances(ctx, filters)
+		if err == nil && len(instances) > 0 {
+			return instances, nil
+		}
+		// If not found as private DNS, try public DNS
 		publicFilters := []types.Filter{
 			{
 				Name:   aws.String("dns-name"),
 				Values: []string{idInfo.Value},
 			},
+			{
+				Name:   aws.String("instance-state-name"),
+				Values: []string{"running"},
+			},
 		}
-		publicInstances, err := c.describeInstances(ctx, publicFilters)
-		if err == nil && len(publicInstances) > 0 {
-			return publicInstances, nil
-		}
+		return c.describeInstances(ctx, publicFilters)
 	case IdentifierTypeName:
 		filters = append(filters, types.Filter{
 			Name:   aws.String("tag:Name"),
@@ -115,42 +138,64 @@ func (c *Client) ListInstances(ctx context.Context, tagFilters map[string]string
 }
 
 func (c *Client) describeInstances(ctx context.Context, filters []types.Filter) ([]Instance, error) {
-	input := &ec2.DescribeInstancesInput{
-		Filters: filters,
-	}
-
-	result, err := c.EC2Client.DescribeInstances(ctx, input)
-	if err != nil {
-		return nil, fmt.Errorf("failed to describe instances: %w", err)
-	}
-
 	var instances []Instance
-	for _, reservation := range result.Reservations {
-		for _, inst := range reservation.Instances {
-			instance := Instance{
-				InstanceID:       aws.ToString(inst.InstanceId),
-				State:            string(inst.State.Name),
-				PrivateIP:        aws.ToString(inst.PrivateIpAddress),
-				PublicIP:         aws.ToString(inst.PublicIpAddress),
-				PrivateDNS:       aws.ToString(inst.PrivateDnsName),
-				PublicDNS:        aws.ToString(inst.PublicDnsName),
-				InstanceType:     string(inst.InstanceType),
-				AvailabilityZone: aws.ToString(inst.Placement.AvailabilityZone),
-				Tags:             make(map[string]string),
-			}
+	var nextToken *string
 
-			// Extract tags
-			for _, tag := range inst.Tags {
-				key := aws.ToString(tag.Key)
-				value := aws.ToString(tag.Value)
-				instance.Tags[key] = value
-				if key == "Name" {
-					instance.Name = value
-				}
-			}
-
-			instances = append(instances, instance)
+	// Paginate through all results
+	for {
+		// Check circuit breaker before making API call
+		if err := c.CircuitBreaker.Allow(); err != nil {
+			return nil, fmt.Errorf("circuit breaker open: %w", err)
 		}
+
+		input := &ec2.DescribeInstancesInput{
+			Filters:   filters,
+			NextToken: nextToken,
+		}
+
+		result, err := c.EC2Client.DescribeInstances(ctx, input)
+		if err != nil {
+			c.CircuitBreaker.RecordFailure()
+			return nil, fmt.Errorf("failed to describe instances: %w", err)
+		}
+
+		// Record success
+		c.CircuitBreaker.RecordSuccess()
+
+		// Process instances from this page
+		for _, reservation := range result.Reservations {
+			for _, inst := range reservation.Instances {
+				instance := Instance{
+					InstanceID:       aws.ToString(inst.InstanceId),
+					State:            string(inst.State.Name),
+					PrivateIP:        aws.ToString(inst.PrivateIpAddress),
+					PublicIP:         aws.ToString(inst.PublicIpAddress),
+					PrivateDNS:       aws.ToString(inst.PrivateDnsName),
+					PublicDNS:        aws.ToString(inst.PublicDnsName),
+					InstanceType:     string(inst.InstanceType),
+					AvailabilityZone: aws.ToString(inst.Placement.AvailabilityZone),
+					Tags:             make(map[string]string),
+				}
+
+				// Extract tags
+				for _, tag := range inst.Tags {
+					key := aws.ToString(tag.Key)
+					value := aws.ToString(tag.Value)
+					instance.Tags[key] = value
+					if key == "Name" {
+						instance.Name = value
+					}
+				}
+
+				instances = append(instances, instance)
+			}
+		}
+
+		// Check if there are more pages
+		if result.NextToken == nil {
+			break
+		}
+		nextToken = result.NextToken
 	}
 
 	return instances, nil

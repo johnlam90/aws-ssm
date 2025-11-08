@@ -11,11 +11,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/aws-ssm/pkg/logging"
+	"github.com/aws-ssm/pkg/validation"
 )
 
 // Level represents different security levels
@@ -69,29 +71,33 @@ func DefaultConfig() *Config {
 			"curl", "wget", "ping", "ssh", "scp",
 		},
 		BlockedPatterns: []string{
-			`rm\s+-rf`,
-			`chmod\s+\d+`,
-			`chown\s+\S+`,
-			`sudo\s`,
-			`>/etc/`,
-			`</etc/`,
-			`\$\{`,
-			`\$\w+`,
-			`\` + "`",
-			`;\s*rm\s+`,
-			`\|\|\s*`,
-			`&&\s*`,
-			`>\s*\/`,
-			`<\s*\/`,
+			// Dangerous destructive operations
+			`rm\s+-rf\s+/`,    // rm -rf / (recursive delete from root)
+			`chmod\s+000\s+/`, // chmod 000 / (remove all permissions from root)
+			`chown\s+\S+\s+/`, // chown on root directory
+			`sudo\s+rm\s+-rf`, // sudo rm -rf (dangerous combination)
+
+			// Dangerous redirects to system files
+			`>\s*/etc/`,  // Redirect to /etc
+			`>\s*/sys/`,  // Redirect to /sys
+			`>\s*/proc/`, // Redirect to /proc
+			`>\s*/dev/`,  // Redirect to /dev
+
+			// Dangerous command chaining patterns
+			`;\s*rm\s+-rf\s+/`, // ; rm -rf / (chained destructive command)
+			`\|\|\s*rm\s+-rf`,  // || rm -rf (fallback to destructive command)
+			`&&\s*rm\s+-rf`,    // && rm -rf (chained destructive command)
 		},
 	}
 }
 
 // Manager manages security policies and enforcement
 type Manager struct {
-	config  *Config
-	logger  logging.Logger
-	auditor *AuditLogger
+	config          *Config
+	logger          logging.Logger
+	auditor         *AuditLogger
+	blockedPatterns []*regexp.Regexp
+	suspiciousRegex []*regexp.Regexp
 }
 
 // NewManager creates a new security manager
@@ -100,23 +106,55 @@ func NewManager(config *Config) *Manager {
 		config = DefaultConfig()
 	}
 
+	// Compile blocked patterns as regex
+	blockedPatterns := make([]*regexp.Regexp, 0, len(config.BlockedPatterns))
+	for _, pattern := range config.BlockedPatterns {
+		if re, err := regexp.Compile(pattern); err == nil {
+			blockedPatterns = append(blockedPatterns, re)
+		}
+	}
+
+	// Compile suspicious patterns for high security mode
+	// Note: These patterns are used to flag potentially suspicious commands for review,
+	// not to block them outright. They help identify commands that may need additional scrutiny.
+	suspiciousPatterns := []string{
+		`\$\(`,                    // Command substitution $(...)
+		`\$\{`,                    // Variable expansion ${...}
+		`[<>|&;` + "`" + `\\\"']`, // Shell metacharacters (may indicate complex piping)
+		// Note: curl and wget are legitimate tools and are NOT blocked by default
+		// They are only flagged as suspicious in strict security mode
+	}
+	suspiciousRegex := make([]*regexp.Regexp, 0, len(suspiciousPatterns))
+	for _, pattern := range suspiciousPatterns {
+		if re, err := regexp.Compile(pattern); err == nil {
+			suspiciousRegex = append(suspiciousRegex, re)
+		}
+	}
+
 	return &Manager{
-		config:  config,
-		logger:  logging.With(logging.String("component", "security_manager")),
-		auditor: NewAuditLogger(config),
+		config:          config,
+		logger:          logging.With(logging.String("component", "security_manager")),
+		auditor:         NewAuditLogger(config),
+		blockedPatterns: blockedPatterns,
+		suspiciousRegex: suspiciousRegex,
 	}
 }
 
 // ValidateCommand validates a command for security compliance
 func (sm *Manager) ValidateCommand(command string) error {
-	if err := sm.validateBasicRules(command); err != nil {
+	// Use the standard command validator for basic validation
+	validator := validation.NewCommandValidator()
+	result := validator.Validate(command)
+	if !result.Valid {
+		reason := strings.Join(result.Errors, "; ")
 		sm.auditor.Log("command_rejected", map[string]interface{}{
 			"command": command,
-			"reason":  err.Error(),
+			"reason":  reason,
 		})
-		return err
+		return fmt.Errorf("command validation failed: %s", reason)
 	}
 
+	// Apply security-specific pattern validation
 	if err := sm.validatePatterns(command); err != nil {
 		sm.auditor.Log("command_rejected", map[string]interface{}{
 			"command": command,
@@ -125,6 +163,7 @@ func (sm *Manager) ValidateCommand(command string) error {
 		return err
 	}
 
+	// Apply security-specific structure validation
 	if err := sm.validateCommandStructure(command); err != nil {
 		sm.auditor.Log("command_rejected", map[string]interface{}{
 			"command": command,
@@ -166,23 +205,28 @@ func (sm *Manager) validateBasicRules(command string) error {
 }
 
 func (sm *Manager) validatePatterns(command string) error {
-	for _, pattern := range sm.config.BlockedPatterns {
-		if strings.Contains(command, pattern) {
-			return fmt.Errorf("command contains blocked pattern: %s", pattern)
+	// Check against compiled blocked patterns using regex
+	for i, re := range sm.blockedPatterns {
+		if re.MatchString(command) {
+			return fmt.Errorf("command contains blocked pattern: %s", sm.config.BlockedPatterns[i])
 		}
 	}
 
 	// Additional checks for high security levels
 	if sm.config.Level == SecurityHigh || sm.config.Level == SecurityStrict {
-		// Check for suspicious character sequences
-		suspicious := []string{
-			"$(", ">", "<", "|", "&", ";", "`", "\\", "\"", "'",
-			"${", "${", "$(", "$(", "wget", "curl", "nc", "netcat",
-		}
-
-		for _, s := range suspicious {
-			if strings.Contains(command, s) {
-				return fmt.Errorf("command contains suspicious pattern: %s", s)
+		// Check for suspicious character sequences using regex
+		for i, re := range sm.suspiciousRegex {
+			if re.MatchString(command) {
+				patterns := []string{
+					"command substitution",
+					"shell metacharacters",
+					"variable expansion",
+					"network tools",
+				}
+				if i < len(patterns) {
+					return fmt.Errorf("command contains suspicious pattern: %s", patterns[i])
+				}
+				return fmt.Errorf("command contains suspicious pattern")
 			}
 		}
 	}
@@ -434,9 +478,18 @@ func NewTLSConfig(certPath, keyPath string, caPath string) (*TLSConfig, error) {
 	}
 
 	// Configure TLS
+	// Note: ClientAuth is set to NoClientCert by default to support standard server-only verification.
+	// If mutual TLS (mTLS) is required, set ClientAuth to RequireAndVerifyClientCert and provide client certificates.
+	clientAuth := tls.NoClientCert
+	if clientCert.Certificate != nil {
+		// If client certificate is provided, require and verify it
+		clientAuth = tls.RequireAndVerifyClientCert
+		logger.Info("Mutual TLS (mTLS) enabled - client certificate verification required")
+	}
+
 	tlsConfig := &tls.Config{
 		MinVersion:         tls.VersionTLS12,
-		ClientAuth:         tls.RequireAndVerifyClientCert,
+		ClientAuth:         clientAuth,
 		RootCAs:            certPool,
 		ClientCAs:          certPool,
 		InsecureSkipVerify: false,

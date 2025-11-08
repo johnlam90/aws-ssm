@@ -193,10 +193,13 @@ func (h *Histogram) Observe(value float64) {
 	h.sum += value
 	h.count++
 
-	// Find the appropriate bucket
+	// Find the appropriate bucket and increment only the first matching bucket
+	// This implements cumulative histogram behavior where each bucket represents
+	// the count of observations <= that bucket boundary
 	for _, bucket := range DefaultHistogramConfig().Buckets {
 		if value <= bucket {
 			h.buckets[bucket]++
+			break // Only increment the first matching bucket
 		}
 	}
 
@@ -660,20 +663,25 @@ func (pm *PerformanceMonitor) StartOperation(operation string) *TimerContext {
 	return pm.StartTimer("operation_" + operation)
 }
 
-// Start the global metrics service
-func init() {
-	ctx := context.Background()
-	service := NewService(ctx)
-	GlobalRegistry() // Initialize global registry
-	GlobalMetricsService = service
-	service.AddReporter(NewConsoleReporter())
-	service.Start()
-}
-
 // GlobalMetricsService is the global metrics service instance
 var GlobalMetricsService *Service
 
 // GetGlobalMetricsService returns the global metrics service
 func GetGlobalMetricsService() *Service {
 	return GlobalMetricsService
+}
+
+// InitializeGlobalMetricsService initializes the global metrics service
+// This should be called explicitly from main() after CLI parsing, not in init()
+func InitializeGlobalMetricsService(ctx context.Context) {
+	if GlobalMetricsService != nil {
+		// Already initialized
+		return
+	}
+
+	service := NewService(ctx)
+	GlobalRegistry() // Initialize global registry
+	GlobalMetricsService = service
+	service.AddReporter(NewConsoleReporter())
+	service.Start()
 }

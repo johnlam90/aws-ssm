@@ -119,14 +119,34 @@ func LoadConfig(configPath string) (*Config, error) {
 		},
 	}
 
+	// Validate and clean the path to prevent directory traversal
+	if configPath != "" {
+		cleanPath := filepath.Clean(configPath)
+
+		// Verify the cleaned path doesn't escape the expected base directory
+		// Get absolute path to ensure we're comparing canonical paths
+		absPath, err := filepath.Abs(cleanPath)
+		if err != nil {
+			return nil, fmt.Errorf("invalid config path: %w", err)
+		}
+
+		// Get the home directory as the base for config files
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("failed to determine home directory: %w", err)
+		}
+
+		// Verify the absolute path is within the home directory or /etc
+		if !strings.HasPrefix(absPath, homeDir) && !strings.HasPrefix(absPath, "/etc") {
+			return nil, fmt.Errorf("invalid config path: must be in home directory or /etc")
+		}
+
+		configPath = cleanPath
+	}
+
 	// Load configuration from file if it exists
 	if _, statErr := os.Stat(configPath); statErr == nil {
-		// Validate and clean the path to prevent directory traversal
-		cleanPath := filepath.Clean(configPath)
-		if strings.Contains(cleanPath, "..") {
-			return nil, fmt.Errorf("invalid config path: contains directory traversal")
-		}
-		data, err := os.ReadFile(cleanPath)
+		data, err := os.ReadFile(configPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read config file: %w", err)
 		}

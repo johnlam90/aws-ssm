@@ -4,28 +4,81 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/aws-ssm/pkg/cache"
 	"github.com/aws-ssm/pkg/ui/fuzzy"
 )
+
+// columnNamesToConfig converts CLI column names to ColumnConfig
+func columnNamesToConfig(columnNames []string) fuzzy.ColumnConfig {
+	config := fuzzy.ColumnConfig{}
+	for _, col := range columnNames {
+		switch col {
+		case "name":
+			config.Name = true
+		case "instance-id":
+			config.InstanceID = true
+		case "private-ip":
+			config.PrivateIP = true
+		case "state":
+			config.State = true
+		case "type":
+			config.Type = true
+		case "az":
+			config.AZ = true
+		}
+	}
+	return config
+}
 
 // SelectInstanceInteractive displays an enhanced interactive fuzzy finder to select an EC2 instance
 func (c *Client) SelectInstanceInteractive(ctx context.Context) (*Instance, error) {
 	// Use cached configuration for performance (loaded once in NewClient)
 	cfg := c.AppConfig
 
+	// Determine columns to display - use CLI flags if provided, otherwise use config
+	columns := fuzzy.DefaultColumnConfig()
+	if len(c.InteractiveCols) > 0 {
+		columns = columnNamesToConfig(c.InteractiveCols)
+	}
+
+	// Determine NoColor setting - CLI flag takes precedence
+	noColor := cfg.Interactive.NoColor
+	if c.NoColor {
+		noColor = true
+	}
+
+	// Determine Width setting - CLI flag takes precedence if non-zero
+	width := cfg.Interactive.Width
+	if c.Width > 0 {
+		width = c.Width
+	}
+
 	// Create fuzzy config
 	fuzzyConfig := fuzzy.Config{
-		Columns:      fuzzy.DefaultColumnConfig(),
+		Columns:      columns,
 		Weights:      fuzzy.DefaultWeightConfig(),
 		Cache:        fuzzy.CacheConfig{Enabled: cfg.Cache.Enabled, TTLMinutes: cfg.Cache.TTLMinutes, CacheDir: cfg.Cache.CacheDir},
 		MaxInstances: cfg.Interactive.MaxInstances,
-		NoColor:      cfg.Interactive.NoColor,
-		Width:        cfg.Interactive.Width,
-		Favorites:    false,
+		NoColor:      noColor,
+		Width:        width,
+		Favorites:    c.Favorites,
 		ConfigPath:   "", // Using default
 	}
 
 	// Create instance loader
-	loader := fuzzy.NewAWSInstanceLoader(c)
+	baseLoader := fuzzy.NewAWSInstanceLoader(c)
+
+	// Wrap with cache if enabled
+	var loader fuzzy.InstanceLoader = baseLoader
+	if fuzzyConfig.Cache.Enabled {
+		cacheService, err := cache.NewCacheService(fuzzyConfig.Cache.CacheDir, fuzzyConfig.Cache.TTLMinutes)
+		if err != nil {
+			// Log warning but continue without cache
+			fmt.Printf("Warning: failed to initialize cache: %v\n", err)
+		} else {
+			loader = fuzzy.NewCachedInstanceLoader(baseLoader, cacheService, c.Config.Region, true)
+		}
+	}
 
 	// Create enhanced fuzzy finder
 	finder := fuzzy.NewEnhancedFinder(loader, fuzzyConfig)
@@ -62,20 +115,50 @@ func (c *Client) SelectInstancesInteractive(ctx context.Context) ([]Instance, er
 	// Use cached configuration for performance (loaded once in NewClient)
 	cfg := c.AppConfig
 
+	// Determine columns to display - use CLI flags if provided, otherwise use config
+	columns := fuzzy.DefaultColumnConfig()
+	if len(c.InteractiveCols) > 0 {
+		columns = columnNamesToConfig(c.InteractiveCols)
+	}
+
+	// Determine NoColor setting - CLI flag takes precedence
+	noColor := cfg.Interactive.NoColor
+	if c.NoColor {
+		noColor = true
+	}
+
+	// Determine Width setting - CLI flag takes precedence if non-zero
+	width := cfg.Interactive.Width
+	if c.Width > 0 {
+		width = c.Width
+	}
+
 	// Create fuzzy config
 	fuzzyConfig := fuzzy.Config{
-		Columns:      fuzzy.DefaultColumnConfig(),
+		Columns:      columns,
 		Weights:      fuzzy.DefaultWeightConfig(),
 		Cache:        fuzzy.CacheConfig{Enabled: cfg.Cache.Enabled, TTLMinutes: cfg.Cache.TTLMinutes, CacheDir: cfg.Cache.CacheDir},
 		MaxInstances: cfg.Interactive.MaxInstances,
-		NoColor:      cfg.Interactive.NoColor,
-		Width:        cfg.Interactive.Width,
-		Favorites:    false,
+		NoColor:      noColor,
+		Width:        width,
+		Favorites:    c.Favorites,
 		ConfigPath:   "", // Using default
 	}
 
 	// Create instance loader
-	loader := fuzzy.NewAWSInstanceLoader(c)
+	baseLoader := fuzzy.NewAWSInstanceLoader(c)
+
+	// Wrap with cache if enabled
+	var loader fuzzy.InstanceLoader = baseLoader
+	if fuzzyConfig.Cache.Enabled {
+		cacheService, err := cache.NewCacheService(fuzzyConfig.Cache.CacheDir, fuzzyConfig.Cache.TTLMinutes)
+		if err != nil {
+			// Log warning but continue without cache
+			fmt.Printf("Warning: failed to initialize cache: %v\n", err)
+		} else {
+			loader = fuzzy.NewCachedInstanceLoader(baseLoader, cacheService, c.Config.Region, true)
+		}
+	}
 
 	// Create enhanced fuzzy finder
 	finder := fuzzy.NewEnhancedFinder(loader, fuzzyConfig)

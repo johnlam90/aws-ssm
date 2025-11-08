@@ -17,10 +17,18 @@ var _ fuzzyClientInterface = (*Client)(nil)
 
 // Client is an AWS client that provides access to EC2 and SSM services
 type Client struct {
-	EC2Client *ec2.Client
-	SSMClient *ssm.Client
-	Config    aws.Config
-	AppConfig *appconfig.Config // Cached application config for performance
+	EC2Client      *ec2.Client
+	SSMClient      *ssm.Client
+	Config         aws.Config
+	AppConfig      *appconfig.Config // Cached application config for performance
+	CircuitBreaker *CircuitBreaker   // Circuit breaker for AWS API calls
+
+	// Interactive UI flags
+	InteractiveMode bool
+	InteractiveCols []string
+	NoColor         bool
+	Width           int
+	Favorites       bool
 }
 
 // fuzzyClientInterface is a private interface to avoid import cycles
@@ -71,9 +79,32 @@ func NewClient(ctx context.Context, region, profile string) (*Client, error) {
 	}
 
 	return &Client{
-		EC2Client: ec2.NewFromConfig(cfg),
-		SSMClient: ssm.NewFromConfig(cfg),
-		Config:    cfg,
-		AppConfig: appCfg,
+		EC2Client:      ec2.NewFromConfig(cfg),
+		SSMClient:      ssm.NewFromConfig(cfg),
+		Config:         cfg,
+		AppConfig:      appCfg,
+		CircuitBreaker: NewCircuitBreaker(DefaultCircuitBreakerConfig()),
+		// Interactive UI flags
+		InteractiveMode: false,
+		InteractiveCols: []string{},
+		NoColor:         false,
+		Width:           0,
+		Favorites:       false,
 	}, nil
+}
+
+// NewClientWithFlags creates a new AWS client with interactive UI flags
+func NewClientWithFlags(ctx context.Context, region, profile string, interactiveMode bool, interactiveCols []string, noColor bool, width int, favorites bool) (*Client, error) {
+	client, err := NewClient(ctx, region, profile)
+	if err != nil {
+		return nil, err
+	}
+
+	client.InteractiveMode = interactiveMode
+	client.InteractiveCols = interactiveCols
+	client.NoColor = noColor
+	client.Width = width
+	client.Favorites = favorites
+
+	return client, nil
 }
