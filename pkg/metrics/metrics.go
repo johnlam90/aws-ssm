@@ -682,6 +682,7 @@ func InitializeGlobalMetricsService(ctx context.Context) {
 	service := NewService(ctx)
 	GlobalRegistry() // Initialize global registry
 	GlobalMetricsService = service
-	service.AddReporter(NewConsoleReporter())
+	// Don't add ConsoleReporter to avoid polluting terminal output during interactive sessions
+	// Metrics are still collected and available via GlobalRegistry() for programmatic access
 	service.Start()
 }
