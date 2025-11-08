@@ -245,10 +245,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
+      - name: Determine GOOS
+        id: goos
+        run: |
+          case "${{ matrix.os }}" in
+            macos-latest) echo "goos=darwin" >> $GITHUB_OUTPUT ;;
+            windows-latest) echo "goos=windows" >> $GITHUB_OUTPUT ;;
+            *) echo "goos=linux" >> $GITHUB_OUTPUT ;;
+          esac
+
       - name: Build binaries
         run: |
           mkdir -p dist
-          GOOS=${{ matrix.os == 'macos-latest' && 'darwin' || matrix.os }} GOARCH=${{ matrix.arch }} go build -ldflags "-s -w" -o dist/aws-ssm-${{ matrix.os }}-${{ matrix.arch }} .
+          EXE_EXT=${{ steps.goos.outputs.goos == 'windows' && '.exe' || '' }}
+          GOOS=${{ steps.goos.outputs.goos }} GOARCH=${{ matrix.arch }} go build -ldflags "-s -w" -o dist/aws-ssm-${{ steps.goos.outputs.goos }}-${{ matrix.arch }}${EXE_EXT} .
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
