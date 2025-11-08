@@ -102,40 +102,24 @@ func (f *EnhancedFinder) loadAllInstances(ctx context.Context, query *SearchQuer
 }
 
 // formatInstanceRow formats an instance for display in the list
+// Format matches v0.2.0: name | instance-id | private-ip | state
 func (f *EnhancedFinder) formatInstanceRow(instance Instance) string {
-	var parts []string
-
-	if f.config.Columns.Name {
-		name := instance.Name
-		if name == "" {
-			name = "(no name)"
-		}
-		name = f.truncateString(name, 30)
-		parts = append(parts, fmt.Sprintf("%-30s", name))
+	name := instance.Name
+	if name == "" {
+		name = "(no name)"
 	}
 
-	if f.config.Columns.InstanceID {
-		parts = append(parts, fmt.Sprintf("%-19s", instance.InstanceID))
-	}
+	// Truncate name to fit nicely (30 chars like v0.2.0)
+	name = f.truncateString(name, 30)
 
-	if f.config.Columns.PrivateIP {
-		parts = append(parts, fmt.Sprintf("%-15s", instance.PrivateIP))
-	}
-
-	if f.config.Columns.State {
-		state := f.colors.StateColor(instance.State)
-		parts = append(parts, fmt.Sprintf("%-10s", state))
-	}
-
-	if f.config.Columns.Type {
-		parts = append(parts, fmt.Sprintf("%-12s", instance.InstanceType))
-	}
-
-	if f.config.Columns.AZ {
-		parts = append(parts, fmt.Sprintf("%-12s", instance.AvailabilityZone))
-	}
-
-	return strings.Join(parts, " | ")
+	// Format: name | instance-id | private-ip | state
+	// Using the same spacing as v0.2.0 for clean alignment
+	return fmt.Sprintf("%-30s | %-19s | %-15s | %s",
+		name,
+		instance.InstanceID,
+		instance.PrivateIP,
+		instance.State,
+	)
 }
 
 // truncateString truncates a string to the specified length
