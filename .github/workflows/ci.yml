@@ -1,98 +1,368 @@
-name: CI
+name: CI Pipeline
 
 on:
   push:
-    branches: [ '**' ]  # Run on all branches
+    branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
 
+env:
+  GO_VERSION: '1.24'
+
 jobs:
-  test:
-    name: Test
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        go-version: ['1.24']
-    
+  # Code quality checks
+  lint:
+    name: Code Quality
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Go
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.54.2
+
+      - name: Run linter
+        run: golangci-lint run --timeout=5m
+
+      - name: Check formatting
+        run: |
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "Code is not properly formatted"
+            gofmt -s -l .
+            exit 1
+          fi
+
+      - name: Check imports
+        run: go mod tidy && git diff --exit-code
+
+  # Security scanning
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run Gosec Security Scanner
+        uses: securecodewarrior/github-action-gosec@master
+        with:
+          args: './... -fmt sarif -out gosec.sarif'
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gosec.sarif
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # Unit tests
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: [lint, security]
+    strategy:
+      matrix:
+        go-version: ['1.23', '1.24']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go ${{ matrix.go-version }}
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
-          cache: true
 
-      - name: Download dependencies
-        run: go mod download
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ matrix.go-version }}-
 
-      - name: Verify dependencies
-        run: go mod verify
-
-      - name: Run go vet
-        run: go vet ./...
-
-      - name: Run tests
-        run: go test -v -race -coverprofile="coverage.txt" ./...
+      - name: Run tests with race detection
+        run: |
+          go test -race -covermode=atomic -coverprofile=coverage.out ./...
 
       - name: Upload coverage to Codecov
-        if: matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@v4
         with:
-          file: ./coverage.txt
+          file: ./coverage.out
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
 
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.24'
-          cache: true
-
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v4
-        with:
-          version: latest
-          args: --timeout=5m
-
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: [test, lint]
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.24'
-          cache: true
-
-      - name: Build for multiple platforms
+      - name: Generate coverage report
         run: |
-          GOOS=darwin GOARCH=amd64 go build -o dist/aws-ssm-darwin-amd64 .
-          GOOS=darwin GOARCH=arm64 go build -o dist/aws-ssm-darwin-arm64 .
-          GOOS=linux GOARCH=amd64 go build -o dist/aws-ssm-linux-amd64 .
-          GOOS=linux GOARCH=arm64 go build -o dist/aws-ssm-linux-arm64 .
-          GOOS=windows GOARCH=amd64 go build -o dist/aws-ssm-windows-amd64.exe .
+          go tool cover -html=coverage.out -o coverage.html
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ matrix.go-version }}
+          path: coverage.html
+
+  # Integration tests
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [test]
+    services:
+      localstack:
+        image: localstack/localstack:latest
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: ssm,ec2
+          DEBUG: 1
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Wait for LocalStack
+        run: |
+          timeout 60s bash -c 'until curl -s http://localhost:4566/_localstack/health; do sleep 2; done'
+
+      - name: Run integration tests
+        run: |
+          AWS_ENDPOINT_URL=http://localhost:4566 go test -tags=integration ./...
+
+      - name: Upload integration test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-results
+          path: |
+            test-results/
+            integration.log
+
+  # Performance tests
+  performance:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run benchmark tests
+        run: go test -bench=. -benchmem ./...
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: bench_results.txt
+
+  # Build and package
+  build:
+    name: Build & Package
+    runs-on: ubuntu-latest
+    needs: [lint, security, test]
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        arch: [amd64, arm64]
+        exclude:
+          # Exclude unsupported combinations
+          - os: windows-latest
+            arch: arm64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+          GOOS=${{ matrix.os == 'macos-latest' && 'darwin' || matrix.os }} GOARCH=${{ matrix.arch }} go build -ldflags "-s -w" -o dist/aws-ssm-${{ matrix.os }}-${{ matrix.arch }} .
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: binaries
+          name: binaries-${{ matrix.os }}-${{ matrix.arch }}
           path: dist/
-          retention-days: 7
 
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum aws-ssm-* > checksums.txt
+
+      - name: Upload checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: checksums-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/checksums.txt
+
+  # Docker build
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/aws-ssm:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/aws-ssm:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Release (only on main branch)
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [build, docker, integration, performance]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          # Copy binaries
+          cp artifacts/binaries-ubuntu-latest-amd64/*.tar.gz release/ || true
+          cp artifacts/binaries-macos-latest-amd64/*.tar.gz release/ || true
+          cp artifacts/binaries-windows-latest-amd64/*.zip release/ || true
+          # Copy checksums
+          cp artifacts/checksums-ubuntu-latest-amd64/checksums.txt release/ || true
+          # Copy other artifacts
+          cp -r artifacts/*/coverage*.html release/ || true
+          cp -r artifacts/*/bench* release/ || true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Security policy and compliance
+  compliance:
+    name: Compliance Check
+    runs-on: ubuntu-latest
+    needs: [security, build]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run compliance checks
+        run: |
+          # Check for TODO/FIXME/BUG comments
+          if grep -r "TODO\|FIXME\|BUG" --include="*.go" .; then
+            echo "Found TODO/FIXME/BUG comments in code"
+            exit 1
+          fi
+
+          # Check for hardcoded credentials
+          if grep -r "password\|secret\|key\|token" --include="*.go" . | grep -v "test\|example\|mock"; then
+            echo "Potential hardcoded credentials found"
+            exit 1
+          fi
+
+          # Check license headers
+          if ! grep -r "Copyright\|License" --include="*.go" . | head -n 1; then
+            echo "Missing license header"
+            exit 1
+          fi
+
+      - name: Generate SBOM
+        run: |
+          # Generate Software Bill of Materials
+          go mod graph | awk '{if($1 ~ /^[a-zA-Z]/) print $2}' | sort -u | cyclonedx-gomod -output sbom.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json

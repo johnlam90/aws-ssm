@@ -57,7 +57,12 @@ EOF
   esac
 done
 
-[[ -z "$VERSION" ]] && die "Version number required (e.g. 0.2.0)"
+[[ -z "$VERSION" ]] && die "Version number required (e.g. 0.2.0 or v0.2.0)"
+
+# Strip 'v' prefix if present
+VERSION="${VERSION#v}"
+
+# Validate semver format
 [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "Invalid version format '$VERSION' (expected semver: X.Y.Z)"
 TAG="v${VERSION}"
 
