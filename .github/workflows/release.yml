@@ -3,7 +3,8 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*'      # Matches v0.3.0, v1.0.0, etc.
+      - '[0-9]*'  # Matches 0.3.0, 1.0.0, etc.
 
 permissions:
   contents: write
@@ -27,7 +28,11 @@ jobs:
 
       - name: Get version from tag
         id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          # Remove 'v' prefix if present
+          VERSION=${TAG#v}
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Run tests
         run: go test -v -race ./...
@@ -169,7 +174,11 @@ jobs:
 
       - name: Get version from tag
         id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          # Remove 'v' prefix if present
+          VERSION=${TAG#v}
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Wait for release assets
         run: sleep 30
