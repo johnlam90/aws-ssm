@@ -199,6 +199,23 @@ aws-ssm session --interactive --columns name,instance-id,state,type,az
 aws-ssm session --interactive --favorites
 ```
 
+##### Available Column Keywords
+
+The `--columns` flag supports the following column keywords:
+
+- **name** - Instance name (from Name tag)
+- **instance-id** - EC2 instance ID (e.g., i-1234567890abcdef0)
+- **private-ip** - Private IP address
+- **state** - Instance state (running, stopped, etc.)
+- **type** - Instance type (e.g., t3.micro, m5.large)
+- **az** - Availability zone (e.g., us-east-1a)
+
+Example with all available columns:
+
+```bash
+aws-ssm session --interactive --columns name,instance-id,private-ip,state,type,az
+```
+
 ##### Rich Search Syntax
 
 The enhanced fuzzy finder supports powerful search syntax:

@@ -291,6 +291,18 @@ func TestBlockedPatternsExtended(t *testing.T) {
 			shouldBlock: false,
 			description: "Should allow chmod on /tmp",
 		},
+		{
+			name:        "rm -rf /etc with extra spaces",
+			command:     "rm  -rf  /etc",
+			shouldBlock: true,
+			description: "Should block rm -rf /etc even with extra spaces",
+		},
+		{
+			name:        "rm -rf / with extra spaces",
+			command:     "rm  -rf  /",
+			shouldBlock: true,
+			description: "Should block rm -rf / even with extra spaces",
+		},
 	}
 
 	config := DefaultConfig()

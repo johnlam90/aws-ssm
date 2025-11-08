@@ -13,6 +13,7 @@ var (
 	width           int
 	favorites       bool
 	outputFormat    string
+	configPath      string
 )
 
 var rootCmd = &cobra.Command{
@@ -30,6 +31,7 @@ func Execute() error {
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&region, "region", "r", "", "AWS region (defaults to AWS_REGION env var or default profile region)")
 	rootCmd.PersistentFlags().StringVarP(&profile, "profile", "p", "", "AWS profile to use (defaults to AWS_PROFILE env var or default profile)")
+	rootCmd.PersistentFlags().StringVar(&configPath, "config", "", "Path to config file (defaults to ~/.aws-ssm/config.yaml)")
 
 	// Enhanced interactive flags
 	rootCmd.PersistentFlags().BoolVarP(&interactive, "interactive", "i", false, "Enable enhanced interactive mode with multi-select support")

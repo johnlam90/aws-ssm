@@ -160,6 +160,9 @@ func NewManager(config *Config) *Manager {
 
 // ValidateCommand validates a command for security compliance
 func (sm *Manager) ValidateCommand(command string) error {
+	// Trim leading and trailing whitespace to avoid false negatives with trailing spaces
+	command = strings.TrimSpace(command)
+
 	// Use the standard command validator for basic validation
 	validator := validation.NewCommandValidator()
 	result := validator.Validate(command)
