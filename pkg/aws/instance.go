@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -169,8 +170,9 @@ func (c *Client) ResolveSingleInstance(ctx context.Context, identifier string) (
 
 	if len(instances) > 1 {
 		return nil, &MultipleInstancesError{
-			Identifier: identifier,
-			Instances:  instances,
+			Identifier:       identifier,
+			Instances:        instances,
+			AllowInteractive: true,
 		}
 	}
 
@@ -186,8 +188,9 @@ func (c *Client) ResolveSingleInstance(ctx context.Context, identifier string) (
 
 // MultipleInstancesError is returned when multiple instances match an identifier
 type MultipleInstancesError struct {
-	Identifier string
-	Instances  []Instance
+	Identifier       string
+	Instances        []Instance
+	AllowInteractive bool
 }
 
 func (e *MultipleInstancesError) Error() string {
@@ -196,14 +199,15 @@ func (e *MultipleInstancesError) Error() string {
 
 // FormatInstanceList returns a formatted string listing all matching instances
 func (e *MultipleInstancesError) FormatInstanceList() string {
-	var result string
-	result += fmt.Sprintf("Found %d instances matching '%s':\n\n", len(e.Instances), e.Identifier)
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("Found %d instances matching '%s':\n\n", len(e.Instances), e.Identifier))
 	for i, inst := range e.Instances {
 		name := inst.Name
-		if name == "" {
-			name = "(no name)"
-		}
-		result += fmt.Sprintf("%d. %s - %s [%s] - %s\n", i+1, inst.InstanceID, name, inst.State, inst.PrivateIP)
+		if name == "" { name = "(no name)" }
+		b.WriteString(fmt.Sprintf("%d. %s - %s [%s] - %s\n", i+1, inst.InstanceID, name, inst.State, inst.PrivateIP))
 	}
-	return result
+	if e.AllowInteractive {
+		b.WriteString("\nOpening interactive selector... (Esc to cancel)\n")
+	}
+	return b.String()
 }

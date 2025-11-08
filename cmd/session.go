@@ -105,9 +105,14 @@ func runSession(cmd *cobra.Command, args []string) error {
 
 		resolvedInstance, err := client.ResolveSingleInstance(ctx, identifier)
 		if err != nil {
-			// Check if it's a multiple instances error
-			if multiErr, ok := err.(*aws.MultipleInstancesError); ok {
+			if multiErr, ok := err.(*aws.MultipleInstancesError); ok && multiErr.AllowInteractive {
 				fmt.Print(multiErr.FormatInstanceList())
+				selected, selErr := client.SelectInstanceFromProvided(ctx, multiErr.Instances)
+				if selErr != nil {
+					return fmt.Errorf("instance selection cancelled or failed: %w", selErr)
+				}
+				instance = selected
+				break
 			}
 			return err
 		}
@@ -121,9 +126,14 @@ func runSession(cmd *cobra.Command, args []string) error {
 
 		resolvedInstance, err := client.ResolveSingleInstance(ctx, identifier)
 		if err != nil {
-			// Check if it's a multiple instances error
-			if multiErr, ok := err.(*aws.MultipleInstancesError); ok {
+			if multiErr, ok := err.(*aws.MultipleInstancesError); ok && multiErr.AllowInteractive {
 				fmt.Print(multiErr.FormatInstanceList())
+				selected, selErr := client.SelectInstanceFromProvided(ctx, multiErr.Instances)
+				if selErr != nil {
+					return fmt.Errorf("instance selection cancelled or failed: %w", selErr)
+				}
+				instance = selected
+				break
 			}
 			return err
 		}

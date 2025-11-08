@@ -65,6 +65,51 @@ func (c *Client) SelectInstanceInteractive(ctx context.Context) (*Instance, erro
 	return &instances[idx], nil
 }
 
+// SelectInstanceFromProvided displays an interactive fuzzy finder for a provided instance slice.
+// It does not refetch instances and assumes the slice is non-empty.
+func (c *Client) SelectInstanceFromProvided(ctx context.Context, instances []Instance) (*Instance, error) {
+	if len(instances) == 0 {
+		return nil, fmt.Errorf("no instances provided for interactive selection")
+	}
+
+	// Filter running instances first to reduce noise, but if that empties the list, fall back.
+	running := make([]Instance, 0, len(instances))
+	for _, inst := range instances {
+		if inst.State == "running" {
+			running = append(running, inst)
+		}
+	}
+	if len(running) > 0 {
+		instances = running
+	}
+
+	idx, err := fuzzyfinder.Find(
+		instances,
+		func(i int) string {
+			name := instances[i].Name
+			if name == "" {
+				name = "(no name)"
+			}
+			return fmt.Sprintf("%-30s | %-19s | %-15s | %s",
+				truncate(name, 30),
+				instances[i].InstanceID,
+				instances[i].PrivateIP,
+				instances[i].State,
+			)
+		},
+		fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
+			if i == -1 {
+				return ""
+			}
+			return formatInstancePreview(instances[i])
+		}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &instances[idx], nil
+}
+
 // formatInstancePreview formats instance details for the preview window
 func formatInstancePreview(instance Instance) string {
 	var preview strings.Builder

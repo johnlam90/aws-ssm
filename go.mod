@@ -14,6 +14,11 @@ require (
 	github.com/spf13/cobra v1.10.1
 )
 
+// Force legacy twinj/uuid version expected by session-manager-plugin code path
+replace github.com/twinj/uuid => github.com/twinj/uuid v0.0.0-20151029044442-89173bcdda19
+
+require github.com/twinj/uuid v0.0.0-20151029044442-89173bcdda19 // indirect; legacy uuid required by plugin
+
 require (
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.21 // indirect
@@ -26,7 +31,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.39.1 // indirect
-	github.com/aws/session-manager-plugin v0.0.0-20250205214155-b2b0bcd769d1 // indirect
+	github.com/aws/session-manager-plugin v0.0.0-20221012155945-c523002ee02c // indirect
 	github.com/aws/smithy-go v1.23.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/clipperhouse/stringish v0.1.1 // indirect
@@ -43,14 +48,12 @@ require (
 	github.com/ktr0731/go-ansisgr v0.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mattn/go-runewidth v0.0.19 // indirect
-	github.com/myesui/uuid v1.0.0 // indirect
 	github.com/nsf/termbox-go v1.1.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
-	github.com/twinj/uuid v1.0.0 // indirect
 	github.com/xtaci/smux v1.5.35 // indirect
 	golang.org/x/crypto v0.43.0 // indirect
 	golang.org/x/net v0.46.0 // indirect
@@ -58,6 +61,5 @@ require (
 	golang.org/x/sys v0.37.0 // indirect
 	golang.org/x/term v0.36.0 // indirect
 	golang.org/x/text v0.30.0 // indirect
-	gopkg.in/stretchr/testify.v1 v1.2.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
