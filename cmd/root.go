@@ -5,14 +5,14 @@ import (
 )
 
 var (
-	region           string
-	profile          string
-	interactive      bool
-	interactiveCols  []string
-	noColor          bool
-	width            int
-	favorites        bool
-	outputFormat     string
+	region          string
+	profile         string
+	interactive     bool
+	interactiveCols []string
+	noColor         bool
+	width           int
+	favorites       bool
+	outputFormat    string
 )
 
 var rootCmd = &cobra.Command{
@@ -30,7 +30,7 @@ func Execute() error {
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&region, "region", "r", "", "AWS region (defaults to AWS_REGION env var or default profile region)")
 	rootCmd.PersistentFlags().StringVarP(&profile, "profile", "p", "", "AWS profile to use (defaults to AWS_PROFILE env var or default profile)")
-	
+
 	// Enhanced interactive flags
 	rootCmd.PersistentFlags().BoolVarP(&interactive, "interactive", "i", false, "Enable enhanced interactive mode")
 	rootCmd.PersistentFlags().StringSliceVar(&interactiveCols, "columns", []string{"name", "instance-id", "private-ip", "state"}, "Columns to display in interactive mode")

@@ -34,7 +34,7 @@ func (c *DefaultColorManager) StateColor(state string) string {
 	if c.noColor {
 		return state
 	}
-	
+
 	switch strings.ToLower(state) {
 	case "running":
 		return ColorGreen + state + ColorReset
@@ -56,15 +56,15 @@ func (c *DefaultColorManager) HighlightText(text, query string) string {
 	if c.noColor || query == "" {
 		return text
 	}
-	
+
 	queryLower := strings.ToLower(query)
 	textLower := strings.ToLower(text)
-	
+
 	var result strings.Builder
 	textRunes := []rune(text)
 	textLowerRunes := []rune(textLower)
 	queryRunes := []rune(queryLower)
-	
+
 	i := 0
 	for i < len(textRunes) {
 		// Check if query matches at current position
@@ -76,7 +76,7 @@ func (c *DefaultColorManager) HighlightText(text, query string) string {
 					break
 				}
 			}
-			
+
 			if match {
 				// Highlight the match
 				result.WriteString(ColorCyan)
@@ -86,12 +86,12 @@ func (c *DefaultColorManager) HighlightText(text, query string) string {
 				continue
 			}
 		}
-		
+
 		// No match, add current character
 		result.WriteRune(textRunes[i])
 		i++
 	}
-	
+
 	return result.String()
 }
 
@@ -116,7 +116,7 @@ func (c *DefaultColorManager) StatusColor(status string) string {
 	if c.noColor {
 		return status
 	}
-	
+
 	switch strings.ToLower(status) {
 	case "ok", "passed":
 		return ColorGreen + status + ColorReset

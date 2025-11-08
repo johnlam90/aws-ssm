@@ -3,28 +3,27 @@ package cache
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
 )
 
-// CacheEntry represents a cached item
-type CacheEntry struct {
+// Entry represents a cached item
+type Entry struct {
 	Data      interface{} `json:"data"`
 	Timestamp time.Time   `json:"timestamp"`
 	Region    string      `json:"region"`
 	Query     string      `json:"query"`
 }
 
-// CacheService handles caching of instance data
-type CacheService struct {
+// Service handles caching of instance data
+type Service struct {
 	cacheDir string
 	ttl      time.Duration
 }
 
 // NewCacheService creates a new cache service
-func NewCacheService(cacheDir string, ttlMinutes int) (*CacheService, error) {
+func NewCacheService(cacheDir string, ttlMinutes int) (*Service, error) {
 	if cacheDir == "" {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
@@ -38,17 +37,17 @@ func NewCacheService(cacheDir string, ttlMinutes int) (*CacheService, error) {
 		return nil, fmt.Errorf("failed to create cache directory: %w", err)
 	}
 
-	return &CacheService{
+	return &Service{
 		cacheDir: cacheDir,
 		ttl:      time.Duration(ttlMinutes) * time.Minute,
 	}, nil
 }
 
 // Get retrieves cached data for the given key
-func (c *CacheService) Get(key string) (interface{}, bool) {
+func (c *Service) Get(key string) (interface{}, bool) {
 	cacheFile := filepath.Join(c.cacheDir, key+".json")
-	
-	data, err := ioutil.ReadFile(cacheFile)
+
+	data, err := os.ReadFile(cacheFile)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			// Log error but don't fail
@@ -57,7 +56,7 @@ func (c *CacheService) Get(key string) (interface{}, bool) {
 		return nil, false
 	}
 
-	var entry CacheEntry
+	var entry Entry
 	if err := json.Unmarshal(data, &entry); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to unmarshal cache entry %s: %v\n", cacheFile, err)
 		return nil, false
@@ -65,8 +64,9 @@ func (c *CacheService) Get(key string) (interface{}, bool) {
 
 	// Check if cache entry is expired
 	if time.Since(entry.Timestamp) > c.ttl {
-		// Remove expired cache file
-		os.Remove(cacheFile)
+		// Remove expired cache file (ignore error as it's cleanup)
+		//nolint:errcheck // Cleanup operation, error is not critical
+		_ = os.Remove(cacheFile)
 		return nil, false
 	}
 
@@ -74,10 +74,10 @@ func (c *CacheService) Get(key string) (interface{}, bool) {
 }
 
 // Set stores data in cache with the given key
-func (c *CacheService) Set(key string, data interface{}, region, query string) error {
+func (c *Service) Set(key string, data interface{}, region, query string) error {
 	cacheFile := filepath.Join(c.cacheDir, key+".json")
-	
-	entry := CacheEntry{
+
+	entry := Entry{
 		Data:      data,
 		Timestamp: time.Now(),
 		Region:    region,
@@ -91,7 +91,7 @@ func (c *CacheService) Set(key string, data interface{}, region, query string) e
 
 	// Write to temporary file first, then rename to avoid corruption
 	tempFile := cacheFile + ".tmp"
-	if err := ioutil.WriteFile(tempFile, jsonData, 0644); err != nil {
+	if err := os.WriteFile(tempFile, jsonData, 0644); err != nil {
 		return fmt.Errorf("failed to write cache file: %w", err)
 	}
 
@@ -99,14 +99,14 @@ func (c *CacheService) Set(key string, data interface{}, region, query string) e
 }
 
 // Delete removes cached data for the given key
-func (c *CacheService) Delete(key string) error {
+func (c *Service) Delete(key string) error {
 	cacheFile := filepath.Join(c.cacheDir, key+".json")
 	return os.Remove(cacheFile)
 }
 
 // Clear removes all cache files
-func (c *CacheService) Clear() error {
-	files, err := ioutil.ReadDir(c.cacheDir)
+func (c *Service) Clear() error {
+	files, err := os.ReadDir(c.cacheDir)
 	if err != nil {
 		return fmt.Errorf("failed to read cache directory: %w", err)
 	}
@@ -123,8 +123,8 @@ func (c *CacheService) Clear() error {
 }
 
 // Cleanup removes expired cache files
-func (c *CacheService) Cleanup() error {
-	files, err := ioutil.ReadDir(c.cacheDir)
+func (c *Service) Cleanup() error {
+	files, err := os.ReadDir(c.cacheDir)
 	if err != nil {
 		return fmt.Errorf("failed to read cache directory: %w", err)
 	}
@@ -135,16 +135,17 @@ func (c *CacheService) Cleanup() error {
 		}
 
 		cacheFile := filepath.Join(c.cacheDir, file.Name())
-		data, err := ioutil.ReadFile(cacheFile)
+		data, err := os.ReadFile(cacheFile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to read cache file %s: %v\n", file.Name(), err)
 			continue
 		}
 
-		var entry CacheEntry
+		var entry Entry
 		if err := json.Unmarshal(data, &entry); err != nil {
-			// Invalid cache file, remove it
-			os.Remove(cacheFile)
+			// Invalid cache file, remove it (ignore error as it's cleanup)
+			//nolint:errcheck // Cleanup operation, error is not critical
+			_ = os.Remove(cacheFile)
 			continue
 		}
 
@@ -160,8 +161,8 @@ func (c *CacheService) Cleanup() error {
 }
 
 // GetCacheStats returns cache statistics
-func (c *CacheService) GetCacheStats() (totalFiles, expiredFiles int, totalSize int64, err error) {
-	files, err := ioutil.ReadDir(c.cacheDir)
+func (c *Service) GetCacheStats() (totalFiles, expiredFiles int, totalSize int64, err error) {
+	files, err := os.ReadDir(c.cacheDir)
 	if err != nil {
 		return 0, 0, 0, fmt.Errorf("failed to read cache directory: %w", err)
 	}
@@ -172,15 +173,19 @@ func (c *CacheService) GetCacheStats() (totalFiles, expiredFiles int, totalSize 
 		}
 
 		totalFiles++
-		totalSize += file.Size()
+		info, err := file.Info()
+		if err != nil {
+			continue
+		}
+		totalSize += info.Size()
 
 		cacheFile := filepath.Join(c.cacheDir, file.Name())
-		data, err := ioutil.ReadFile(cacheFile)
+		data, err := os.ReadFile(cacheFile)
 		if err != nil {
 			continue
 		}
 
-		var entry CacheEntry
+		var entry Entry
 		if err := json.Unmarshal(data, &entry); err != nil {
 			continue
 		}

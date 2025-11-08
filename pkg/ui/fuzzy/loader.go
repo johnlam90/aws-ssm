@@ -36,10 +36,7 @@ func NewAWSInstanceLoader(client AWSClientInterface) *AWSInstanceLoader {
 // Returns instances directly for better performance (no channel overhead)
 func (l *AWSInstanceLoader) LoadInstances(ctx context.Context, query *SearchQuery) ([]Instance, error) {
 	// Build AWS filters from search query
-	awsFilters, err := l.buildAWSFilters(query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build AWS filters: %w", err)
-	}
+	awsFilters := l.buildAWSFilters(query)
 
 	// Use describeInstances to get instances
 	instances, err := l.describeInstances(ctx, awsFilters)
@@ -152,7 +149,7 @@ func (l *AWSInstanceLoader) GetCurrentRegion() string {
 }
 
 // buildAWSFilters converts search query to AWS EC2 filters
-func (l *AWSInstanceLoader) buildAWSFilters(query *SearchQuery) ([]types.Filter, error) {
+func (l *AWSInstanceLoader) buildAWSFilters(query *SearchQuery) []types.Filter {
 	var filters []types.Filter
 
 	// Add exact filters
@@ -231,7 +228,7 @@ func (l *AWSInstanceLoader) buildAWSFilters(query *SearchQuery) ([]types.Filter,
 		}
 	}
 
-	return filters, nil
+	return filters
 }
 
 // containsWildcard checks if a string contains wildcard characters

@@ -18,14 +18,14 @@ func TestParseSearchQuery(t *testing.T) {
 				Terms:           []string{},
 				Filters:         make(map[string]string),
 				TagFilters:      make(map[string]string),
-				NegativeFilters:  []string{},
+				NegativeFilters: []string{},
 				IPFilters:       []string{},
 				DNSFilters:      []string{},
 				StateFilter:     "",
 				TypeFilter:      "",
 				AZFilter:        "",
-				HasTags:        []string{},
-				MissingTags:    []string{},
+				HasTags:         []string{},
+				MissingTags:     []string{},
 			},
 		},
 		{
@@ -36,14 +36,14 @@ func TestParseSearchQuery(t *testing.T) {
 				Terms:           []string{"web-server"},
 				Filters:         make(map[string]string),
 				TagFilters:      make(map[string]string),
-				NegativeFilters:  []string{},
+				NegativeFilters: []string{},
 				IPFilters:       []string{},
 				DNSFilters:      []string{},
 				StateFilter:     "",
 				TypeFilter:      "",
 				AZFilter:        "",
-				HasTags:        []string{},
-				MissingTags:    []string{},
+				HasTags:         []string{},
+				MissingTags:     []string{},
 			},
 		},
 		{
@@ -54,14 +54,14 @@ func TestParseSearchQuery(t *testing.T) {
 				Terms:           []string{},
 				Filters:         map[string]string{"name": "web"},
 				TagFilters:      make(map[string]string),
-				NegativeFilters:  []string{},
+				NegativeFilters: []string{},
 				IPFilters:       []string{},
 				DNSFilters:      []string{},
 				StateFilter:     "",
 				TypeFilter:      "",
 				AZFilter:        "",
-				HasTags:        []string{},
-				MissingTags:    []string{},
+				HasTags:         []string{},
+				MissingTags:     []string{},
 			},
 		},
 		{
@@ -72,14 +72,14 @@ func TestParseSearchQuery(t *testing.T) {
 				Terms:           []string{},
 				Filters:         map[string]string{"name": "web"},
 				TagFilters:      map[string]string{"Env": "prod"},
-				NegativeFilters:  []string{},
+				NegativeFilters: []string{},
 				IPFilters:       []string{},
 				DNSFilters:      []string{},
 				StateFilter:     "running",
 				TypeFilter:      "",
 				AZFilter:        "",
-				HasTags:        []string{},
-				MissingTags:    []string{},
+				HasTags:         []string{},
+				MissingTags:     []string{},
 			},
 		},
 		{
@@ -90,14 +90,14 @@ func TestParseSearchQuery(t *testing.T) {
 				Terms:           []string{},
 				Filters:         make(map[string]string),
 				TagFilters:      make(map[string]string),
-				NegativeFilters:  []string{"Env=dev"},
+				NegativeFilters: []string{"Env=dev"},
 				IPFilters:       []string{},
 				DNSFilters:      []string{},
 				StateFilter:     "",
 				TypeFilter:      "",
 				AZFilter:        "",
-				HasTags:        []string{},
-				MissingTags:    []string{},
+				HasTags:         []string{},
+				MissingTags:     []string{},
 			},
 		},
 	}
@@ -105,15 +105,15 @@ func TestParseSearchQuery(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ParseSearchQuery(tt.input)
-			
+
 			if result.Raw != tt.expected.Raw {
 				t.Errorf("Raw = %v, want %v", result.Raw, tt.expected.Raw)
 			}
-			
+
 			if len(result.Terms) != len(tt.expected.Terms) {
 				t.Errorf("Terms length = %v, want %v", len(result.Terms), len(tt.expected.Terms))
 			}
-			
+
 			if result.StateFilter != tt.expected.StateFilter {
 				t.Errorf("StateFilter = %v, want %v", result.StateFilter, tt.expected.StateFilter)
 			}
@@ -131,10 +131,10 @@ func TestInstanceMatchesQuery(t *testing.T) {
 		InstanceType:     "t3.medium",
 		AvailabilityZone: "us-east-1a",
 		Tags: map[string]string{
-			"Name":     "web-server",
-			"Env":      "production",
-			"Team":     "backend",
-			"Version":  "v1.2.3",
+			"Name":    "web-server",
+			"Env":     "production",
+			"Team":    "backend",
+			"Version": "v1.2.3",
 		},
 	}
 
@@ -213,15 +213,15 @@ func TestInstanceMatchesQuery(t *testing.T) {
 
 func TestCalculateScore(t *testing.T) {
 	instance := Instance{
-		InstanceID:       "i-1234567890abcdef0",
-		Name:             "web-server",
-		State:            "running",
-		PrivateIP:        "10.0.1.100",
-		PublicIP:         "54.210.123.45",
+		InstanceID: "i-1234567890abcdef0",
+		Name:       "web-server",
+		State:      "running",
+		PrivateIP:  "10.0.1.100",
+		PublicIP:   "54.210.123.45",
 		Tags: map[string]string{
-			"Name":     "web-server",
-			"Env":      "production",
-			"Team":     "backend",
+			"Name": "web-server",
+			"Env":  "production",
+			"Team": "backend",
 		},
 	}
 

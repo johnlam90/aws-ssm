@@ -27,10 +27,11 @@ func ParseSearchQuery(raw string) *SearchQuery {
 	parts := parseQuotedStrings(query.Raw)
 
 	for _, part := range parts {
-		if strings.HasPrefix(part, "!") {
+		switch {
+		case strings.HasPrefix(part, "!"):
 			// Negative filter
 			query.NegativeFilters = append(query.NegativeFilters, part[1:])
-		} else if strings.Contains(part, ":") {
+		case strings.Contains(part, ":"):
 			// Structured filter
 			key, value := splitKeyValue(part)
 			switch key {
@@ -57,7 +58,7 @@ func ParseSearchQuery(raw string) *SearchQuery {
 			case "missing":
 				query.MissingTags = append(query.MissingTags, value)
 			}
-		} else {
+		default:
 			// Fuzzy search term
 			query.Terms = append(query.Terms, part)
 		}
@@ -244,14 +245,14 @@ func (i *Instance) matchesFuzzyTerms(terms []string) bool {
 	if len(terms) == 0 {
 		return true // No terms means everything matches
 	}
-	
+
 	for _, term := range terms {
 		termLower := strings.ToLower(term)
 		matched := strings.Contains(strings.ToLower(i.Name), termLower) ||
 			strings.Contains(strings.ToLower(i.InstanceID), termLower) ||
 			strings.Contains(strings.ToLower(i.PrivateIP), termLower) ||
 			strings.Contains(strings.ToLower(i.PublicIP), termLower)
-		
+
 		// Check tags
 		if !matched {
 			for _, tagValue := range i.Tags {
@@ -261,7 +262,7 @@ func (i *Instance) matchesFuzzyTerms(terms []string) bool {
 				}
 			}
 		}
-		
+
 		if !matched {
 			return false // All terms must match
 		}
@@ -274,7 +275,11 @@ func matchesPattern(str, pattern string) bool {
 	// Convert wildcard pattern to regex
 	regexPattern := strings.ReplaceAll(regexp.QuoteMeta(pattern), "\\*", ".*")
 	regexPattern = "^" + regexPattern + "$"
-	matched, _ := regexp.MatchString(regexPattern, str)
+	matched, err := regexp.MatchString(regexPattern, str)
+	if err != nil {
+		// If regex is invalid, fall back to exact match
+		return str == pattern
+	}
 	return matched
 }
 
@@ -285,17 +290,17 @@ func (i *Instance) CalculateScore(query *SearchQuery, weights WeightConfig) floa
 	// Score based on fuzzy terms
 	for _, term := range query.Terms {
 		termLower := strings.ToLower(term)
-		
+
 		// Name matches
 		if strings.Contains(strings.ToLower(i.Name), termLower) {
 			score += float64(weights.Name)
 		}
-		
+
 		// Instance ID matches
 		if strings.Contains(strings.ToLower(i.InstanceID), termLower) {
 			score += float64(weights.InstanceID)
 		}
-		
+
 		// Tag matches
 		for _, tagValue := range i.Tags {
 			if strings.Contains(strings.ToLower(tagValue), termLower) {
@@ -303,16 +308,16 @@ func (i *Instance) CalculateScore(query *SearchQuery, weights WeightConfig) floa
 				break
 			}
 		}
-		
+
 		// IP matches
 		if strings.Contains(strings.ToLower(i.PrivateIP), termLower) ||
-		   strings.Contains(strings.ToLower(i.PublicIP), termLower) {
+			strings.Contains(strings.ToLower(i.PublicIP), termLower) {
 			score += float64(weights.IP)
 		}
-		
+
 		// DNS matches
 		if strings.Contains(strings.ToLower(i.PrivateDNS), termLower) ||
-		   strings.Contains(strings.ToLower(i.PublicDNS), termLower) {
+			strings.Contains(strings.ToLower(i.PublicDNS), termLower) {
 			score += float64(weights.DNS)
 		}
 	}
@@ -321,7 +326,7 @@ func (i *Instance) CalculateScore(query *SearchQuery, weights WeightConfig) floa
 	if name, ok := query.Filters["name"]; ok && strings.EqualFold(i.Name, name) {
 		score += float64(weights.Name * 2) // Double bonus for exact match
 	}
-	
+
 	if id, ok := query.Filters["instance-id"]; ok && strings.EqualFold(i.InstanceID, id) {
 		score += float64(weights.InstanceID * 2)
 	}

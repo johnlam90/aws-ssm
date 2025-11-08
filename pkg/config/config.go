@@ -119,7 +119,7 @@ func LoadConfig(configPath string) (*Config, error) {
 	}
 
 	// Load configuration from file if it exists
-	if _, err := os.Stat(configPath); err == nil {
+	if _, statErr := os.Stat(configPath); statErr == nil {
 		data, err := os.ReadFile(configPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read config file: %w", err)
@@ -128,13 +128,16 @@ func LoadConfig(configPath string) (*Config, error) {
 		if err := yaml.Unmarshal(data, config); err != nil {
 			return nil, fmt.Errorf("failed to parse config file: %w", err)
 		}
-	} else if !os.IsNotExist(err) {
-		return nil, fmt.Errorf("failed to access config file: %w", err)
+	} else if !os.IsNotExist(statErr) {
+		return nil, fmt.Errorf("failed to access config file: %w", statErr)
 	}
 
 	// Set default paths if not specified (call UserHomeDir once for efficiency)
 	if config.Bookmarks.File == "" || config.Cache.CacheDir == "" || config.Plugins.Dir == "" {
-		homeDir, _ := os.UserHomeDir()
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user home directory: %w", err)
+		}
 
 		if config.Bookmarks.File == "" {
 			config.Bookmarks.File = filepath.Join(homeDir, ".aws-ssm", "favorites.json")

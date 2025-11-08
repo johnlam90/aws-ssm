@@ -41,13 +41,14 @@ type SearchQuery struct {
 // SortField represents different sorting options
 type SortField int
 
+// Sort field constants
 const (
-	SortByName SortField = iota
-	SortByAZ
-	SortByType
-	SortByLaunchTime
-	SortByState
-	SortByID
+	SortByName       SortField = iota // SortByName sorts instances by name
+	SortByAZ                          // SortByAZ sorts instances by availability zone
+	SortByType                        // SortByType sorts instances by instance type
+	SortByLaunchTime                  // SortByLaunchTime sorts instances by launch time
+	SortByState                       // SortByState sorts instances by state
+	SortByID                          // SortByID sorts instances by instance ID
 )
 
 // String returns string representation of SortField
@@ -73,9 +74,10 @@ func (sf SortField) String() string {
 // SortDirection represents sorting direction
 type SortDirection int
 
+// Sort direction constants
 const (
-	SortAsc SortDirection = iota
-	SortDesc
+	SortAsc  SortDirection = iota // SortAsc sorts in ascending order
+	SortDesc                      // SortDesc sorts in descending order
 )
 
 // ColumnConfig represents column display configuration

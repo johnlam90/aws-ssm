@@ -11,12 +11,12 @@ import (
 
 // EnhancedFinder represents the enhanced fuzzy finder
 type EnhancedFinder struct {
-	state     *StateManager
-	loader    InstanceLoader
-	renderer  PreviewRenderer
-	colors    ColorManager
-	bookmarks []Bookmark
-	config    Config
+	state    *StateManager
+	loader   InstanceLoader
+	renderer PreviewRenderer
+	colors   ColorManager
+	config   Config
+	helpText string // Cached help text to avoid rebuilding every frame
 }
 
 // NewEnhancedFinder creates a new enhanced fuzzy finder
@@ -32,12 +32,33 @@ func NewEnhancedFinder(loader InstanceLoader, config Config) *EnhancedFinder {
 		QueryHistory:  []string{},
 	}
 
+	// Build help text once during initialization
+	help := []string{
+		colors.HeaderColor("AWS SSM Instance Selector"),
+		"",
+		colors.BoldColor("Navigation:"),
+		"  ↑↓       - Navigate up/down",
+		"  Enter    - Select instance and connect",
+		"  Esc      - Cancel and exit",
+		"",
+		colors.BoldColor("Search:"),
+		"  Type to filter instances by name, ID, IP, or tags",
+		"",
+		colors.BoldColor("Advanced Search (not yet implemented):"),
+		"  name:web      - Filter by name",
+		"  id:i-123      - Filter by instance ID",
+		"  state:running - Filter by state",
+		"  tag:Env=prod  - Filter by tags",
+		"",
+	}
+
 	return &EnhancedFinder{
 		state:    state,
 		loader:   loader,
 		renderer: renderer,
 		colors:   colors,
 		config:   config,
+		helpText: strings.Join(help, "\n"),
 	}
 }
 
@@ -76,7 +97,7 @@ func (f *EnhancedFinder) SelectInstanceInteractive(ctx context.Context) ([]Insta
 
 	if err != nil {
 		if err == fuzzyfinder.ErrAbort {
-			return nil, nil
+			return []Instance{}, nil
 		}
 		return nil, err
 	}
@@ -122,15 +143,16 @@ func (f *EnhancedFinder) formatInstanceRow(instance Instance) string {
 	)
 }
 
-// truncateString truncates a string to the specified length
+// truncateString truncates a string to the specified length (rune-aware to handle UTF-8)
 func (f *EnhancedFinder) truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
 		return s
 	}
 	if maxLen <= 3 {
-		return s[:maxLen]
+		return string(runes[:maxLen])
 	}
-	return s[:maxLen-3] + "..."
+	return string(runes[:maxLen-3]) + "..."
 }
 
 // formatPrompt formats the search prompt
@@ -155,46 +177,51 @@ func (f *EnhancedFinder) formatPrompt() string {
 	return strings.Join(parts, " • ") + " "
 }
 
-// formatHelp formats the help text
+// formatHelp returns the cached help text
 func (f *EnhancedFinder) formatHelp() string {
-	help := []string{
-		f.colors.HeaderColor("AWS SSM Instance Selector"),
-		"",
-		f.colors.BoldColor("Navigation:"),
-		"  ↑↓       - Navigate up/down",
-		"  Enter    - Select instance and connect",
-		"  Esc      - Cancel and exit",
-		"",
-		f.colors.BoldColor("Search:"),
-		"  Type to filter instances by name, ID, IP, or tags",
-		"",
-		f.colors.BoldColor("Advanced Search (not yet implemented):"),
-		"  name:web      - Filter by name",
-		"  id:i-123      - Filter by instance ID",
-		"  state:running - Filter by state",
-		"  tag:Env=prod  - Filter by tags",
-		"",
-	}
-
-	return strings.Join(help, "\n")
+	return f.helpText
 }
 
 // sortInstances sorts the instances based on current sort field and direction
+// Uses instance ID as a tiebreaker for stable, deterministic sorting
 func (f *EnhancedFinder) sortInstances() {
 	sort.Slice(f.state.Filtered, func(i, j int) bool {
 		var result bool
 
 		switch f.state.SortField {
 		case SortByName:
-			result = strings.ToLower(f.state.Filtered[i].Name) < strings.ToLower(f.state.Filtered[j].Name)
+			nameI := strings.ToLower(f.state.Filtered[i].Name)
+			nameJ := strings.ToLower(f.state.Filtered[j].Name)
+			if nameI != nameJ {
+				result = nameI < nameJ
+			} else {
+				// Tiebreaker: use instance ID for stable sort
+				result = f.state.Filtered[i].InstanceID < f.state.Filtered[j].InstanceID
+			}
 		case SortByAZ:
-			result = f.state.Filtered[i].AvailabilityZone < f.state.Filtered[j].AvailabilityZone
+			if f.state.Filtered[i].AvailabilityZone != f.state.Filtered[j].AvailabilityZone {
+				result = f.state.Filtered[i].AvailabilityZone < f.state.Filtered[j].AvailabilityZone
+			} else {
+				result = f.state.Filtered[i].InstanceID < f.state.Filtered[j].InstanceID
+			}
 		case SortByType:
-			result = f.state.Filtered[i].InstanceType < f.state.Filtered[j].InstanceType
+			if f.state.Filtered[i].InstanceType != f.state.Filtered[j].InstanceType {
+				result = f.state.Filtered[i].InstanceType < f.state.Filtered[j].InstanceType
+			} else {
+				result = f.state.Filtered[i].InstanceID < f.state.Filtered[j].InstanceID
+			}
 		case SortByLaunchTime:
-			result = f.state.Filtered[i].LaunchTime.Before(f.state.Filtered[j].LaunchTime)
+			if !f.state.Filtered[i].LaunchTime.Equal(f.state.Filtered[j].LaunchTime) {
+				result = f.state.Filtered[i].LaunchTime.Before(f.state.Filtered[j].LaunchTime)
+			} else {
+				result = f.state.Filtered[i].InstanceID < f.state.Filtered[j].InstanceID
+			}
 		case SortByState:
-			result = f.state.Filtered[i].State < f.state.Filtered[j].State
+			if f.state.Filtered[i].State != f.state.Filtered[j].State {
+				result = f.state.Filtered[i].State < f.state.Filtered[j].State
+			} else {
+				result = f.state.Filtered[i].InstanceID < f.state.Filtered[j].InstanceID
+			}
 		case SortByID:
 			result = f.state.Filtered[i].InstanceID < f.state.Filtered[j].InstanceID
 		}

@@ -203,7 +203,9 @@ func (e *MultipleInstancesError) FormatInstanceList() string {
 	b.WriteString(fmt.Sprintf("Found %d instances matching '%s':\n\n", len(e.Instances), e.Identifier))
 	for i, inst := range e.Instances {
 		name := inst.Name
-		if name == "" { name = "(no name)" }
+		if name == "" {
+			name = "(no name)"
+		}
 		b.WriteString(fmt.Sprintf("%d. %s - %s [%s] - %s\n", i+1, inst.InstanceID, name, inst.State, inst.PrivateIP))
 	}
 	if e.AllowInteractive {
