@@ -89,13 +89,29 @@ func runSession(cmd *cobra.Command, args []string) error {
 	switch len(args) {
 	case 0:
 		// No arguments - use interactive fuzzy finder
-		fmt.Println("Opening interactive instance selector...")
-		fmt.Println("(Use arrow keys to navigate, type to filter, Enter to select, Esc to cancel)")
-		fmt.Println()
+		if interactive {
+			fmt.Println("Opening enhanced interactive instance selector...")
+			fmt.Println("(Use arrow keys to navigate, type to filter, Space to multi-select, Enter to confirm)")
+			fmt.Println()
+		} else {
+			fmt.Println("Opening interactive instance selector...")
+			fmt.Println("(Use arrow keys to navigate, type to filter, Enter to select, Esc to cancel)")
+			fmt.Println()
+		}
 
 		selectedInstance, err := client.SelectInstanceInteractive(ctx)
 		if err != nil {
+			// Check if it's a context cancellation (Ctrl+C)
+			if err == context.Canceled {
+				fmt.Println("\nSelection cancelled.")
+				return nil
+			}
 			return fmt.Errorf("failed to select instance: %w", err)
+		}
+		if selectedInstance == nil {
+			// User cancelled the selection (Esc)
+			fmt.Println("\nNo instance selected.")
+			return nil
 		}
 		instance = selectedInstance
 	case 1:
@@ -109,7 +125,17 @@ func runSession(cmd *cobra.Command, args []string) error {
 				fmt.Print(multiErr.FormatInstanceList())
 				selected, selErr := client.SelectInstanceFromProvided(ctx, multiErr.Instances)
 				if selErr != nil {
+					// Check if it's a context cancellation (Ctrl+C)
+					if selErr == context.Canceled {
+						fmt.Println("\nSelection cancelled.")
+						return nil
+					}
 					return fmt.Errorf("instance selection cancelled or failed: %w", selErr)
+				}
+				if selected == nil {
+					// User cancelled the selection (Esc)
+					fmt.Println("\nNo instance selected.")
+					return nil
 				}
 				instance = selected
 				break
@@ -130,7 +156,17 @@ func runSession(cmd *cobra.Command, args []string) error {
 				fmt.Print(multiErr.FormatInstanceList())
 				selected, selErr := client.SelectInstanceFromProvided(ctx, multiErr.Instances)
 				if selErr != nil {
+					// Check if it's a context cancellation (Ctrl+C)
+					if selErr == context.Canceled {
+						fmt.Println("\nSelection cancelled.")
+						return nil
+					}
 					return fmt.Errorf("instance selection cancelled or failed: %w", selErr)
+				}
+				if selected == nil {
+					// User cancelled the selection (Esc)
+					fmt.Println("\nNo instance selected.")
+					return nil
 				}
 				instance = selected
 				break

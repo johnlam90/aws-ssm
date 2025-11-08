@@ -78,7 +78,7 @@ func runPortForward(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create AWS client: %w", err)
 	}
 
-    // Resolve instance with interactive fallback
+	// Resolve instance with interactive fallback
 	fmt.Printf("Searching for instance: %s\n", identifier)
 	instance, err := client.ResolveSingleInstance(ctx, identifier)
 	if err != nil {
@@ -86,7 +86,17 @@ func runPortForward(cmd *cobra.Command, args []string) error {
 			fmt.Print(multiErr.FormatInstanceList())
 			selected, selErr := client.SelectInstanceFromProvided(ctx, multiErr.Instances)
 			if selErr != nil {
+				// Check if user cancelled (Ctrl+C)
+				if selErr == context.Canceled {
+					fmt.Println("\nSelection cancelled.")
+					return nil
+				}
 				return fmt.Errorf("instance selection cancelled or failed: %w", selErr)
+			}
+			// Check if user cancelled (Esc) - returns nil instance with nil error
+			if selected == nil {
+				fmt.Println("\nSelection cancelled.")
+				return nil
 			}
 			instance = selected
 		} else {

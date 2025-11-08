@@ -96,7 +96,18 @@ func runInterfaces(cmd *cobra.Command, args []string) error {
 
 		selectedInstance, err := client.SelectInstanceInteractive(ctx)
 		if err != nil {
+			// Check if user cancelled (Ctrl+C)
+			if err == context.Canceled {
+				fmt.Println("\nSelection cancelled.")
+				return nil
+			}
 			return fmt.Errorf("failed to select instance: %w", err)
+		}
+
+		// Check if user cancelled (Esc) - returns nil instance with nil error
+		if selectedInstance == nil {
+			fmt.Println("\nSelection cancelled.")
+			return nil
 		}
 
 		// Use the selected instance ID as identifier
