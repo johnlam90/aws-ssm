@@ -145,7 +145,7 @@ func (f *EnhancedFinder) formatPrompt() string {
 		parts = append(parts, fmt.Sprintf("Query: %s", f.state.Query.Raw))
 	}
 
-	parts = append(parts, fmt.Sprintf("%d instances", len(f.state.Filtered)))
+	// Removed instance count since it's already shown in the counter (e.g., "12/12")
 
 	if f.state.SortField != SortByName {
 		parts = append(parts, fmt.Sprintf("Sort: %s", f.state.SortField))
