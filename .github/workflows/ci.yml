@@ -2,9 +2,21 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [
+      main,
+      develop,
+      'hardening',
+      'feature/**',
+      'release/**'
+    ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [
+      main,
+      develop,
+      'hardening',
+      'feature/**',
+      'release/**'
+    ]
 
 env:
   GO_VERSION: '1.24'
