@@ -200,4 +200,3 @@ func TestIdentifierTypeString(t *testing.T) {
 		})
 	}
 }
-
