@@ -200,7 +200,14 @@ func (h *Histogram) Observe(value float64) {
 		}
 	}
 
-	h.logger.Debug("Histogram observation", logging.String("name", h.name), logging.Float64("value", value), logging.Int64("count", int64(h.count)))
+	// Safely convert uint64 to int64 to avoid overflow
+	var count int64
+	if h.count > 9223372036854775807 { // max int64
+		count = 9223372036854775807
+	} else {
+		count = int64(h.count)
+	}
+	h.logger.Debug("Histogram observation", logging.String("name", h.name), logging.Float64("value", value), logging.Int64("count", count))
 }
 
 // GetCount returns the number of observations

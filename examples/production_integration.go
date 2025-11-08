@@ -41,7 +41,7 @@ func main() {
 	metricsService.Start()
 
 	// 4. Initialize health checks
-	healthChecker := health.NewDefaultHealthChecker(
+	healthChecker := health.NewDefaultChecker(
 		// AWS connectivity test
 		func(ctx context.Context) error {
 			// Simulate AWS API call
@@ -68,9 +68,9 @@ func main() {
 
 func runExampleSession(
 	logger logging.Logger,
-	securityManager *security.SecurityManager,
+	securityManager *security.Manager,
 	metricsService *metrics.Service,
-	healthChecker *health.HealthChecker,
+	healthChecker *health.Checker,
 	testFramework *testframework.TestFramework,
 ) {
 	logger.Info("Running example production session")
@@ -118,7 +118,7 @@ func runExampleSession(
 	logger.Info("Input validated successfully", logging.Any("fields", result.Fields))
 
 	// Demonstrate security event handling
-	eventHandler := security.NewSecurityEventHandler()
+	eventHandler := security.NewEventHandler()
 	event := security.CreateSecurityEvent(
 		"session_start",
 		"info",
@@ -233,7 +233,7 @@ func runExampleSession(
 	}
 
 	// Create comprehensive production configuration
-	productionConfig := &security.SecurityConfig{
+	productionConfig := &security.Config{
 		Level:                    security.SecurityHigh,
 		CommandTimeout:           300 * time.Second,
 		MaxCommandLength:         512,

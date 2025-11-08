@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -120,7 +121,12 @@ func LoadConfig(configPath string) (*Config, error) {
 
 	// Load configuration from file if it exists
 	if _, statErr := os.Stat(configPath); statErr == nil {
-		data, err := os.ReadFile(configPath)
+		// Validate and clean the path to prevent directory traversal
+		cleanPath := filepath.Clean(configPath)
+		if strings.Contains(cleanPath, "..") {
+			return nil, fmt.Errorf("invalid config path: contains directory traversal")
+		}
+		data, err := os.ReadFile(cleanPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read config file: %w", err)
 		}
@@ -164,8 +170,8 @@ func SaveConfig(config *Config, configPath string) error {
 		}
 		configPath = filepath.Join(homeDir, ".aws-ssm", "config.yaml")
 
-		// Ensure config directory exists
-		if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		// Ensure config directory exists with restricted permissions
+		if err := os.MkdirAll(filepath.Dir(configPath), 0700); err != nil {
 			return fmt.Errorf("failed to create config directory: %w", err)
 		}
 	}
@@ -175,5 +181,5 @@ func SaveConfig(config *Config, configPath string) error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	return os.WriteFile(configPath, data, 0644)
+	return os.WriteFile(configPath, data, 0600)
 }

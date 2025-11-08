@@ -46,6 +46,11 @@ func (c *Client) StartSession(ctx context.Context, instanceID string) error {
 	// Get region from config
 	region := c.Config.Region
 
+	// Validate region to prevent command injection
+	if !isValidAWSRegion(region) {
+		return fmt.Errorf("invalid AWS region: %s", region)
+	}
+
 	// Prepare parameters for session-manager-plugin
 	params := map[string]interface{}{
 		"Target": instanceID,
@@ -56,6 +61,7 @@ func (c *Client) StartSession(ctx context.Context, instanceID string) error {
 	}
 
 	// Execute session-manager-plugin
+	// #nosec G204 - region is validated above to prevent command injection
 	cmd := exec.Command(
 		"session-manager-plugin",
 		string(sessionJSON),
@@ -107,4 +113,22 @@ func checkSessionManagerPlugin() error {
 		return fmt.Errorf("session-manager-plugin not found in PATH. Please install it from: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html")
 	}
 	return nil
+}
+
+// isValidAWSRegion validates that a region string is a valid AWS region format
+func isValidAWSRegion(region string) bool {
+	// AWS regions follow the pattern: [a-z]{2}-[a-z]+-\d
+	// Examples: us-east-1, eu-west-1, ap-southeast-2
+	if len(region) < 5 || len(region) > 20 {
+		return false
+	}
+
+	// Check that region only contains lowercase letters, hyphens, and digits
+	for _, ch := range region {
+		if !((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-') {
+			return false
+		}
+	}
+
+	return true
 }

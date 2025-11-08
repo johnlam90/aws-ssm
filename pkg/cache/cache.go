@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -32,8 +33,8 @@ func NewCacheService(cacheDir string, ttlMinutes int) (*Service, error) {
 		cacheDir = filepath.Join(homeDir, ".aws-ssm", "cache")
 	}
 
-	// Ensure cache directory exists
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+	// Ensure cache directory exists with restricted permissions
+	if err := os.MkdirAll(cacheDir, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create cache directory: %w", err)
 	}
 
@@ -46,8 +47,13 @@ func NewCacheService(cacheDir string, ttlMinutes int) (*Service, error) {
 // Get retrieves cached data for the given key
 func (c *Service) Get(key string) (interface{}, bool) {
 	cacheFile := filepath.Join(c.cacheDir, key+".json")
+	// Validate path to prevent directory traversal
+	cleanPath := filepath.Clean(cacheFile)
+	if !strings.HasPrefix(cleanPath, filepath.Clean(c.cacheDir)) {
+		return nil, false
+	}
 
-	data, err := os.ReadFile(cacheFile)
+	data, err := os.ReadFile(cleanPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			// Log error but don't fail
@@ -91,7 +97,7 @@ func (c *Service) Set(key string, data interface{}, region, query string) error 
 
 	// Write to temporary file first, then rename to avoid corruption
 	tempFile := cacheFile + ".tmp"
-	if err := os.WriteFile(tempFile, jsonData, 0644); err != nil {
+	if err := os.WriteFile(tempFile, jsonData, 0600); err != nil {
 		return fmt.Errorf("failed to write cache file: %w", err)
 	}
 
@@ -135,7 +141,13 @@ func (c *Service) Cleanup() error {
 		}
 
 		cacheFile := filepath.Join(c.cacheDir, file.Name())
-		data, err := os.ReadFile(cacheFile)
+		// Validate path to prevent directory traversal
+		cleanPath := filepath.Clean(cacheFile)
+		if !strings.HasPrefix(cleanPath, filepath.Clean(c.cacheDir)) {
+			fmt.Fprintf(os.Stderr, "Warning: invalid cache file path %s\n", file.Name())
+			continue
+		}
+		data, err := os.ReadFile(cleanPath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to read cache file %s: %v\n", file.Name(), err)
 			continue
@@ -180,7 +192,12 @@ func (c *Service) GetCacheStats() (totalFiles, expiredFiles int, totalSize int64
 		totalSize += info.Size()
 
 		cacheFile := filepath.Join(c.cacheDir, file.Name())
-		data, err := os.ReadFile(cacheFile)
+		// Validate path to prevent directory traversal
+		cleanPath := filepath.Clean(cacheFile)
+		if !strings.HasPrefix(cleanPath, filepath.Clean(c.cacheDir)) {
+			continue
+		}
+		data, err := os.ReadFile(cleanPath)
 		if err != nil {
 			continue
 		}

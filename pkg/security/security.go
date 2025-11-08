@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -404,6 +405,11 @@ func NewTLSConfig(certPath, keyPath string, caPath string) (*TLSConfig, error) {
 	// Load CA certificate
 	var certPool *x509.CertPool
 	if caPath != "" {
+		// Validate and clean the path to prevent directory traversal
+		caPath = filepath.Clean(caPath)
+		if strings.Contains(caPath, "..") {
+			return nil, fmt.Errorf("invalid CA certificate path: contains directory traversal")
+		}
 		caCert, err := os.ReadFile(caPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read CA certificate: %w", err)

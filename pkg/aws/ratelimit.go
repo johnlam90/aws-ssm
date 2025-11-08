@@ -2,9 +2,10 @@ package aws
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"math"
-	"math/rand"
+	"math/big"
 	"sync"
 	"time"
 
@@ -149,7 +150,14 @@ func (cfg *RetryConfig) CalculateDelay(attempt int) time.Duration {
 	if cfg.Jitter {
 		// Add ±25% jitter
 		jitterRange := int64(delay / 4)
-		randomJitter := rand.Int63n(jitterRange*2) - jitterRange
+		// Use crypto/rand for secure random number generation
+		maxJitter := big.NewInt(jitterRange * 2)
+		randomBig, err := rand.Int(rand.Reader, maxJitter)
+		if err != nil {
+			// If crypto/rand fails, use a smaller jitter
+			randomBig = big.NewInt(0)
+		}
+		randomJitter := randomBig.Int64() - jitterRange
 		delay += time.Duration(randomJitter)
 	}
 
