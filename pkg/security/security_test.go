@@ -308,3 +308,66 @@ func TestBlockedPatternsExtended(t *testing.T) {
 		})
 	}
 }
+
+// TestSuspiciousPatternsNonBlocking tests that benign complex commands with suspicious patterns
+// are not blocked, ensuring the security system doesn't over-restrict legitimate operations
+func TestSuspiciousPatternsNonBlocking(t *testing.T) {
+	config := DefaultConfig()
+	manager := NewManager(config)
+
+	tests := []struct {
+		name        string
+		command     string
+		description string
+	}{
+		{
+			name:        "curl with pipe to grep",
+			command:     "curl https://example.com | grep 'pattern'",
+			description: "Should allow curl with pipe to grep (legitimate data processing)",
+		},
+		{
+			name:        "find with command substitution",
+			command:     "find /tmp -name '*.log' -exec rm {} \\;",
+			description: "Should allow find with exec (legitimate cleanup in /tmp)",
+		},
+		{
+			name:        "echo with variable expansion",
+			command:     "echo $HOME",
+			description: "Should allow echo with variable expansion (legitimate shell usage)",
+		},
+		{
+			name:        "grep with regex",
+			command:     "grep -E '^[a-z]+$' /var/log/syslog",
+			description: "Should allow grep with regex (legitimate log analysis)",
+		},
+		{
+			name:        "sed with backreferences",
+			command:     "sed 's/\\([0-9]\\+\\)/[\\1]/g' file.txt",
+			description: "Should allow sed with backreferences (legitimate text processing)",
+		},
+		{
+			name:        "awk with complex expression",
+			command:     "awk '{print $1, $NF}' data.txt",
+			description: "Should allow awk with field references (legitimate data extraction)",
+		},
+		{
+			name:        "ls with pipe to wc",
+			command:     "ls -la /home | wc -l",
+			description: "Should allow ls with pipe to wc (legitimate counting)",
+		},
+		{
+			name:        "cat with multiple files",
+			command:     "cat file1.txt file2.txt | sort",
+			description: "Should allow cat with pipe to sort (legitimate file processing)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := manager.validatePatterns(tt.command)
+			if err != nil {
+				t.Errorf("%s: expected no error but got: %v", tt.description, err)
+			}
+		})
+	}
+}

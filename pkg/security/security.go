@@ -71,19 +71,9 @@ func DefaultConfig() *Config {
 			"curl", "wget", "ping", "ssh", "scp",
 		},
 		BlockedPatterns: []string{
-			// Dangerous destructive operations - rm variants
-			`rm\s+-rf\s+/$`,    // rm -rf / (recursive delete from root only)
-			`rm\s+-rf\s+/\*`,   // rm -rf /* (recursive delete from root with wildcard)
-			`rm\s+-rf\s+/root`, // rm -rf /root (recursive delete from home)
-			`rm\s+-rf\s+/home`, // rm -rf /home (recursive delete from home directory)
-			`rm\s+-rf\s+/etc`,  // rm -rf /etc (recursive delete from etc)
-			`rm\s+-rf\s+/var`,  // rm -rf /var (recursive delete from var)
-			`rm\s+-rf\s+/usr`,  // rm -rf /usr (recursive delete from usr)
-			`rm\s+-rf\s+/boot`, // rm -rf /boot (recursive delete from boot)
-			`rm\s+-rf\s+/lib`,  // rm -rf /lib (recursive delete from lib)
-			`rm\s+-rf\s+/sys`,  // rm -rf /sys (recursive delete from sys)
-			`rm\s+-rf\s+/proc`, // rm -rf /proc (recursive delete from proc)
-			`rm\s+-rf\s+/dev`,  // rm -rf /dev (recursive delete from dev)
+			// Dangerous destructive operations - rm variants (consolidated pattern)
+			// Matches: rm -rf / or rm -rf /* or rm -rf /root, /home, /etc, /var, /usr, /boot, /lib, /sys, /proc, /dev
+			`rm\s+-rf\s+/(?:\*|root|home|etc|var|usr|boot|lib|sys|proc|dev)?$`,
 
 			// Dangerous permission changes
 			`chmod\s+000\s+/`,      // chmod 000 / (remove all permissions from root)

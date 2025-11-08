@@ -340,7 +340,7 @@ func (r *Registry) Register(name string, metric MetricCollector) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.metrics[name] = metric
-	r.logger.Info("Metric registered", logging.String("name", name))
+	r.logger.Debug("Metric registered", logging.String("name", name))
 }
 
 // Unregister removes a metric
@@ -348,7 +348,7 @@ func (r *Registry) Unregister(name string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.metrics, name)
-	r.logger.Info("Metric unregistered", logging.String("name", name))
+	r.logger.Debug("Metric unregistered", logging.String("name", name))
 }
 
 // GetMetric retrieves a metric by name
@@ -466,13 +466,13 @@ func (s *Service) AddReporter(reporter Reporter) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.reporters = append(s.reporters, reporter)
-	s.logger.Info("Metrics reporter added", logging.String("name", reporter.Name()))
+	s.logger.Debug("Metrics reporter added", logging.String("name", reporter.Name()))
 }
 
 // Start starts the metrics service
 func (s *Service) Start() {
 	go s.reportLoop()
-	s.logger.Info("Metrics service started")
+	s.logger.Debug("Metrics service started")
 }
 
 // Stop stops the metrics service

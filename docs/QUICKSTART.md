@@ -170,12 +170,66 @@ The instance must be in the "running" state. Check with:
 - Check [examples/iam-policy.json](examples/iam-policy.json) for IAM permission requirements
 - Review [examples/instance-role-policy.json](examples/instance-role-policy.json) for EC2 instance role setup
 
+## Configuration
+
+The AWS SSM CLI can be configured via a YAML configuration file. The configuration file is located at:
+
+- **Default location**: `~/.aws-ssm/config.yaml`
+- **Custom location**: Use `--config /path/to/config.yaml` flag
+
+### Configuration File Security
+
+For security reasons, configuration files must be located in one of these directories:
+
+- **Home directory**: `~/.aws-ssm/` (recommended)
+- **System directory**: `/etc/aws-ssm/`
+
+**Important**: Relative paths are not supported for security reasons to prevent directory traversal attacks. All configuration paths must be absolute paths within the allowed directories.
+
+### Example Configuration
+
+```yaml
+default:
+  region: us-west-2
+  profile: myprofile
+  columns:
+    - name
+    - instance-id
+    - private-ip
+    - state
+
+interactive:
+  columns:
+    - name
+    - instance-id
+    - private-ip
+    - state
+    - type
+    - az
+  no_color: false
+  width: 0
+  cache_ttl_minutes: 5
+  max_instances: 10000
+
+cache:
+  enabled: true
+  ttl_minutes: 5
+  cache_dir: ~/.aws-ssm/cache
+
+bookmarks:
+  file: ~/.aws-ssm/favorites.json
+
+plugins:
+  dir: ~/.aws-ssm/plugins
+```
+
 ## Tips
 
 1. **Use tab completion**: Most shells support command completion for better UX
 2. **Set default region**: Export `AWS_REGION` to avoid typing `--region` every time
 3. **Use profiles**: Organize multiple AWS accounts with named profiles
 4. **Tag your instances**: Use consistent tagging for easier instance discovery
+5. **Create a config file**: Store your preferred settings in `~/.aws-ssm/config.yaml`
 
 ## Getting Help
 
