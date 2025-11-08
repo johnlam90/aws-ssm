@@ -86,43 +86,43 @@ func TestColumnNamesToConfig(t *testing.T) {
 
 func TestClientInteractiveFlags(t *testing.T) {
 	tests := []struct {
-		name                string
-		interactiveMode     bool
-		interactiveCols     []string
-		noColor             bool
-		width               int
-		favorites           bool
-		expectedMode        bool
-		expectedCols        []string
-		expectedNoColor     bool
-		expectedWidth       int
-		expectedFavorites   bool
+		name              string
+		interactiveMode   bool
+		interactiveCols   []string
+		noColor           bool
+		width             int
+		favorites         bool
+		expectedMode      bool
+		expectedCols      []string
+		expectedNoColor   bool
+		expectedWidth     int
+		expectedFavorites bool
 	}{
 		{
-			name:                "default flags",
-			interactiveMode:     false,
-			interactiveCols:     []string{},
-			noColor:             false,
-			width:               0,
-			favorites:           false,
-			expectedMode:        false,
-			expectedCols:        []string{},
-			expectedNoColor:     false,
-			expectedWidth:       0,
-			expectedFavorites:   false,
+			name:              "default flags",
+			interactiveMode:   false,
+			interactiveCols:   []string{},
+			noColor:           false,
+			width:             0,
+			favorites:         false,
+			expectedMode:      false,
+			expectedCols:      []string{},
+			expectedNoColor:   false,
+			expectedWidth:     0,
+			expectedFavorites: false,
 		},
 		{
-			name:                "all flags enabled",
-			interactiveMode:     true,
-			interactiveCols:     []string{"name", "instance-id"},
-			noColor:             true,
-			width:               120,
-			favorites:           true,
-			expectedMode:        true,
-			expectedCols:        []string{"name", "instance-id"},
-			expectedNoColor:     true,
-			expectedWidth:       120,
-			expectedFavorites:   true,
+			name:              "all flags enabled",
+			interactiveMode:   true,
+			interactiveCols:   []string{"name", "instance-id"},
+			noColor:           true,
+			width:             120,
+			favorites:         true,
+			expectedMode:      true,
+			expectedCols:      []string{"name", "instance-id"},
+			expectedNoColor:   true,
+			expectedWidth:     120,
+			expectedFavorites: true,
 		},
 	}
 
@@ -159,4 +159,3 @@ func TestClientInteractiveFlags(t *testing.T) {
 		})
 	}
 }
-

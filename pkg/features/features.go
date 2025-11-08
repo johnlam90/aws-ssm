@@ -146,4 +146,3 @@ func boolToString(b bool) string {
 	}
 	return "disabled"
 }
-
