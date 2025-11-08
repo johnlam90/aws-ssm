@@ -261,6 +261,89 @@ func TestCircuitBreakerRecordSuccess(t *testing.T) {
 	}
 }
 
+func TestRateLimiterAcquireNonBlocking(t *testing.T) {
+	tests := []struct {
+		name        string
+		ratePerSec  float64
+		burst       int
+		tokensReq   float64
+		shouldPass  bool
+		description string
+	}{
+		{
+			name:        "acquire within burst",
+			ratePerSec:  10.0,
+			burst:       5,
+			tokensReq:   3.0,
+			shouldPass:  true,
+			description: "Should acquire tokens within burst capacity",
+		},
+		{
+			name:        "acquire exact burst",
+			ratePerSec:  10.0,
+			burst:       5,
+			tokensReq:   5.0,
+			shouldPass:  true,
+			description: "Should acquire tokens equal to burst",
+		},
+		{
+			name:        "acquire exceeds burst",
+			ratePerSec:  10.0,
+			burst:       5,
+			tokensReq:   6.0,
+			shouldPass:  false,
+			description: "Should not acquire tokens exceeding burst",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			limiter := NewRateLimiter(tt.ratePerSec, tt.burst)
+
+			err := limiter.AcquireNonBlocking(tt.tokensReq)
+
+			if tt.shouldPass && err != nil {
+				t.Errorf("%s: expected success but got error: %v", tt.description, err)
+			}
+			if !tt.shouldPass && err == nil {
+				t.Errorf("%s: expected error but got success", tt.description)
+			}
+
+			// Verify error type for non-blocking failures
+			if !tt.shouldPass && err != nil {
+				if _, ok := err.(*RateLimitError); !ok {
+					t.Errorf("%s: expected RateLimitError but got %T", tt.description, err)
+				}
+			}
+		})
+	}
+}
+
+func TestRateLimiterContextCancellationDuringWait(t *testing.T) {
+	limiter := NewRateLimiter(1.0, 1) // 1 token per second, burst of 1
+
+	// Consume the burst
+	ctx := context.Background()
+	limiter.Acquire(ctx, 1.0)
+
+	// Try to acquire more tokens with a context that will be cancelled
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+
+	// Cancel after a short delay
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+
+	err := limiter.Acquire(cancelledCtx, 1.0)
+	if err == nil {
+		t.Errorf("expected context cancellation error, got nil")
+	}
+	if err != context.Canceled {
+		t.Errorf("expected context.Canceled, got: %v", err)
+	}
+}
+
 // testError is a simple error implementation for testing
 type testError struct {
 	msg string

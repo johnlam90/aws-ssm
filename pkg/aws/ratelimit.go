@@ -12,6 +12,9 @@ import (
 	"github.com/aws-ssm/pkg/logging"
 )
 
+// Note: math/rand is automatically seeded in Go 1.20+ with a random value on first use.
+// No explicit seeding is required.
+
 // RateLimiter implements token bucket rate limiting
 type RateLimiter struct {
 	tokens     float64
@@ -73,6 +76,41 @@ func (r *RateLimiter) Acquire(ctx context.Context, tokens float64) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
+	}
+}
+
+// AcquireNonBlocking attempts to acquire tokens without blocking
+// Returns RateLimitError if tokens are not immediately available
+func (r *RateLimiter) AcquireNonBlocking(tokens float64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Calculate tokens to add based on time passed
+	now := time.Now()
+	elapsed := now.Sub(r.lastRefill)
+	tokensToAdd := elapsed.Seconds() * r.refill
+
+	// Don't let tokens exceed capacity
+	r.tokens = math.Min(r.tokens+tokensToAdd, r.capacity)
+	r.lastRefill = now
+
+	if r.tokens >= tokens {
+		r.tokens -= tokens
+		r.logger.Debug("Token acquired (non-blocking)", logging.Float64("tokens", tokens), logging.Float64("remaining", r.tokens))
+		return nil
+	}
+
+	// Calculate wait time until tokens are available
+	waitTime := time.Duration((tokens - r.tokens) / r.rate() * float64(time.Second))
+
+	r.logger.Debug("Rate limit: insufficient tokens (non-blocking)",
+		logging.Float64("requested", tokens),
+		logging.Float64("available", r.tokens),
+		logging.Duration("wait_time", waitTime))
+
+	return &RateLimitError{
+		WaitTime: waitTime,
+		Reason:   fmt.Sprintf("insufficient tokens: have %.2f, need %.2f", r.tokens, tokens),
 	}
 }
 

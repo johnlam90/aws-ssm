@@ -71,22 +71,46 @@ func DefaultConfig() *Config {
 			"curl", "wget", "ping", "ssh", "scp",
 		},
 		BlockedPatterns: []string{
-			// Dangerous destructive operations
-			`rm\s+-rf\s+/`,    // rm -rf / (recursive delete from root)
-			`chmod\s+000\s+/`, // chmod 000 / (remove all permissions from root)
-			`chown\s+\S+\s+/`, // chown on root directory
-			`sudo\s+rm\s+-rf`, // sudo rm -rf (dangerous combination)
+			// Dangerous destructive operations - rm variants
+			`rm\s+-rf\s+/$`,    // rm -rf / (recursive delete from root only)
+			`rm\s+-rf\s+/\*`,   // rm -rf /* (recursive delete from root with wildcard)
+			`rm\s+-rf\s+/root`, // rm -rf /root (recursive delete from home)
+			`rm\s+-rf\s+/home`, // rm -rf /home (recursive delete from home directory)
+			`rm\s+-rf\s+/etc`,  // rm -rf /etc (recursive delete from etc)
+			`rm\s+-rf\s+/var`,  // rm -rf /var (recursive delete from var)
+			`rm\s+-rf\s+/usr`,  // rm -rf /usr (recursive delete from usr)
+			`rm\s+-rf\s+/boot`, // rm -rf /boot (recursive delete from boot)
+			`rm\s+-rf\s+/lib`,  // rm -rf /lib (recursive delete from lib)
+			`rm\s+-rf\s+/sys`,  // rm -rf /sys (recursive delete from sys)
+			`rm\s+-rf\s+/proc`, // rm -rf /proc (recursive delete from proc)
+			`rm\s+-rf\s+/dev`,  // rm -rf /dev (recursive delete from dev)
+
+			// Dangerous permission changes
+			`chmod\s+000\s+/`,      // chmod 000 / (remove all permissions from root)
+			`chmod\s+-R\s+000`,     // chmod -R 000 (recursive permission removal)
+			`chown\s+\S+\s+/`,      // chown on root directory
+			`chown\s+-R\s+\S+\s+/`, // chown -R on root directory
+
+			// Dangerous sudo combinations
+			`sudo\s+rm\s+-rf`,    // sudo rm -rf (dangerous combination)
+			`sudo\s+chmod\s+000`, // sudo chmod 000 (dangerous combination)
 
 			// Dangerous redirects to system files
 			`>\s*/etc/`,  // Redirect to /etc
 			`>\s*/sys/`,  // Redirect to /sys
 			`>\s*/proc/`, // Redirect to /proc
 			`>\s*/dev/`,  // Redirect to /dev
+			`>\s*/root`,  // Redirect to /root
+			`>\s*/home`,  // Redirect to /home
+			`>\s*/boot`,  // Redirect to /boot
 
 			// Dangerous command chaining patterns
-			`;\s*rm\s+-rf\s+/`, // ; rm -rf / (chained destructive command)
-			`\|\|\s*rm\s+-rf`,  // || rm -rf (fallback to destructive command)
-			`&&\s*rm\s+-rf`,    // && rm -rf (chained destructive command)
+			`;\s*rm\s+-rf\s+/`,   // ; rm -rf / (chained destructive command)
+			`\|\|\s*rm\s+-rf`,    // || rm -rf (fallback to destructive command)
+			`&&\s*rm\s+-rf`,      // && rm -rf (chained destructive command)
+			`;\s*chmod\s+000`,    // ; chmod 000 (chained permission removal)
+			`\|\|\s*chmod\s+000`, // || chmod 000 (fallback permission removal)
+			`&&\s*chmod\s+000`,   // && chmod 000 (chained permission removal)
 		},
 	}
 }
@@ -118,9 +142,13 @@ func NewManager(config *Config) *Manager {
 	// Note: These patterns are used to flag potentially suspicious commands for review,
 	// not to block them outright. They help identify commands that may need additional scrutiny.
 	suspiciousPatterns := []string{
-		`\$\(`,                    // Command substitution $(...)
-		`\$\{`,                    // Variable expansion ${...}
-		`[<>|&;` + "`" + `\\\"']`, // Shell metacharacters (may indicate complex piping)
+		`\$\(`,    // Command substitution $(...)
+		`\$\{`,    // Variable expansion ${...}
+		`[<>|&;]`, // Shell pipe, redirect, and command chaining operators
+		"`",       // Backtick command substitution
+		`\\`,      // Backslash escaping
+		`"`,       // Double quotes
+		`'`,       // Single quotes
 		// Note: curl and wget are legitimate tools and are NOT blocked by default
 		// They are only flagged as suspicious in strict security mode
 	}

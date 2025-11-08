@@ -211,3 +211,100 @@ func TestValidateCommandIntegration(t *testing.T) {
 		})
 	}
 }
+
+func TestBlockedPatternsExtended(t *testing.T) {
+	tests := []struct {
+		name        string
+		command     string
+		shouldBlock bool
+		description string
+	}{
+		{
+			name:        "rm -rf with wildcard",
+			command:     "rm -rf /*",
+			shouldBlock: true,
+			description: "Should block rm -rf /* (recursive delete with wildcard)",
+		},
+		{
+			name:        "rm -rf /root",
+			command:     "rm -rf /root",
+			shouldBlock: true,
+			description: "Should block rm -rf /root",
+		},
+		{
+			name:        "rm -rf /home",
+			command:     "rm -rf /home",
+			shouldBlock: true,
+			description: "Should block rm -rf /home",
+		},
+		{
+			name:        "rm -rf /etc",
+			command:     "rm -rf /etc",
+			shouldBlock: true,
+			description: "Should block rm -rf /etc",
+		},
+		{
+			name:        "rm -rf /var",
+			command:     "rm -rf /var",
+			shouldBlock: true,
+			description: "Should block rm -rf /var",
+		},
+		{
+			name:        "chmod -R 000",
+			command:     "chmod -R 000 /root",
+			shouldBlock: true,
+			description: "Should block chmod -R 000",
+		},
+		{
+			name:        "chown -R on root",
+			command:     "chown -R root:root /",
+			shouldBlock: true,
+			description: "Should block chown -R on root directory",
+		},
+		{
+			name:        "redirect to /root",
+			command:     "echo test > /root/file",
+			shouldBlock: true,
+			description: "Should block redirect to /root",
+		},
+		{
+			name:        "redirect to /home",
+			command:     "echo test > /home/user/file",
+			shouldBlock: true,
+			description: "Should block redirect to /home",
+		},
+		{
+			name:        "chained chmod with semicolon",
+			command:     "ls /tmp; chmod 000 /root",
+			shouldBlock: true,
+			description: "Should block chained chmod 000",
+		},
+		{
+			name:        "safe rm on /tmp",
+			command:     "rm -rf /tmp/cache",
+			shouldBlock: false,
+			description: "Should allow rm -rf on /tmp",
+		},
+		{
+			name:        "safe chmod on /tmp",
+			command:     "chmod 755 /tmp/file",
+			shouldBlock: false,
+			description: "Should allow chmod on /tmp",
+		},
+	}
+
+	config := DefaultConfig()
+	manager := NewManager(config)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := manager.validatePatterns(tt.command)
+			if tt.shouldBlock && err == nil {
+				t.Errorf("%s: expected error but got none", tt.description)
+			}
+			if !tt.shouldBlock && err != nil {
+				t.Errorf("%s: expected no error but got: %v", tt.description, err)
+			}
+		})
+	}
+}

@@ -20,9 +20,10 @@ func (c *Client) StartNativeSession(ctx context.Context, instanceID string) erro
 	}
 
 	// First, call StartSession API to get session credentials
+	// DocumentName: nil uses the default AWS-StartInteractiveCommand document for shell sessions
 	input := &ssm.StartSessionInput{
 		Target:       &instanceID,
-		DocumentName: nil, // Use default shell session
+		DocumentName: nil,
 	}
 
 	result, err := c.SSMClient.StartSession(ctx, input)
@@ -71,9 +72,10 @@ func (c *Client) StartPortForwardingSession(ctx context.Context, instanceID stri
 	}
 
 	// First, call StartSession API to get session credentials
+	// DocumentName: nil uses the default AWS-StartPortForwardingSession document for port forwarding
 	input := &ssm.StartSessionInput{
 		Target:       &instanceID,
-		DocumentName: nil, // Use default port forwarding session
+		DocumentName: nil,
 	}
 
 	result, err := c.SSMClient.StartSession(ctx, input)

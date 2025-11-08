@@ -32,10 +32,10 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&profile, "profile", "p", "", "AWS profile to use (defaults to AWS_PROFILE env var or default profile)")
 
 	// Enhanced interactive flags
-	rootCmd.PersistentFlags().BoolVarP(&interactive, "interactive", "i", false, "Enable enhanced interactive mode")
-	rootCmd.PersistentFlags().StringSliceVar(&interactiveCols, "columns", []string{"name", "instance-id", "private-ip", "state"}, "Columns to display in interactive mode")
+	rootCmd.PersistentFlags().BoolVarP(&interactive, "interactive", "i", false, "Enable enhanced interactive mode with multi-select support")
+	rootCmd.PersistentFlags().StringSliceVar(&interactiveCols, "columns", []string{"name", "instance-id", "private-ip", "state"}, "Columns to display in interactive mode (name, instance-id, private-ip, public-ip, state, az, tags)")
 	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "Disable colors in output")
 	rootCmd.PersistentFlags().IntVar(&width, "width", 0, "Terminal width override (0 = auto-detect)")
-	rootCmd.PersistentFlags().BoolVar(&favorites, "favorites", false, "Show only bookmarked instances")
+	rootCmd.PersistentFlags().BoolVar(&favorites, "favorites", false, "Show only bookmarked instances (applies to interactive mode)")
 	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "", "Output format (json) for non-interactive use")
 }

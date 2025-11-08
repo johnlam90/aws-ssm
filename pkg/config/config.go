@@ -120,6 +120,12 @@ func LoadConfig(configPath string) (*Config, error) {
 	}
 
 	// Validate and clean the path to prevent directory traversal
+	// Path restrictions:
+	// - Config files must be located in the user's home directory (~/.aws-ssm/) or /etc/aws-ssm/
+	// - Relative paths are not supported for security reasons (prevents path traversal attacks)
+	// - Absolute paths are required and must be within the allowed directories
+	// This ensures that config files cannot be placed in arbitrary locations or escape
+	// the intended configuration directories.
 	if configPath != "" {
 		cleanPath := filepath.Clean(configPath)
 
@@ -137,8 +143,9 @@ func LoadConfig(configPath string) (*Config, error) {
 		}
 
 		// Verify the absolute path is within the home directory or /etc
+		// This prevents directory traversal attacks and ensures config files are in expected locations
 		if !strings.HasPrefix(absPath, homeDir) && !strings.HasPrefix(absPath, "/etc") {
-			return nil, fmt.Errorf("invalid config path: must be in home directory or /etc")
+			return nil, fmt.Errorf("invalid config path: must be in home directory (~/.aws-ssm/) or /etc/aws-ssm/")
 		}
 
 		configPath = cleanPath

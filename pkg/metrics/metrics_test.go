@@ -177,3 +177,64 @@ func TestHistogramLargeBucket(t *testing.T) {
 		t.Errorf("bucket 1e9: expected count 1, got %d", count)
 	}
 }
+
+// TestHistogramBoundaryValues tests values at exact bucket boundaries
+func TestHistogramBoundaryValues(t *testing.T) {
+	tests := []struct {
+		name           string
+		value          float64
+		expectedBucket float64
+		description    string
+	}{
+		{
+			name:           "exact boundary 0.005",
+			value:          0.005,
+			expectedBucket: 0.005,
+			description:    "Value at exact bucket boundary should be placed in that bucket",
+		},
+		{
+			name:           "exact boundary 0.01",
+			value:          0.01,
+			expectedBucket: 0.01,
+			description:    "Value at exact bucket boundary should be placed in that bucket",
+		},
+		{
+			name:           "exact boundary 0.1",
+			value:          0.1,
+			expectedBucket: 0.1,
+			description:    "Value at exact bucket boundary should be placed in that bucket",
+		},
+		{
+			name:           "exact boundary 1.0",
+			value:          1.0,
+			expectedBucket: 1.0,
+			description:    "Value at exact bucket boundary should be placed in that bucket",
+		},
+		{
+			name:           "just below boundary",
+			value:          0.0049,
+			expectedBucket: 0.005,
+			description:    "Value just below boundary should be placed in that bucket",
+		},
+		{
+			name:           "just above boundary",
+			value:          0.0051,
+			expectedBucket: 0.01,
+			description:    "Value just above boundary should be placed in next bucket",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := NewHistogram("test_histogram", nil, nil)
+			h.Observe(tt.value)
+
+			buckets := h.GetBuckets()
+			if count, exists := buckets[tt.expectedBucket]; !exists {
+				t.Errorf("%s: bucket %f not found in histogram", tt.description, tt.expectedBucket)
+			} else if count != 1 {
+				t.Errorf("%s: bucket %f expected count 1, got %d", tt.description, tt.expectedBucket, count)
+			}
+		})
+	}
+}
