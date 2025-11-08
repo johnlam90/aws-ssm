@@ -257,3 +257,41 @@ func (c *Client) SelectInstanceFromProvided(ctx context.Context, instances []Ins
 
 	return nil, fmt.Errorf("selected instance not found in provided list")
 }
+
+// EKSDescriber wraps the Client to provide the ClusterDescriber interface
+type EKSDescriber struct {
+	client *Client
+}
+
+// DescribeCluster implements the ClusterDescriber interface
+func (e *EKSDescriber) DescribeCluster(ctx context.Context, clusterName string) (any, error) {
+	return e.client.DescribeCluster(ctx, clusterName)
+}
+
+// SelectEKSClusterInteractive displays an interactive fuzzy finder to select an EKS cluster
+func (c *Client) SelectEKSClusterInteractive(ctx context.Context) (*Cluster, error) {
+	// Create EKS loader with both list and describe capabilities
+	describer := &EKSDescriber{client: c}
+	loader := fuzzy.NewAWSEKSLoader(c, describer)
+
+	// Create EKS finder
+	finder := fuzzy.NewEKSFinder(loader, fuzzy.DefaultConfig())
+
+	// Select cluster
+	selectedCluster, err := finder.SelectClusterInteractive(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if selectedCluster == nil {
+		return nil, nil // No selection made
+	}
+
+	// Fetch full cluster details
+	cluster, err := c.DescribeCluster(ctx, selectedCluster.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to describe selected cluster: %w", err)
+	}
+
+	return cluster, nil
+}
