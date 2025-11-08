@@ -8,12 +8,19 @@ import (
 // IdentifierType represents the type of instance identifier
 type IdentifierType int
 
+// Identifier type constants
 const (
+	// IdentifierTypeUnknown represents an unknown identifier type
 	IdentifierTypeUnknown IdentifierType = iota
+	// IdentifierTypeInstanceID represents an EC2 instance ID (e.g., i-1234567890abcdef0)
 	IdentifierTypeInstanceID
+	// IdentifierTypeTag represents a tag filter (e.g., Name:web-server)
 	IdentifierTypeTag
+	// IdentifierTypeIPAddress represents an IP address (IPv4 or IPv6)
 	IdentifierTypeIPAddress
+	// IdentifierTypeDNSName represents a DNS name
 	IdentifierTypeDNSName
+	// IdentifierTypeName represents an instance name (uses Name tag)
 	IdentifierTypeName
 )
 
