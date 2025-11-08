@@ -200,31 +200,6 @@ func (sm *Manager) ValidateCommand(command string) error {
 	return nil
 }
 
-func (sm *Manager) validateBasicRules(command string) error {
-	// Check length
-	if len(command) > sm.config.MaxCommandLength {
-		return fmt.Errorf("command too long (max %d characters)", sm.config.MaxCommandLength)
-	}
-
-	// Check for null bytes or control characters
-	for _, r := range command {
-		if r == 0 || (r < 32 && r != '\t' && r != '\n' && r != '\r') {
-			return fmt.Errorf("command contains control characters")
-		}
-	}
-
-	// Check for non-ASCII characters in high security mode
-	if sm.config.Level == SecurityHigh || sm.config.Level == SecurityStrict {
-		for _, r := range command {
-			if r > 127 {
-				return fmt.Errorf("command contains non-ASCII characters")
-			}
-		}
-	}
-
-	return nil
-}
-
 func (sm *Manager) validatePatterns(command string) error {
 	// Check against compiled blocked patterns using regex
 	for i, re := range sm.blockedPatterns {
