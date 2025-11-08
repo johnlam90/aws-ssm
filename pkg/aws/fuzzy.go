@@ -3,119 +3,174 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
-	fuzzyfinder "github.com/ktr0731/go-fuzzyfinder"
+	"github.com/aws-ssm/pkg/ui/fuzzy"
 )
 
-// SelectInstanceInteractive displays an interactive fuzzy finder to select an EC2 instance
+// SelectInstanceInteractive displays an enhanced interactive fuzzy finder to select an EC2 instance
 func (c *Client) SelectInstanceInteractive(ctx context.Context) (*Instance, error) {
-	// Get all running instances (no tag filters)
-	instances, err := c.ListInstances(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list instances: %w", err)
+	// Use cached configuration for performance (loaded once in NewClient)
+	cfg := c.AppConfig
+
+	// Create fuzzy config
+	fuzzyConfig := fuzzy.Config{
+		Columns:      fuzzy.DefaultColumnConfig(),
+		Weights:      fuzzy.DefaultWeightConfig(),
+		Cache:        fuzzy.CacheConfig{Enabled: cfg.Cache.Enabled, TTLMinutes: cfg.Cache.TTLMinutes, CacheDir: cfg.Cache.CacheDir},
+		MaxInstances: cfg.Interactive.MaxInstances,
+		NoColor:      cfg.Interactive.NoColor,
+		Width:        cfg.Interactive.Width,
+		Favorites:    false,
+		ConfigPath:   "", // Using default
 	}
 
-	if len(instances) == 0 {
-		return nil, fmt.Errorf("no instances found in region %s", c.Config.Region)
-	}
+	// Create instance loader
+	loader := fuzzy.NewAWSInstanceLoader(c)
 
-	// Filter to only running instances
-	var runningInstances []Instance
-	for _, inst := range instances {
-		if inst.State == "running" {
-			runningInstances = append(runningInstances, inst)
-		}
-	}
+	// Create enhanced fuzzy finder
+	finder := fuzzy.NewEnhancedFinder(loader, fuzzyConfig)
 
-	if len(runningInstances) == 0 {
-		return nil, fmt.Errorf("no running instances found in region %s (found %d instances in other states)", c.Config.Region, len(instances))
-	}
-
-	instances = runningInstances
-
-	// Use fuzzy finder to select an instance
-	idx, err := fuzzyfinder.Find(
-		instances,
-		func(i int) string {
-			// Display format: "Name | Instance ID | Private IP | State"
-			name := instances[i].Name
-			if name == "" {
-				name = "(no name)"
-			}
-			return fmt.Sprintf("%-30s | %-19s | %-15s | %s",
-				truncate(name, 30),
-				instances[i].InstanceID,
-				instances[i].PrivateIP,
-				instances[i].State,
-			)
-		},
-		fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
-			if i == -1 {
-				return ""
-			}
-			return formatInstancePreview(instances[i])
-		}),
-	)
-
+	// Select instances
+	selectedInstances, err := finder.SelectInstanceInteractive(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return &instances[idx], nil
+	if len(selectedInstances) == 0 {
+		return nil, nil // No selection made
+	}
+
+	// Convert to AWS instance format
+	awsInstance := &Instance{
+		InstanceID:       selectedInstances[0].InstanceID,
+		Name:             selectedInstances[0].Name,
+		State:            selectedInstances[0].State,
+		PrivateIP:        selectedInstances[0].PrivateIP,
+		PublicIP:         selectedInstances[0].PublicIP,
+		PrivateDNS:       selectedInstances[0].PrivateDNS,
+		PublicDNS:        selectedInstances[0].PublicDNS,
+		InstanceType:     selectedInstances[0].InstanceType,
+		AvailabilityZone: selectedInstances[0].AvailabilityZone,
+		Tags:             selectedInstances[0].Tags,
+	}
+
+	return awsInstance, nil
 }
 
-// formatInstancePreview formats instance details for the preview window
-func formatInstancePreview(instance Instance) string {
-	var preview strings.Builder
+// SelectInstancesInteractive displays an enhanced interactive fuzzy finder to select multiple EC2 instances
+func (c *Client) SelectInstancesInteractive(ctx context.Context) ([]Instance, error) {
+	// Use cached configuration for performance (loaded once in NewClient)
+	cfg := c.AppConfig
 
-	name := instance.Name
-	if name == "" {
-		name = "(no name)"
+	// Create fuzzy config
+	fuzzyConfig := fuzzy.Config{
+		Columns:      fuzzy.DefaultColumnConfig(),
+		Weights:      fuzzy.DefaultWeightConfig(),
+		Cache:        fuzzy.CacheConfig{Enabled: cfg.Cache.Enabled, TTLMinutes: cfg.Cache.TTLMinutes, CacheDir: cfg.Cache.CacheDir},
+		MaxInstances: cfg.Interactive.MaxInstances,
+		NoColor:      cfg.Interactive.NoColor,
+		Width:        cfg.Interactive.Width,
+		Favorites:    false,
+		ConfigPath:   "", // Using default
 	}
 
-	preview.WriteString("Instance Details\n")
-	preview.WriteString("================\n\n")
-	preview.WriteString(fmt.Sprintf("Name:          %s\n", name))
-	preview.WriteString(fmt.Sprintf("Instance ID:   %s\n", instance.InstanceID))
-	preview.WriteString(fmt.Sprintf("State:         %s\n", instance.State))
-	preview.WriteString(fmt.Sprintf("Instance Type: %s\n", instance.InstanceType))
-	preview.WriteString(fmt.Sprintf("Private IP:    %s\n", instance.PrivateIP))
+	// Create instance loader
+	loader := fuzzy.NewAWSInstanceLoader(c)
 
-	if instance.PublicIP != "" {
-		preview.WriteString(fmt.Sprintf("Public IP:     %s\n", instance.PublicIP))
+	// Create enhanced fuzzy finder
+	finder := fuzzy.NewEnhancedFinder(loader, fuzzyConfig)
+
+	// Select instances
+	selectedInstances, err := finder.SelectInstanceInteractive(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	if instance.PrivateDNS != "" {
-		preview.WriteString(fmt.Sprintf("Private DNS:   %s\n", instance.PrivateDNS))
+	// Convert to AWS instance format
+	var awsInstances []Instance
+	for _, inst := range selectedInstances {
+		awsInstance := Instance{
+			InstanceID:       inst.InstanceID,
+			Name:             inst.Name,
+			State:            inst.State,
+			PrivateIP:        inst.PrivateIP,
+			PublicIP:         inst.PublicIP,
+			PrivateDNS:       inst.PrivateDNS,
+			PublicDNS:        inst.PublicDNS,
+			InstanceType:     inst.InstanceType,
+			AvailabilityZone: inst.AvailabilityZone,
+			Tags:             inst.Tags,
+		}
+		awsInstances = append(awsInstances, awsInstance)
 	}
 
-	if instance.PublicDNS != "" {
-		preview.WriteString(fmt.Sprintf("Public DNS:    %s\n", instance.PublicDNS))
+	return awsInstances, nil
+}
+
+// SelectInstanceFromProvided displays an interactive fuzzy finder for a provided instance slice.
+// It does not refetch instances and assumes the slice is non-empty.
+func (c *Client) SelectInstanceFromProvided(ctx context.Context, instances []Instance) (*Instance, error) {
+	if len(instances) == 0 {
+		return nil, fmt.Errorf("no instances provided for interactive selection")
 	}
 
-	preview.WriteString(fmt.Sprintf("AZ:            %s\n", instance.AvailabilityZone))
+	// For now, keep the original implementation for this method
+	// TODO: Convert to use enhanced fuzzy finder
 
-	// Display tags
-	if len(instance.Tags) > 0 {
-		preview.WriteString("\nTags:\n")
-		for key, value := range instance.Tags {
-			if key != "Name" { // Skip Name tag as it's already displayed
-				preview.WriteString(fmt.Sprintf("  %s: %s\n", key, value))
-			}
+	// Filter running instances first to reduce noise, but if that empties the list, fall back.
+	running := make([]Instance, 0, len(instances))
+	for _, inst := range instances {
+		if inst.State == "running" {
+			running = append(running, inst)
+		}
+	}
+	if len(running) > 0 {
+		instances = running
+	}
+
+	// Create fuzzy config
+	fuzzyConfig := fuzzy.DefaultConfig()
+
+	// Convert AWS instances to fuzzy instances
+	var fuzzyInstances []fuzzy.Instance
+	for _, inst := range instances {
+		fuzzyInst := fuzzy.Instance{
+			InstanceID:       inst.InstanceID,
+			Name:             inst.Name,
+			State:            inst.State,
+			PrivateIP:        inst.PrivateIP,
+			PublicIP:         inst.PublicIP,
+			PrivateDNS:       inst.PrivateDNS,
+			PublicDNS:        inst.PublicDNS,
+			InstanceType:     inst.InstanceType,
+			AvailabilityZone: inst.AvailabilityZone,
+			Tags:             inst.Tags,
+		}
+		fuzzyInstances = append(fuzzyInstances, fuzzyInst)
+	}
+
+	// Create loader for provided instances
+	loader := fuzzy.NewProvidedInstanceLoader(fuzzyInstances)
+
+	// Create enhanced fuzzy finder
+	finder := fuzzy.NewEnhancedFinder(loader, fuzzyConfig)
+
+	// Select instance
+	selectedInstances, err := finder.SelectInstanceInteractive(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(selectedInstances) == 0 {
+		return nil, nil // No selection made
+	}
+
+	// Convert back to AWS instance format
+	for i, inst := range instances {
+		if inst.InstanceID == selectedInstances[0].InstanceID {
+			return &instances[i], nil
 		}
 	}
 
-	return preview.String()
-}
-
-// truncate truncates a string to the specified length
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	if maxLen <= 3 {
-		return s[:maxLen]
-	}
-	return s[:maxLen-3] + "..."
+	return nil, fmt.Errorf("selected instance not found in provided list")
 }

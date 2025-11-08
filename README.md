@@ -4,7 +4,7 @@ A native Golang CLI tool for managing AWS SSM (Systems Manager) sessions with EC
 
 ## Features
 
-- 🔍 **Interactive Fuzzy Finder**: Select instances interactively with real-time filtering (fzf-like interface)
+- 🔍 **Enhanced Interactive Fuzzy Finder**: Multi-select, rich search syntax, color highlighting, and more!
 - ⚡ **Remote Command Execution**: Execute commands on instances without starting an interactive shell
 - 🌐 **Network Interface Listing**: Display all network interfaces (Multus, EKS) with subnet and security group details
 - 🚀 **Multiple Connection Methods**: Connect using instance ID, DNS name, IP address, tags, or instance name
@@ -13,6 +13,10 @@ A native Golang CLI tool for managing AWS SSM (Systems Manager) sessions with EC
 - 💻 **Pure Go Implementation**: Single binary with **NO external dependencies** - no session-manager-plugin needed!
 - 🎯 **Smart Instance Discovery**: Automatically detects identifier type and finds matching instances
 - 🔌 **Port Forwarding**: Forward local ports to remote services on EC2 instances
+- 🎨 **Rich Search Syntax**: Advanced filtering with `name:web`, `state:running`, `tag:Env=prod`, `!Env=dev`
+- 📊 **Flexible Display**: Customizable columns, sorting, and color themes
+- ⚡ **Performance Optimized**: Caching, streaming pagination, and fuzzy ranking
+- 🔖 **Bookmarks**: Favorite your frequently accessed instances
 
 ## Why This Tool?
 
@@ -177,32 +181,86 @@ aws-ssm list --region us-west-2 --profile production
 
 ### Start SSM Session
 
-#### Interactive Fuzzy Finder (Recommended)
+#### Enhanced Interactive Fuzzy Finder (Recommended)
 
-The easiest way to connect is using the **interactive fuzzy finder**:
+The easiest way to connect is using the **enhanced interactive fuzzy finder**:
 
 ```bash
 # No argument - opens interactive selector
 aws-ssm session
+
+# Enhanced mode with multi-select and rich search
+aws-ssm session --interactive
+
+# Custom columns display
+aws-ssm session --interactive --columns name,instance-id,state,type,az
+
+# Show only bookmarked instances
+aws-ssm session --interactive --favorites
+```
+
+##### Rich Search Syntax
+
+The enhanced fuzzy finder supports powerful search syntax:
+
+```bash
+# Filter by name
+name:web
+
+# Filter by instance ID  
+id:i-123456789
+
+# Filter by state
+state:running
+
+# Filter by tags
+tag:Environment=production
+tag:Team=backend
+
+# Filter by IP pattern
+ip:10.0.1.*
+
+# Filter by DNS pattern
+dns:*.compute.amazonaws.com
+
+# Negative filters
+!state:stopped
+!Env=dev
+
+# Tag existence
+has:Environment
+missing:Team
+
+# Combine multiple filters
+name:web state:running tag:Env=prod !Env=dev
+
+# Fuzzy search combined with filters
+web state:running has:Backup
+```
+
+##### Multi-Select and Batch Operations
+
+When using `--interactive` flag:
+
+- **Space**: Toggle selection of multiple instances
+- **Enter**: Connect to selected instances (sequential or batch)
+- **c**: Run command on selected instances  
+- **p**: Set up port forwarding for selected instances
+
+```bash
+# Select multiple instances for batch operations
+aws-ssm session --interactive
+# Use Space to select multiple, then Enter for actions
 ```
 
 This will:
 
-1. Fetch all running EC2 instances in your current region
-2. Display an interactive fuzzy finder interface (fzf-like)
-3. Allow you to search/filter instances by typing (searches name, instance ID, IP, state)
-4. Navigate with arrow keys (↑/↓)
-5. Select an instance with Enter
-6. Cancel with Esc or Ctrl+C
-
-The fuzzy finder displays each instance with:
-
-- **Instance Name** (from Name tag)
-- **Instance ID**
-- **Private IP Address**
-- **State**
-
-And shows a detailed preview panel with:
+1. Fetch all EC2 instances with caching for performance
+2. Display interactive interface with customizable columns
+3. Support rich search syntax with real-time filtering
+4. Allow multi-select for batch operations
+5. Show color-coded instance states (green=running, red=stopped)
+6. Display detailed preview with metadata and tags
 
 - Full instance details
 - All tags

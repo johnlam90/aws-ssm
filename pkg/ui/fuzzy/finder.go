@@ -1,0 +1,235 @@
+package fuzzy
+
+import (
+	"context"
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/ktr0731/go-fuzzyfinder"
+)
+
+// EnhancedFinder represents the enhanced fuzzy finder
+type EnhancedFinder struct {
+	state    *StateManager
+	loader   InstanceLoader
+	renderer PreviewRenderer
+	colors   ColorManager
+	config   Config
+	helpText string // Cached help text to avoid rebuilding every frame
+}
+
+// NewEnhancedFinder creates a new enhanced fuzzy finder
+func NewEnhancedFinder(loader InstanceLoader, config Config) *EnhancedFinder {
+	colors := NewDefaultColorManager(config.NoColor)
+	renderer := NewDefaultPreviewRenderer(colors)
+
+	state := &StateManager{
+		Config:        config,
+		SortField:     SortByName,
+		SortDirection: SortAsc,
+		Bookmarks:     []Bookmark{},
+		QueryHistory:  []string{},
+	}
+
+	// Build help text once during initialization
+	help := []string{
+		colors.HeaderColor("AWS SSM Instance Selector"),
+		"",
+		colors.BoldColor("Navigation:"),
+		"  ↑↓       - Navigate up/down",
+		"  Enter    - Select instance and connect",
+		"  Esc      - Cancel and exit",
+		"",
+		colors.BoldColor("Search:"),
+		"  Type to filter instances by name, ID, IP, or tags",
+		"",
+		colors.BoldColor("Advanced Search (not yet implemented):"),
+		"  name:web      - Filter by name",
+		"  id:i-123      - Filter by instance ID",
+		"  state:running - Filter by state",
+		"  tag:Env=prod  - Filter by tags",
+		"",
+	}
+
+	return &EnhancedFinder{
+		state:    state,
+		loader:   loader,
+		renderer: renderer,
+		colors:   colors,
+		config:   config,
+		helpText: strings.Join(help, "\n"),
+	}
+}
+
+// SelectInstanceInteractive displays the enhanced interactive fuzzy finder
+func (f *EnhancedFinder) SelectInstanceInteractive(ctx context.Context) ([]Instance, error) {
+	// Initialize state with empty query if needed
+	if f.state.Query == nil {
+		f.state.Query = &SearchQuery{Raw: ""}
+	}
+
+	// Load initial instances
+	allInstances, err := f.loadAllInstances(ctx, f.state.Query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load instances: %w", err)
+	}
+
+	f.state.Instances = allInstances
+	f.state.Filtered = allInstances
+
+	// Apply initial sort
+	f.sortInstances()
+
+	selectedIndices, err := fuzzyfinder.FindMulti(
+		f.state.Filtered,
+		func(i int) string {
+			return f.formatInstanceRow(f.state.Filtered[i])
+		},
+		fuzzyfinder.WithPreviewWindow(func(i, width, height int) string {
+			if i < 0 || i >= len(f.state.Filtered) {
+				return f.formatHelp()
+			}
+			return f.renderer.Render(&f.state.Filtered[i], width, height)
+		}),
+		fuzzyfinder.WithPromptString(f.formatPrompt()),
+	)
+
+	if err != nil {
+		if err == fuzzyfinder.ErrAbort {
+			return []Instance{}, nil
+		}
+		return nil, err
+	}
+
+	// Convert selected indices to instances
+	var selectedInstances []Instance
+	for _, idx := range selectedIndices {
+		selectedInstances = append(selectedInstances, f.state.Filtered[idx])
+	}
+
+	return selectedInstances, nil
+}
+
+// loadAllInstances loads all instances directly (no channel overhead)
+func (f *EnhancedFinder) loadAllInstances(ctx context.Context, query *SearchQuery) ([]Instance, error) {
+	// Load instances directly - much faster than channel-based approach
+	instances, err := f.loader.LoadInstances(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load instances: %w", err)
+	}
+
+	return instances, nil
+}
+
+// formatInstanceRow formats an instance for display in the list
+// Format matches v0.2.0: name | instance-id | private-ip | state
+func (f *EnhancedFinder) formatInstanceRow(instance Instance) string {
+	name := instance.Name
+	if name == "" {
+		name = "(no name)"
+	}
+
+	// Truncate name to fit nicely (30 chars like v0.2.0)
+	name = f.truncateString(name, 30)
+
+	// Format: name | instance-id | private-ip | state
+	// Using the same spacing as v0.2.0 for clean alignment
+	return fmt.Sprintf("%-30s | %-19s | %-15s | %s",
+		name,
+		instance.InstanceID,
+		instance.PrivateIP,
+		instance.State,
+	)
+}
+
+// truncateString truncates a string to the specified length (rune-aware to handle UTF-8)
+func (f *EnhancedFinder) truncateString(s string, maxLen int) string {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
+		return s
+	}
+	if maxLen <= 3 {
+		return string(runes[:maxLen])
+	}
+	return string(runes[:maxLen-3]) + "..."
+}
+
+// formatPrompt formats the search prompt
+func (f *EnhancedFinder) formatPrompt() string {
+	var parts []string
+
+	if f.config.Favorites {
+		parts = append(parts, "Favorites")
+	}
+
+	if len(f.state.Query.Terms) > 0 || len(f.state.Query.Filters) > 0 {
+		parts = append(parts, fmt.Sprintf("Query: %s", f.state.Query.Raw))
+	}
+
+	// Removed instance count since it's already shown in the counter (e.g., "12/12")
+
+	if f.state.SortField != SortByName {
+		parts = append(parts, fmt.Sprintf("Sort: %s", f.state.SortField))
+	}
+
+	// Add trailing space so user's typed query doesn't run into the prompt
+	return strings.Join(parts, " • ") + " "
+}
+
+// formatHelp returns the cached help text
+func (f *EnhancedFinder) formatHelp() string {
+	return f.helpText
+}
+
+// sortInstances sorts the instances based on current sort field and direction
+// Uses instance ID as a tiebreaker for stable, deterministic sorting
+func (f *EnhancedFinder) sortInstances() {
+	sort.Slice(f.state.Filtered, func(i, j int) bool {
+		var result bool
+
+		switch f.state.SortField {
+		case SortByName:
+			nameI := strings.ToLower(f.state.Filtered[i].Name)
+			nameJ := strings.ToLower(f.state.Filtered[j].Name)
+			if nameI != nameJ {
+				result = nameI < nameJ
+			} else {
+				// Tiebreaker: use instance ID for stable sort
+				result = f.state.Filtered[i].InstanceID < f.state.Filtered[j].InstanceID
+			}
+		case SortByAZ:
+			if f.state.Filtered[i].AvailabilityZone != f.state.Filtered[j].AvailabilityZone {
+				result = f.state.Filtered[i].AvailabilityZone < f.state.Filtered[j].AvailabilityZone
+			} else {
+				result = f.state.Filtered[i].InstanceID < f.state.Filtered[j].InstanceID
+			}
+		case SortByType:
+			if f.state.Filtered[i].InstanceType != f.state.Filtered[j].InstanceType {
+				result = f.state.Filtered[i].InstanceType < f.state.Filtered[j].InstanceType
+			} else {
+				result = f.state.Filtered[i].InstanceID < f.state.Filtered[j].InstanceID
+			}
+		case SortByLaunchTime:
+			if !f.state.Filtered[i].LaunchTime.Equal(f.state.Filtered[j].LaunchTime) {
+				result = f.state.Filtered[i].LaunchTime.Before(f.state.Filtered[j].LaunchTime)
+			} else {
+				result = f.state.Filtered[i].InstanceID < f.state.Filtered[j].InstanceID
+			}
+		case SortByState:
+			if f.state.Filtered[i].State != f.state.Filtered[j].State {
+				result = f.state.Filtered[i].State < f.state.Filtered[j].State
+			} else {
+				result = f.state.Filtered[i].InstanceID < f.state.Filtered[j].InstanceID
+			}
+		case SortByID:
+			result = f.state.Filtered[i].InstanceID < f.state.Filtered[j].InstanceID
+		}
+
+		if f.state.SortDirection == SortDesc {
+			result = !result
+		}
+
+		return result
+	})
+}

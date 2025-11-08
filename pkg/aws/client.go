@@ -5,17 +5,38 @@ import (
 	"fmt"
 	"os"
 
+	appconfig "github.com/aws-ssm/pkg/config"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 )
 
+// Ensure Client implements the fuzzy.AWSClientInterface interface
+var _ fuzzyClientInterface = (*Client)(nil)
+
 // Client is an AWS client that provides access to EC2 and SSM services
 type Client struct {
 	EC2Client *ec2.Client
 	SSMClient *ssm.Client
 	Config    aws.Config
+	AppConfig *appconfig.Config // Cached application config for performance
+}
+
+// fuzzyClientInterface is a private interface to avoid import cycles
+type fuzzyClientInterface interface {
+	GetConfig() aws.Config
+	GetEC2Client() *ec2.Client
+}
+
+// GetConfig returns the AWS configuration
+func (c *Client) GetConfig() aws.Config {
+	return c.Config
+}
+
+// GetEC2Client returns the EC2 client
+func (c *Client) GetEC2Client() *ec2.Client {
+	return c.EC2Client
 }
 
 // NewClient creates a new AWS client with EC2 and SSM services
@@ -43,9 +64,16 @@ func NewClient(ctx context.Context, region, profile string) (*Client, error) {
 		return nil, fmt.Errorf("unable to load AWS SDK config: %w", err)
 	}
 
+	// Load application config once for performance (cached in client)
+	appCfg, err := appconfig.LoadConfig("")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load application config: %w", err)
+	}
+
 	return &Client{
 		EC2Client: ec2.NewFromConfig(cfg),
 		SSMClient: ssm.NewFromConfig(cfg),
 		Config:    cfg,
+		AppConfig: appCfg,
 	}, nil
 }
