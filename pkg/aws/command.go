@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -10,8 +11,32 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 )
 
+const (
+	// DefaultCommandTimeout is the default timeout for command execution
+	DefaultCommandTimeout = 2 * time.Minute
+	// MaxCommandTimeout is the maximum allowed timeout
+	MaxCommandTimeout = 10 * time.Minute
+)
+
 // ExecuteCommand executes a command on an EC2 instance via SSM and returns the output
 func (c *Client) ExecuteCommand(ctx context.Context, instanceID, command string) (string, error) {
+	return c.ExecuteCommandWithTimeout(ctx, instanceID, command, DefaultCommandTimeout)
+}
+
+// ExecuteCommandWithTimeout executes a command with a configurable timeout
+func (c *Client) ExecuteCommandWithTimeout(ctx context.Context, instanceID, command string, timeout time.Duration) (string, error) {
+	// Validate timeout
+	if timeout > MaxCommandTimeout {
+		timeout = MaxCommandTimeout
+	}
+	if timeout < 10*time.Second {
+		timeout = 10 * time.Second
+	}
+
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
 	// Send the command using SSM SendCommand API
 	sendInput := &ssm.SendCommandInput{
 		InstanceIds:  []string{instanceID},
@@ -31,11 +56,20 @@ func (c *Client) ExecuteCommand(ctx context.Context, instanceID, command string)
 
 	// Wait for the command to complete
 	fmt.Printf("Command ID: %s\n", commandID)
-	fmt.Printf("Waiting for command to complete...\n\n")
+	fmt.Printf("Waiting for command to complete (timeout: %v)...\n\n", timeout)
 
-	// Poll for command completion
-	maxAttempts := 60 // 60 attempts * 2 seconds = 2 minutes max wait
-	for attempt := 0; attempt < maxAttempts; attempt++ {
+	// Poll for command completion with exponential backoff
+	attempt := 0
+	backoff := 500 * time.Millisecond
+	maxBackoff := 5 * time.Second
+
+	for {
+		select {
+		case <-ctx.Done():
+			return "", fmt.Errorf("command execution cancelled or timed out: %w", ctx.Err())
+		default:
+		}
+
 		// Get command invocation status
 		invocationInput := &ssm.GetCommandInvocationInput{
 			CommandId:  aws.String(commandID),
@@ -44,8 +78,11 @@ func (c *Client) ExecuteCommand(ctx context.Context, instanceID, command string)
 
 		invocationResult, err := c.SSMClient.GetCommandInvocation(ctx, invocationInput)
 		if err != nil {
-			// Command might not be ready yet, continue polling
-			time.Sleep(2 * time.Second)
+			// Command might not be ready yet, continue polling with backoff
+			attempt++
+			time.Sleep(backoff)
+			// Exponential backoff with max cap
+			backoff = time.Duration(math.Min(float64(backoff*2), float64(maxBackoff)))
 			continue
 		}
 
@@ -74,8 +111,11 @@ func (c *Client) ExecuteCommand(ctx context.Context, instanceID, command string)
 			return "", fmt.Errorf("command timed out")
 
 		case types.CommandInvocationStatusPending, types.CommandInvocationStatusInProgress:
-			// Still running, continue polling
-			time.Sleep(2 * time.Second)
+			// Still running, continue polling with backoff
+			attempt++
+			time.Sleep(backoff)
+			// Exponential backoff with max cap
+			backoff = time.Duration(math.Min(float64(backoff*2), float64(maxBackoff)))
 			continue
 
 		default:
@@ -83,6 +123,4 @@ func (c *Client) ExecuteCommand(ctx context.Context, instanceID, command string)
 			return "", fmt.Errorf("unknown command status: %s", status)
 		}
 	}
-
-	return "", fmt.Errorf("command execution timed out after waiting for 2 minutes")
 }

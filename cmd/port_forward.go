@@ -3,6 +3,9 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/aws-ssm/pkg/aws"
 	"github.com/spf13/cobra"
@@ -56,7 +59,10 @@ func init() {
 
 func runPortForward(cmd *cobra.Command, args []string) error {
 	identifier := args[0]
-	ctx := context.Background()
+
+	// Create a context that can be cancelled with Ctrl+C
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 
 	// Validate ports
 	if remotePort < 1 || remotePort > 65535 {
@@ -74,32 +80,14 @@ func runPortForward(cmd *cobra.Command, args []string) error {
 
 	// Find the instance
 	fmt.Printf("Searching for instance: %s\n", identifier)
-	instances, err := client.FindInstances(ctx, identifier)
+
+	instance, err := client.ResolveSingleInstance(ctx, identifier)
 	if err != nil {
-		return fmt.Errorf("failed to find instance: %w", err)
-	}
-
-	if len(instances) == 0 {
-		return fmt.Errorf("no instances found matching: %s", identifier)
-	}
-
-	if len(instances) > 1 {
-		fmt.Printf("Found %d instances matching '%s':\n\n", len(instances), identifier)
-		for i, instance := range instances {
-			name := instance.Name
-			if name == "" {
-				name = "(no name)"
-			}
-			fmt.Printf("%d. %s - %s [%s] - %s\n", i+1, instance.InstanceID, name, instance.State, instance.PrivateIP)
+		// Check if it's a multiple instances error
+		if multiErr, ok := err.(*aws.MultipleInstancesError); ok {
+			fmt.Print(multiErr.FormatInstanceList())
 		}
-		return fmt.Errorf("multiple instances found, please use a more specific identifier")
-	}
-
-	instance := instances[0]
-
-	// Check if instance is running
-	if instance.State != "running" {
-		return fmt.Errorf("instance %s is not running (current state: %s)", instance.InstanceID, instance.State)
+		return err
 	}
 
 	// Display instance information

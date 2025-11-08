@@ -3,6 +3,9 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/aws-ssm/pkg/aws"
 	"github.com/spf13/cobra"
@@ -73,7 +76,9 @@ func init() {
 }
 
 func runInterfaces(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
+	// Create a context that can be cancelled with Ctrl+C
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 
 	// Create AWS client
 	client, err := aws.NewClient(ctx, region, profile)

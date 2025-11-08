@@ -3,8 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"net"
-	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -29,70 +27,66 @@ type Instance struct {
 func (c *Client) FindInstances(ctx context.Context, identifier string) ([]Instance, error) {
 	var filters []types.Filter
 
-	// Determine the type of identifier and build appropriate filters
-	switch {
-	case strings.HasPrefix(identifier, "i-"):
-		// Instance ID
+	// Parse the identifier to determine its type
+	idInfo := ParseIdentifier(identifier)
+
+	// Build filters based on identifier type
+	switch idInfo.Type {
+	case IdentifierTypeInstanceID:
 		filters = append(filters, types.Filter{
 			Name:   aws.String("instance-id"),
-			Values: []string{identifier},
+			Values: []string{idInfo.Value},
 		})
-	case strings.Contains(identifier, ":"):
-		// Tag format (Key:Value)
-		parts := strings.SplitN(identifier, ":", 2)
-		if len(parts) == 2 {
-			filters = append(filters, types.Filter{
-				Name:   aws.String(fmt.Sprintf("tag:%s", parts[0])),
-				Values: []string{parts[1]},
-			})
-		}
-	case isIPAddress(identifier):
-		// IP address (public or private)
+	case IdentifierTypeTag:
+		filters = append(filters, types.Filter{
+			Name:   aws.String(fmt.Sprintf("tag:%s", idInfo.TagKey)),
+			Values: []string{idInfo.TagValue},
+		})
+	case IdentifierTypeIPAddress:
+		// Try private IP first
 		filters = append(filters, types.Filter{
 			Name:   aws.String("private-ip-address"),
-			Values: []string{identifier},
+			Values: []string{idInfo.Value},
 		})
 		// Also check public IP
 		publicFilters := []types.Filter{
 			{
 				Name:   aws.String("ip-address"),
-				Values: []string{identifier},
+				Values: []string{idInfo.Value},
 			},
 		}
-		// Try public IP search as well
 		publicInstances, err := c.describeInstances(ctx, publicFilters)
 		if err == nil && len(publicInstances) > 0 {
 			return publicInstances, nil
 		}
-	case isDNSName(identifier):
-		// DNS name (public or private)
+	case IdentifierTypeDNSName:
+		// Try private DNS first
 		filters = append(filters, types.Filter{
 			Name:   aws.String("private-dns-name"),
-			Values: []string{identifier},
+			Values: []string{idInfo.Value},
 		})
 		// Also check public DNS
 		publicFilters := []types.Filter{
 			{
 				Name:   aws.String("dns-name"),
-				Values: []string{identifier},
+				Values: []string{idInfo.Value},
 			},
 		}
 		publicInstances, err := c.describeInstances(ctx, publicFilters)
 		if err == nil && len(publicInstances) > 0 {
 			return publicInstances, nil
 		}
-	default:
-		// Assume it's a name tag
+	case IdentifierTypeName:
 		filters = append(filters, types.Filter{
 			Name:   aws.String("tag:Name"),
-			Values: []string{identifier},
+			Values: []string{idInfo.Value},
 		})
 	}
 
-	// Only return running instances by default
+	// Filter by running state by default
 	filters = append(filters, types.Filter{
 		Name:   aws.String("instance-state-name"),
-		Values: []string{"running", "stopped", "stopping", "pending"},
+		Values: []string{"running"},
 	})
 
 	return c.describeInstances(ctx, filters)
@@ -113,7 +107,7 @@ func (c *Client) ListInstances(ctx context.Context, tagFilters map[string]string
 	// Only return running instances by default
 	filters = append(filters, types.Filter{
 		Name:   aws.String("instance-state-name"),
-		Values: []string{"running", "stopped", "stopping", "pending"},
+		Values: []string{"running"},
 	})
 
 	return c.describeInstances(ctx, filters)
@@ -161,14 +155,55 @@ func (c *Client) describeInstances(ctx context.Context, filters []types.Filter) 
 	return instances, nil
 }
 
-// isIPAddress checks if the string is a valid IP address
-func isIPAddress(s string) bool {
-	return net.ParseIP(s) != nil
+// ResolveSingleInstance finds a single instance by identifier and validates it's running
+// Returns an error if no instances found, multiple instances found, or instance is not running
+func (c *Client) ResolveSingleInstance(ctx context.Context, identifier string) (*Instance, error) {
+	instances, err := c.FindInstances(ctx, identifier)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find instance: %w", err)
+	}
+
+	if len(instances) == 0 {
+		return nil, fmt.Errorf("no instances found matching: %s", identifier)
+	}
+
+	if len(instances) > 1 {
+		return nil, &MultipleInstancesError{
+			Identifier: identifier,
+			Instances:  instances,
+		}
+	}
+
+	instance := instances[0]
+
+	// Check if instance is running
+	if instance.State != "running" {
+		return nil, fmt.Errorf("instance %s is not running (current state: %s)", instance.InstanceID, instance.State)
+	}
+
+	return &instance, nil
 }
 
-// isDNSName checks if the string looks like a DNS name
-func isDNSName(s string) bool {
-	return strings.Contains(s, ".") && (strings.Contains(s, "compute.amazonaws.com") ||
-		strings.Contains(s, "compute.internal") ||
-		strings.Count(s, ".") >= 2)
+// MultipleInstancesError is returned when multiple instances match an identifier
+type MultipleInstancesError struct {
+	Identifier string
+	Instances  []Instance
+}
+
+func (e *MultipleInstancesError) Error() string {
+	return fmt.Sprintf("multiple instances found matching '%s'", e.Identifier)
+}
+
+// FormatInstanceList returns a formatted string listing all matching instances
+func (e *MultipleInstancesError) FormatInstanceList() string {
+	var result string
+	result += fmt.Sprintf("Found %d instances matching '%s':\n\n", len(e.Instances), e.Identifier)
+	for i, inst := range e.Instances {
+		name := inst.Name
+		if name == "" {
+			name = "(no name)"
+		}
+		result += fmt.Sprintf("%d. %s - %s [%s] - %s\n", i+1, inst.InstanceID, name, inst.State, inst.PrivateIP)
+	}
+	return result
 }

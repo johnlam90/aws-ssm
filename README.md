@@ -33,7 +33,7 @@ Unlike the official AWS CLI and session-manager-plugin, this tool:
 
 ## Installation
 
-> **📖 For detailed installation instructions, see [INSTALLATION.md](INSTALLATION.md)**
+> **📖 For detailed installation instructions, see [docs/INSTALLATION.md](docs/INSTALLATION.md)**
 
 ### Quick Install
 
@@ -536,7 +536,7 @@ go mod tidy
 
 ## Contributing
 
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details on:
+Contributions are welcome! Please read our [Contributing Guide](docs/CONTRIBUTING.md) for details on:
 
 - Code of conduct
 - Development setup
@@ -551,22 +551,24 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### User Guides
 
-- [INSTALLATION.md](INSTALLATION.md) - Detailed installation instructions for all platforms
-- [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - Quick command reference
-- [FUZZY_FINDER.md](FUZZY_FINDER.md) - Interactive instance selection guide
-- [COMMAND_EXECUTION.md](COMMAND_EXECUTION.md) - Remote command execution guide
-- [NETWORK_INTERFACES.md](NETWORK_INTERFACES.md) - Network interface inspection guide
+- [INSTALLATION.md](docs/INSTALLATION.md) - Detailed installation instructions for all platforms
+- [QUICKSTART.md](docs/QUICKSTART.md) - Quick start guide
+- [QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md) - Quick command reference
+- [FUZZY_FINDER.md](docs/FUZZY_FINDER.md) - Interactive instance selection guide
+- [COMMAND_EXECUTION.md](docs/COMMAND_EXECUTION.md) - Remote command execution guide
+- [NETWORK_INTERFACES.md](docs/NETWORK_INTERFACES.md) - Network interface inspection guide
 
 ### Technical Documentation
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Technical architecture
-- [NATIVE_IMPLEMENTATION.md](NATIVE_IMPLEMENTATION.md) - Pure Go implementation details
-- [CHANGELOG.md](CHANGELOG.md) - Version history and release notes
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Technical architecture
+- [NATIVE_IMPLEMENTATION.md](docs/NATIVE_IMPLEMENTATION.md) - Pure Go implementation details
+- [CHANGELOG.md](docs/CHANGELOG.md) - Version history and release notes
 
-### Development
+### Development & Release
 
-- [CONTRIBUTING.md](CONTRIBUTING.md) - Contributing guidelines
-- [HOMEBREW_RELEASE_PROCESS.md](HOMEBREW_RELEASE_PROCESS.md) - Homebrew release and upgrade workflow
+- [CONTRIBUTING.md](docs/CONTRIBUTING.md) - Contributing guidelines
+- [RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) - Release checklist
+- [HOMEBREW_RELEASE_PROCESS.md](docs/HOMEBREW_RELEASE_PROCESS.md) - Homebrew release and upgrade workflow
 
 ## Acknowledgments
 
