@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ktr0731/go-fuzzyfinder"
+	fuzzyfinder "github.com/ktr0731/go-fuzzyfinder"
 )
 
 // EnhancedFinder represents the enhanced fuzzy finder

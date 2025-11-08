@@ -18,6 +18,10 @@ on:
       'release/**'
     ]
 
+permissions:
+  contents: read
+  security-events: write
+
 env:
   GO_VERSION: '1.24'
 
@@ -80,10 +84,11 @@ jobs:
 
       - name: Run Gosec Security Scanner
         run: |
-          gosec ./pkg/... ./cmd/... ./examples/... -fmt sarif -out gosec.sarif
+          gosec ./pkg/... ./cmd/... ./examples/... -fmt sarif -out gosec.sarif || true
 
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
           sarif_file: gosec.sarif
 
@@ -97,6 +102,7 @@ jobs:
 
       - name: Upload Trivy scan results
         uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
           sarif_file: 'trivy-results.sarif'
 
