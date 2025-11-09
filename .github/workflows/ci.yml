@@ -340,8 +340,8 @@ jobs:
 
       - name: Run compliance checks
         run: |
-          # Check for TODO/FIXME/BUG comments
-          if grep -r "TODO\|FIXME\|BUG" --include="*.go" .; then
+          # Check for TODO/FIXME/BUG comments (not just any word containing these substrings)
+          if grep -r -E "^\s*//\s*(TODO|FIXME|BUG)" --include="*.go" . --exclude-dir=.history; then
             echo "Found TODO/FIXME/BUG comments in code"
             exit 1
           fi
