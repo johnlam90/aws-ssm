@@ -38,6 +38,7 @@ type EKSClusterLoader interface {
 // Note: Cluster type is defined in pkg/aws/eks.go
 type AWSEKSClientInterface interface {
 	ListClusters(ctx context.Context) ([]string, error)
+	DescribeClusterBasic(ctx context.Context, clusterName string) (any, error)
 	GetConfig() aws.Config
 }
 
@@ -46,7 +47,8 @@ type AWSEKSLoader struct {
 	client        AWSEKSClientInterface
 	regions       []string
 	currentRegion string
-	describer     ClusterDescriber // Interface for describing clusters
+	describer     ClusterDescriber       // Interface for describing clusters
+	detailsCache  map[string]*EKSCluster // Cache for full cluster details
 }
 
 // ClusterDescriber interface for describing EKS clusters
@@ -62,10 +64,12 @@ func NewAWSEKSLoader(client AWSEKSClientInterface, describer ClusterDescriber) *
 		describer:     describer,
 		regions:       []string{client.GetConfig().Region},
 		currentRegion: client.GetConfig().Region,
+		detailsCache:  make(map[string]*EKSCluster),
 	}
 }
 
-// LoadClusters loads all EKS clusters from AWS with full details
+// LoadClusters loads basic EKS cluster information for fast initial display
+// Full details (node groups, Fargate profiles) are loaded lazily when needed
 func (l *AWSEKSLoader) LoadClusters(ctx context.Context) ([]EKSCluster, error) {
 	clusterNames, err := l.client.ListClusters(ctx)
 	if err != nil {
@@ -74,8 +78,9 @@ func (l *AWSEKSLoader) LoadClusters(ctx context.Context) ([]EKSCluster, error) {
 
 	var clusters []EKSCluster
 	for _, name := range clusterNames {
-		// Fetch full cluster details
-		clusterDetail, err := l.describer.DescribeCluster(ctx, name)
+		// Fetch basic cluster info (status, version, etc.) but not node groups/Fargate
+		// This is much faster than full DescribeCluster
+		clusterDetail, err := l.client.DescribeClusterBasic(ctx, name)
 		if err != nil {
 			fmt.Printf("Warning: failed to describe cluster %s: %v\n", name, err)
 			// Still add a basic entry if describe fails
@@ -83,12 +88,35 @@ func (l *AWSEKSLoader) LoadClusters(ctx context.Context) ([]EKSCluster, error) {
 			continue
 		}
 
-		// Convert to EKSCluster
+		// Convert to EKSCluster with basic info
 		eksCluster := l.convertToEKSCluster(clusterDetail)
 		clusters = append(clusters, eksCluster)
 	}
 
 	return clusters, nil
+}
+
+// GetClusterDetails fetches full cluster details with caching
+// This is called lazily when a cluster is previewed or selected
+func (l *AWSEKSLoader) GetClusterDetails(ctx context.Context, clusterName string) (*EKSCluster, error) {
+	// Check cache first
+	if cached, ok := l.detailsCache[clusterName]; ok {
+		return cached, nil
+	}
+
+	// Fetch full cluster details
+	clusterDetail, err := l.describer.DescribeCluster(ctx, clusterName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to describe cluster %s: %w", clusterName, err)
+	}
+
+	// Convert to EKSCluster
+	eksCluster := l.convertToEKSCluster(clusterDetail)
+
+	// Cache the result
+	l.detailsCache[clusterName] = &eksCluster
+
+	return &eksCluster, nil
 }
 
 // convertToEKSCluster converts a full cluster detail to EKSCluster for display
@@ -243,7 +271,7 @@ func NewEKSFinder(loader EKSClusterLoader, config Config) *EKSFinder {
 
 // SelectClusterInteractive displays the fuzzy finder for EKS cluster selection
 func (f *EKSFinder) SelectClusterInteractive(ctx context.Context) (*EKSCluster, error) {
-	// Load clusters
+	// Load clusters (basic info only for fast initial display)
 	clusters, err := f.loader.LoadClusters(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EKS clusters: %w", err)
@@ -253,8 +281,8 @@ func (f *EKSFinder) SelectClusterInteractive(ctx context.Context) (*EKSCluster, 
 		return nil, fmt.Errorf("no EKS clusters found")
 	}
 
-	// Use fuzzyfinder to select
-	fuzzyfinder := NewEKSFuzzyFinder(clusters, f.colors)
+	// Use fuzzyfinder to select (pass loader for lazy loading)
+	fuzzyfinder := NewEKSFuzzyFinder(clusters, f.colors, f.loader)
 	selectedIndex, err := fuzzyfinder.Select(ctx)
 	if err != nil {
 		return nil, err
@@ -271,20 +299,22 @@ func (f *EKSFinder) SelectClusterInteractive(ctx context.Context) (*EKSCluster, 
 type EKSFuzzyFinder struct {
 	clusters []EKSCluster
 	colors   ColorManager
+	loader   EKSClusterLoader // For lazy loading cluster details
 }
 
 // NewEKSFuzzyFinder creates a new EKS fuzzy finder
-func NewEKSFuzzyFinder(clusters []EKSCluster, colors ColorManager) *EKSFuzzyFinder {
+func NewEKSFuzzyFinder(clusters []EKSCluster, colors ColorManager, loader EKSClusterLoader) *EKSFuzzyFinder {
 	return &EKSFuzzyFinder{
 		clusters: clusters,
 		colors:   colors,
+		loader:   loader,
 	}
 }
 
 // Select displays the fuzzy finder and returns the selected cluster index
 func (f *EKSFuzzyFinder) Select(ctx context.Context) (int, error) {
-	// Create preview renderer
-	renderer := NewEKSPreviewRenderer(f.colors)
+	// Create preview renderer with loader for lazy loading
+	renderer := NewEKSPreviewRenderer(f.colors, f.loader)
 
 	// Use fuzzyfinder to select
 	selectedIndex, err := fuzzyfinder.Find(
@@ -296,7 +326,8 @@ func (f *EKSFuzzyFinder) Select(ctx context.Context) (int, error) {
 			if i < 0 || i >= len(f.clusters) {
 				return "Select an EKS cluster to view details"
 			}
-			return renderer.Render(&f.clusters[i], width, height)
+			// Render with lazy loading - full details fetched on-demand
+			return renderer.RenderWithLazyLoad(ctx, &f.clusters[i], width, height)
 		}),
 		fuzzyfinder.WithPromptString("EKS Cluster > "),
 	)

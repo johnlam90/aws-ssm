@@ -26,7 +26,28 @@ func (c *Client) ListClusters(ctx context.Context) ([]string, error) {
 	return clusterNames, nil
 }
 
+// DescribeClusterBasic retrieves basic cluster information (without node groups/Fargate profiles)
+// This is faster for initial loading in the fuzzy finder
+func (c *Client) DescribeClusterBasic(ctx context.Context, clusterName string) (*Cluster, error) {
+	eksClient := eks.NewFromConfig(c.Config)
+
+	output, err := eksClient.DescribeCluster(ctx, &eks.DescribeClusterInput{
+		Name: &clusterName,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to describe EKS cluster %s: %w", clusterName, err)
+	}
+
+	if output.Cluster == nil {
+		return nil, fmt.Errorf("cluster %s not found", clusterName)
+	}
+
+	cluster := convertEKSCluster(output.Cluster)
+	return cluster, nil
+}
+
 // DescribeCluster retrieves detailed information about an EKS cluster
+// This includes node groups and Fargate profiles (slower but complete)
 func (c *Client) DescribeCluster(ctx context.Context, clusterName string) (*Cluster, error) {
 	eksClient := eks.NewFromConfig(c.Config)
 

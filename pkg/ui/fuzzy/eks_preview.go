@@ -1,6 +1,7 @@
 package fuzzy
 
 import (
+	"context"
 	"fmt"
 	"strings"
 )
@@ -8,11 +9,59 @@ import (
 // EKSPreviewRenderer handles rendering EKS cluster preview information
 type EKSPreviewRenderer struct {
 	colors ColorManager
+	loader EKSClusterLoader // For lazy loading full cluster details
 }
 
 // NewEKSPreviewRenderer creates a new EKS preview renderer
-func NewEKSPreviewRenderer(colors ColorManager) *EKSPreviewRenderer {
-	return &EKSPreviewRenderer{colors: colors}
+func NewEKSPreviewRenderer(colors ColorManager, loader EKSClusterLoader) *EKSPreviewRenderer {
+	return &EKSPreviewRenderer{
+		colors: colors,
+		loader: loader,
+	}
+}
+
+// RenderWithLazyLoad renders the preview with lazy loading of full cluster details
+func (r *EKSPreviewRenderer) RenderWithLazyLoad(ctx context.Context, cluster *EKSCluster, width, height int) string {
+	if cluster == nil {
+		return ""
+	}
+
+	// If cluster has no details yet (only name), fetch them lazily
+	if cluster.Status == "" && cluster.Version == "" {
+		// Try to get full details from loader
+		if awsLoader, ok := r.loader.(*AWSEKSLoader); ok {
+			fullCluster, err := awsLoader.GetClusterDetails(ctx, cluster.Name)
+			if err != nil {
+				// If fetch fails, show basic info with error
+				return r.renderBasicWithError(cluster, width, err)
+			}
+			// Use the full cluster details for rendering
+			cluster = fullCluster
+		}
+	}
+
+	// Render full cluster details
+	return r.Render(cluster, width, height)
+}
+
+// renderBasicWithError renders basic cluster info when full details can't be loaded
+func (r *EKSPreviewRenderer) renderBasicWithError(cluster *EKSCluster, width int, err error) string {
+	var preview strings.Builder
+
+	preview.WriteString(r.colors.HeaderColor("EKS Cluster Details"))
+	preview.WriteString("\n")
+	preview.WriteString(strings.Repeat("─", min(width, 60)))
+	preview.WriteString("\n\n")
+
+	preview.WriteString(r.colors.BoldColor("Basic Information:"))
+	preview.WriteString("\n")
+	preview.WriteString(fmt.Sprintf("  Name:              %s\n", cluster.Name))
+	preview.WriteString("\n")
+
+	preview.WriteString("⚠ Failed to load full cluster details\n")
+	preview.WriteString(fmt.Sprintf("  Error: %v\n", err))
+
+	return preview.String()
 }
 
 // Render renders the preview for an EKS cluster

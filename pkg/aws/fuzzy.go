@@ -6,6 +6,7 @@ import (
 
 	"github.com/aws-ssm/pkg/cache"
 	"github.com/aws-ssm/pkg/ui/fuzzy"
+	"github.com/aws/aws-sdk-go-v2/aws"
 )
 
 // columnNamesToConfig converts CLI column names to ColumnConfig
@@ -268,11 +269,26 @@ func (e *EKSDescriber) DescribeCluster(ctx context.Context, clusterName string) 
 	return e.client.DescribeCluster(ctx, clusterName)
 }
 
+// DescribeClusterBasic implements the AWSEKSClientInterface
+func (e *EKSDescriber) DescribeClusterBasic(ctx context.Context, clusterName string) (any, error) {
+	return e.client.DescribeClusterBasic(ctx, clusterName)
+}
+
+// ListClusters implements the AWSEKSClientInterface
+func (e *EKSDescriber) ListClusters(ctx context.Context) ([]string, error) {
+	return e.client.ListClusters(ctx)
+}
+
+// GetConfig implements the AWSEKSClientInterface
+func (e *EKSDescriber) GetConfig() aws.Config {
+	return e.client.GetConfig()
+}
+
 // SelectEKSClusterInteractive displays an interactive fuzzy finder to select an EKS cluster
 func (c *Client) SelectEKSClusterInteractive(ctx context.Context) (*Cluster, error) {
 	// Create EKS loader with both list and describe capabilities
 	describer := &EKSDescriber{client: c}
-	loader := fuzzy.NewAWSEKSLoader(c, describer)
+	loader := fuzzy.NewAWSEKSLoader(describer, describer)
 
 	// Create EKS finder
 	finder := fuzzy.NewEKSFinder(loader, fuzzy.DefaultConfig())
