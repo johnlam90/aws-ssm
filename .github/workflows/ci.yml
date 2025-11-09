@@ -371,7 +371,7 @@ jobs:
           if ! command -v cyclonedx-gomod &> /dev/null; then
             go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@latest
           fi
-          go mod graph | awk '{if($1 ~ /^[a-zA-Z]/) print $2}' | sort -u | cyclonedx-gomod -output sbom.json
+          cyclonedx-gomod mod -json -output sbom.json
 
       - name: Upload SBOM
         uses: actions/upload-artifact@v4
