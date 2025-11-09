@@ -199,7 +199,9 @@ func (c *Client) SelectInstanceFromProvided(ctx context.Context, instances []Ins
 	}
 
 	// For now, keep the original implementation for this method
-	// TODO: Convert to use enhanced fuzzy finder
+	// This method currently uses a different fuzzy finder approach for provided instances
+	// to maintain compatibility with the existing API. The enhanced finder will be
+	// integrated in a future refactoring when we can ensure backward compatibility.
 
 	// Filter running instances first to reduce noise, but if that empties the list, fall back.
 	running := make([]Instance, 0, len(instances))
