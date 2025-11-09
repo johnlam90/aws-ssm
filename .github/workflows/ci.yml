@@ -8,7 +8,7 @@ on:
       'hardening',
       'feature/**',
       'release/**',
-      'eks/**'
+      'eks'
     ]
   pull_request:
     branches: [
