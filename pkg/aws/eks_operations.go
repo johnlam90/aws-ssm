@@ -205,7 +205,7 @@ func convertEKSCluster(eksCluster *ekstypes.Cluster) *Cluster {
 	// Convert logging info
 	if eksCluster.Logging != nil && eksCluster.Logging.ClusterLogging != nil {
 		for _, cl := range eksCluster.Logging.ClusterLogging {
-			if cl.Types != nil && len(cl.Types) > 0 {
+			if len(cl.Types) > 0 {
 				enabled := false
 				if cl.Enabled != nil {
 					enabled = *cl.Enabled

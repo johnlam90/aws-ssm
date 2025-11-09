@@ -6,30 +6,30 @@ import (
 
 // Cluster represents an EKS cluster with its metadata
 type Cluster struct {
-	Name                string
-	ARN                 string
-	Status              string
-	Version             string
-	Endpoint            string
-	RoleARN             string
-	CreatedAt           time.Time
-	Tags                map[string]string
-	VPC                 VPCInfo
-	Logging             LoggingInfo
-	NodeGroups          []NodeGroup
-	FargateProfiles     []FargateProfile
-	EncryptionConfig    []EncryptionConfig
-	Identity            IdentityInfo
-	PlatformVersion     string
+	Name                 string
+	ARN                  string
+	Status               string
+	Version              string
+	Endpoint             string
+	RoleARN              string
+	CreatedAt            time.Time
+	Tags                 map[string]string
+	VPC                  VPCInfo
+	Logging              LoggingInfo
+	NodeGroups           []NodeGroup
+	FargateProfiles      []FargateProfile
+	EncryptionConfig     []EncryptionConfig
+	Identity             IdentityInfo
+	PlatformVersion      string
 	CertificateAuthority CertificateAuthority
 }
 
 // VPCInfo contains VPC and networking configuration
 type VPCInfo struct {
-	VpcID              string
-	SubnetIDs          []string
-	SecurityGroupIDs   []string
-	PublicAccessCIDRs  []string
+	VpcID                 string
+	SubnetIDs             []string
+	SecurityGroupIDs      []string
+	PublicAccessCIDRs     []string
 	EndpointPrivateAccess bool
 	EndpointPublicAccess  bool
 }
@@ -47,23 +47,23 @@ type LoggingType struct {
 
 // NodeGroup represents an EKS managed node group
 type NodeGroup struct {
-	Name              string
-	NodeGroupARN      string
-	Status            string
-	Version           string
-	InstanceTypes     []string
-	DiskSize          int32
-	DesiredSize       int32
-	MinSize           int32
-	MaxSize           int32
-	CurrentSize       int32
-	CreatedAt         time.Time
-	Tags              map[string]string
-	LaunchTemplate    LaunchTemplateInfo
-	SubnetIDs         []string
-	RemoteAccess      RemoteAccessConfig
-	Labels            map[string]string
-	Taints            []Taint
+	Name           string
+	NodeGroupARN   string
+	Status         string
+	Version        string
+	InstanceTypes  []string
+	DiskSize       int32
+	DesiredSize    int32
+	MinSize        int32
+	MaxSize        int32
+	CurrentSize    int32
+	CreatedAt      time.Time
+	Tags           map[string]string
+	LaunchTemplate LaunchTemplateInfo
+	SubnetIDs      []string
+	RemoteAccess   RemoteAccessConfig
+	Labels         map[string]string
+	Taints         []Taint
 }
 
 // LaunchTemplateInfo contains launch template information
@@ -75,8 +75,8 @@ type LaunchTemplateInfo struct {
 
 // RemoteAccessConfig contains remote access configuration
 type RemoteAccessConfig struct {
-	EC2SshKeyName            string
-	SourceSecurityGroupIDs   []string
+	EC2SshKeyName          string
+	SourceSecurityGroupIDs []string
 }
 
 // Taint represents a Kubernetes taint
@@ -88,13 +88,13 @@ type Taint struct {
 
 // FargateProfile represents an EKS Fargate profile
 type FargateProfile struct {
-	Name              string
-	FargateProfileARN string
-	Status            string
-	CreatedAt         time.Time
-	Selectors         []FargateSelector
-	Tags              map[string]string
-	SubnetIDs         []string
+	Name                string
+	FargateProfileARN   string
+	Status              string
+	CreatedAt           time.Time
+	Selectors           []FargateSelector
+	Tags                map[string]string
+	SubnetIDs           []string
 	PodExecutionRoleARN string
 }
 
@@ -129,4 +129,3 @@ type OIDCInfo struct {
 type CertificateAuthority struct {
 	Data string
 }
-

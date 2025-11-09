@@ -79,8 +79,8 @@ func (c *Service) Get(key string) (interface{}, bool) {
 	}
 
 	var entry Entry
-	if err := json.Unmarshal(data, &entry); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to unmarshal cache entry %s: %v\n", cacheFile, err)
+	if unmarshalErr := json.Unmarshal(data, &entry); unmarshalErr != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to unmarshal cache entry %s: %v\n", cacheFile, unmarshalErr)
 		return nil, false
 	}
 
@@ -170,7 +170,7 @@ func (c *Service) Cleanup() error {
 		}
 
 		var entry Entry
-		if err := json.Unmarshal(data, &entry); err != nil {
+		if unmarshalErr := json.Unmarshal(data, &entry); unmarshalErr != nil {
 			// Invalid cache file, remove it (ignore error as it's cleanup)
 			//nolint:errcheck // Cleanup operation, error is not critical
 			_ = os.Remove(cacheFile)
@@ -179,8 +179,8 @@ func (c *Service) Cleanup() error {
 
 		if time.Since(entry.Timestamp) > c.ttl {
 			// Remove expired cache file
-			if err := os.Remove(cacheFile); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to remove expired cache file %s: %v\n", file.Name(), err)
+			if removeErr := os.Remove(cacheFile); removeErr != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to remove expired cache file %s: %v\n", file.Name(), removeErr)
 			}
 		}
 	}
@@ -219,7 +219,7 @@ func (c *Service) GetCacheStats() (totalFiles, expiredFiles int, totalSize int64
 		}
 
 		var entry Entry
-		if err := json.Unmarshal(data, &entry); err != nil {
+		if unmarshalErr := json.Unmarshal(data, &entry); unmarshalErr != nil {
 			continue
 		}
 

@@ -30,9 +30,9 @@ func TestClusterStructure(t *testing.T) {
 				Status:  "ACTIVE",
 				Version: "1.28",
 				VPC: VPCInfo{
-					VpcID:              "vpc-12345678",
-					SubnetIDs:          []string{"subnet-1", "subnet-2"},
-					SecurityGroupIDs:   []string{"sg-1", "sg-2"},
+					VpcID:                 "vpc-12345678",
+					SubnetIDs:             []string{"subnet-1", "subnet-2"},
+					SecurityGroupIDs:      []string{"sg-1", "sg-2"},
 					EndpointPrivateAccess: true,
 					EndpointPublicAccess:  true,
 				},
@@ -172,9 +172,9 @@ func TestNodeGroupStructure(t *testing.T) {
 
 func TestFargateProfileStructure(t *testing.T) {
 	tests := []struct {
-		name             string
-		fargateProfile   FargateProfile
-		validate         func(*FargateProfile) bool
+		name           string
+		fargateProfile FargateProfile
+		validate       func(*FargateProfile) bool
 	}{
 		{
 			name: "basic fargate profile",
@@ -311,4 +311,3 @@ func TestClusterWithTimestamps(t *testing.T) {
 		t.Errorf("Expected CreatedAt to be non-zero")
 	}
 }
-

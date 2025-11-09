@@ -123,7 +123,8 @@ func NewManager(config *Config) *Manager {
 	// Compile blocked patterns as regex
 	blockedPatterns := make([]*regexp.Regexp, 0, len(config.BlockedPatterns))
 	for _, pattern := range config.BlockedPatterns {
-		if re, err := regexp.Compile(pattern); err == nil {
+		re, compileErr := regexp.Compile(pattern)
+		if compileErr == nil {
 			blockedPatterns = append(blockedPatterns, re)
 		}
 	}
@@ -144,7 +145,8 @@ func NewManager(config *Config) *Manager {
 	}
 	suspiciousRegex := make([]*regexp.Regexp, 0, len(suspiciousPatterns))
 	for _, pattern := range suspiciousPatterns {
-		if re, err := regexp.Compile(pattern); err == nil {
+		re, compileErr := regexp.Compile(pattern)
+		if compileErr == nil {
 			suspiciousRegex = append(suspiciousRegex, re)
 		}
 	}
