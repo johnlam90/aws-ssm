@@ -47,9 +47,9 @@ func (c *Client) StartSession(ctx context.Context, instanceID string) error {
 		"Target":     instanceID,
 	}
 
-	sessionJSON, err := json.Marshal(sessionData)
-	if err != nil {
-		return fmt.Errorf("failed to marshal session data: %w", err)
+	sessionJSON, marshalErr := json.Marshal(sessionData)
+	if marshalErr != nil {
+		return fmt.Errorf("failed to marshal session data: %w", marshalErr)
 	}
 
 	// Get region from config
@@ -91,25 +91,25 @@ func (c *Client) StartSession(ctx context.Context, instanceID string) error {
 	go func() {
 		<-sigChan
 		if cmd.Process != nil {
-			if err := cmd.Process.Signal(os.Interrupt); err != nil {
+			if signalErr := cmd.Process.Signal(os.Interrupt); signalErr != nil {
 				// Log the error but don't fail - we're already handling a signal
-				fmt.Printf("Warning: failed to send interrupt signal: %v\n", err)
+				fmt.Printf("Warning: failed to send interrupt signal: %v\n", signalErr)
 			}
 		}
 	}()
 
 	fmt.Printf("Starting session with instance %s...\n", instanceID)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("session-manager-plugin failed: %w", err)
+	if runErr := cmd.Run(); runErr != nil {
+		return fmt.Errorf("session-manager-plugin failed: %w", runErr)
 	}
 
 	// Terminate the session
 	terminateInput := &ssm.TerminateSessionInput{
 		SessionId: result.SessionId,
 	}
-	if _, err := c.SSMClient.TerminateSession(ctx, terminateInput); err != nil {
+	if _, terminateErr := c.SSMClient.TerminateSession(ctx, terminateInput); terminateErr != nil {
 		// Log but don't fail - session might already be terminated
-		fmt.Printf("Warning: failed to terminate session: %v\n", err)
+		fmt.Printf("Warning: failed to terminate session: %v\n", terminateErr)
 	}
 
 	return nil
