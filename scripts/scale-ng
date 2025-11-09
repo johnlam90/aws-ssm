@@ -1,0 +1,477 @@
+#!/usr/bin/env bash
+
+# EKS Node Group Auto Scaling Group Management Script
+# Dynamic ASG Discovery Version - searches for ASGs by keyword patterns
+# Usage: ./scale-ng list
+#        ./scale-ng --asg <pattern> --replicas <count>
+#        ./scale-ng --asg <pattern> --min <min> --max <max> --desired <desired>
+#        ./scale-ng --asg <pattern> --replicas <count> --skip-verify
+
+# Color codes for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Global flag for skipping confirmation
+SKIP_VERIFY=false
+
+# Function to discover ASGs by keyword pattern
+discover_asgs_by_keyword() {
+    local keyword=$1
+
+    # Query all ASGs and filter by keyword in name
+    local result=$(aws autoscaling describe-auto-scaling-groups \
+        --query "AutoScalingGroups[?contains(AutoScalingGroupName, '$keyword')].AutoScalingGroupName" \
+        --output json 2>&1)
+
+    if ! echo "$result" | jq -e . >/dev/null 2>&1; then
+        echo -e "${RED}Error querying ASGs:${NC}"
+        echo "$result" >&2
+        return 1
+    fi
+
+    echo "$result"
+}
+
+# Function to extract friendly name from full ASG name
+# Extracts the meaningful part between "eks-" and "-worker" or "-worker-node"
+# Examples:
+#   eks-nk-rdc-upf-d-lb-worker-node-... -> upf-d-lb
+#   eks-nk-rdc-amf-usw2-... -> amf
+#   eks-NG_FO2-... -> fo2
+extract_friendly_name() {
+    local asg_name=$1
+
+    # Try pattern: eks-nk-(rdc|ndc)-<name>-worker-node
+    if [[ $asg_name =~ eks-nk-(rdc|ndc)-([a-z0-9-]+)-worker-node ]]; then
+        echo "${BASH_REMATCH[2]}" | tr '[:upper:]' '[:lower:]'
+        return 0
+    fi
+
+    # Try pattern: eks-nk-(rdc|ndc)-<name>-usw2
+    if [[ $asg_name =~ eks-nk-(rdc|ndc)-([a-z0-9]+)-usw2 ]]; then
+        echo "${BASH_REMATCH[2]}"
+        return 0
+    fi
+
+    # Try pattern: eks-NG_<name>
+    if [[ $asg_name =~ eks-NG_([A-Za-z0-9]+) ]]; then
+        echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]'
+        return 0
+    fi
+
+    # Try pattern: eks-nk-ndc-<name>-worker-node (national data center format)
+    if [[ $asg_name =~ eks-nk-ndc-([a-z0-9-]+)-worker-node ]]; then
+        echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]'
+        return 0
+    fi
+
+    # Fallback: extract between "eks-" and the first "-worker" or before UUID
+    local friendly=$(echo "$asg_name" | sed 's/^eks-//' | sed 's/-[a-f0-9]\{8\}-[a-f0-9]\{4\}-[a-f0-9]\{4\}-[a-f0-9]\{4\}-[a-f0-9]\{12\}$//' | sed 's/-worker.*//' | sed 's/-usw2.*//')
+    echo "$friendly" | tr '[:upper:]' '[:lower:]'
+}
+
+# Function to get all ASGs (no filter)
+get_all_asgs() {
+    local result=$(aws autoscaling describe-auto-scaling-groups \
+        --query "AutoScalingGroups[*].AutoScalingGroupName" \
+        --output json 2>&1)
+
+    if ! echo "$result" | jq -e . >/dev/null 2>&1; then
+        echo -e "${RED}Error querying ASGs:${NC}"
+        echo "$result" >&2
+        return 1
+    fi
+
+    echo "$result"
+}
+
+# Function to parse JSON array of ASG names
+parse_asg_names() {
+    local json_array=$1
+    echo "$json_array" | jq -r '.[]'
+}
+
+# Function to prompt user to select an ASG from a list
+select_asg_interactive() {
+    local -n asg_list=$1
+
+    if [ ${#asg_list[@]} -eq 0 ]; then
+        echo -e "${RED}No ASGs found matching the keyword${NC}"
+        return 1
+    fi
+
+    if [ ${#asg_list[@]} -eq 1 ]; then
+        echo "${asg_list[0]}"
+        return 0
+    fi
+
+    echo -e "${YELLOW}Multiple ASGs found. Please select one:${NC}\n"
+
+    local i=1
+    for asg in "${asg_list[@]}"; do
+        friendly=$(extract_friendly_name "$asg")
+        echo -e "  ${GREEN}$i)${NC} $friendly"
+        ((i++))
+    done
+
+    echo ""
+    read -p "Enter selection (1-${#asg_list[@]}): " -r selection
+
+    if ! [[ "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt ${#asg_list[@]} ]; then
+        echo -e "${RED}Invalid selection${NC}"
+        return 1
+    fi
+
+    echo "${asg_list[$((selection-1))]}"
+    return 0
+}
+
+# Function to handle scaling with pattern matching
+resolve_asg_from_keyword() {
+    local keyword=$1
+
+    # Discover ASGs matching the keyword
+    local json_result
+    json_result=$(discover_asgs_by_keyword "$keyword") || return 1
+
+    # Convert JSON to array
+    local asg_array=()
+    while IFS= read -r asg; do
+        if [ -n "$asg" ]; then
+            asg_array+=("$asg")
+        fi
+    done < <(parse_asg_names "$json_result")
+
+    if [ ${#asg_array[@]} -eq 0 ]; then
+        echo -e "${RED}Error: No ASGs found matching keyword '$keyword'${NC}"
+        return 1
+    fi
+
+    # If only one match, use it directly
+    if [ ${#asg_array[@]} -eq 1 ]; then
+        echo "${asg_array[0]}"
+        return 0
+    fi
+
+    # Multiple matches: prompt for selection unless --no-prompt is set
+    if [ "$SKIP_PROMPT" = true ]; then
+        echo -e "${YELLOW}Multiple ASGs found (using first match):${NC}"
+        for asg in "${asg_array[@]}"; do
+            friendly=$(extract_friendly_name "$asg")
+            echo -e "  - $friendly"
+        done
+        echo "${asg_array[0]}"
+        return 0
+    else
+        select_asg_interactive asg_array
+        return $?
+    fi
+}
+
+# Function to display usage
+usage() {
+    echo -e "${BLUE}Usage:${NC}"
+    echo -e "  ${GREEN}./scale-ng list${NC}"
+    echo -e "    List all ASGs with their current configuration"
+    echo ""
+    echo -e "  ${GREEN}./scale-ng --asg <pattern> --replicas <count>${NC}"
+    echo -e "    Scale ASG matching pattern to specific replica count"
+    echo ""
+    echo -e "  ${GREEN}./scale-ng --asg <pattern> --min <min> --max <max> --desired <desired>${NC}"
+    echo -e "    Scale ASG matching pattern with custom min/max/desired values"
+    echo ""
+    echo -e "${BLUE}Options:${NC}"
+    echo -e "  ${GREEN}--asg <pattern>${NC}       Search for ASGs containing this pattern (required)"
+    echo -e "  ${GREEN}--skip-verify${NC}         Skip confirmation prompt"
+    echo -e "  ${GREEN}--no-prompt${NC}           Use first match if multiple ASGs found"
+    echo ""
+    echo -e "${BLUE}Examples:${NC}"
+    echo -e "  ${YELLOW}./scale-ng list${NC}                                         # List all ASGs"
+    echo -e "  ${YELLOW}./scale-ng --asg upf-d-lb --replicas 0${NC}                  # Scale 'upf-d-lb' ASG to 0 replicas"
+    echo -e "  ${YELLOW}./scale-ng --asg upf-d-mg --replicas 3${NC}                  # Scale 'upf-d-mg' ASG to 3 replicas"
+    echo -e "  ${YELLOW}./scale-ng --asg smf --replicas 2 --no-prompt${NC}           # Scale first matching 'smf' ASG to 2"
+    echo -e "  ${YELLOW}./scale-ng --asg amf --min 1 --max 5 --desired 2${NC}        # Custom scaling with min/max/desired"
+    echo -e "  ${YELLOW}./scale-ng --asg upf --replicas 0 --skip-verify${NC}         # Scale without confirmation prompts"
+    exit 1
+}
+
+# Function to list all ASGs
+list_asgs() {
+    echo -e "${BLUE}Fetching current ASG status...${NC}\n"
+
+    # Get all ASGs
+    if ! get_all_asgs > /dev/null 2>&1; then
+        exit 1
+    fi
+
+    # Get ASG details
+    result=$(aws autoscaling describe-auto-scaling-groups \
+        --query 'AutoScalingGroups[*].[AutoScalingGroupName,MinSize,MaxSize,DesiredCapacity,length(Instances)]' \
+        --output json 2>&1)
+
+    if ! echo "$result" | jq -e . >/dev/null 2>&1; then
+        echo -e "${RED}Error fetching ASG data:${NC}"
+        echo "$result"
+        exit 1
+    fi
+
+    # Find the longest friendly name for column width
+    local max_name_len=4  # minimum for "NAME"
+    echo "$result" | jq -r '.[] | @tsv' | while IFS=$'\t' read -r asg_name min max desired current; do
+        friendly_name=$(extract_friendly_name "$asg_name")
+        if [ ${#friendly_name} -gt $max_name_len ]; then
+            max_name_len=${#friendly_name}
+        fi
+    done
+
+    # If max_name_len is still 4, calculate it differently
+    max_name_len=$(echo "$result" | jq -r '.[] | @tsv' | while IFS=$'\t' read -r asg_name _; do
+        friendly_name=$(extract_friendly_name "$asg_name")
+        echo ${#friendly_name}
+    done | sort -rn | head -1)
+    max_name_len=$((max_name_len + 1))  # Add padding
+
+    # Ensure minimum width
+    if [ $max_name_len -lt 12 ]; then
+        max_name_len=12
+    fi
+
+    # Print header
+    printf "${GREEN}%-${max_name_len}s %-8s %-8s %-8s %-8s${NC}\n" "NAME" "MIN" "MAX" "DESIRED" "CURRENT"
+
+    # Print separator
+    separator=$(printf '%.0s-' $(seq 1 $max_name_len))
+    printf "%-${max_name_len}s %-8s %-8s %-8s %-8s\n" "$separator" "--------" "--------" "--------" "--------"
+
+    # Parse and display results
+    echo "$result" | jq -r '.[] | @tsv' | while IFS=$'\t' read -r asg_name min max desired current; do
+        # Extract friendly name
+        friendly_name=$(extract_friendly_name "$asg_name")
+
+        # Color code based on status
+        if [ "$current" -eq 0 ]; then
+            color="${RED}"
+        elif [ "$current" -eq "$desired" ]; then
+            color="${GREEN}"
+        else
+            color="${YELLOW}"
+        fi
+
+        printf "${color}%-${max_name_len}s${NC} %-8s %-8s %-8s %-8s\n" "$friendly_name" "$min" "$max" "$desired" "$current"
+    done
+}
+
+# Function to confirm action
+confirm_action() {
+    local asg_name=$1
+    local min=$2
+    local max=$3
+    local desired=$4
+
+    echo ""
+    echo -e "${YELLOW}⚠️  You are about to scale:${NC}"
+    echo -e "${BLUE}  Target:${NC} ${GREEN}$asg_name${NC}"
+    echo -e "${BLUE}  Min Size:${NC} $min"
+    echo -e "${BLUE}  Max Size:${NC} $max"
+    echo -e "${BLUE}  Desired:${NC} $desired"
+    echo ""
+
+    read -p "Are you sure you want to continue? (yes/no): " -r
+    echo ""
+
+    if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
+        echo -e "${YELLOW}Operation cancelled.${NC}"
+        exit 0
+    fi
+}
+
+# Function to scale an ASG
+scale_asg() {
+    local keyword=$1
+    local min=$2
+    local max=$3
+    local desired=$4
+
+    # Resolve ASG name from keyword
+    asg_name=$(resolve_asg_from_keyword "$keyword") || exit 1
+
+    if [ -z "$asg_name" ]; then
+        exit 1
+    fi
+
+    # Extract friendly name for display
+    friendly_name=$(extract_friendly_name "$asg_name")
+
+    echo -e "${BLUE}Scaling ${GREEN}$friendly_name${BLUE} to min=$min, max=$max, desired=$desired${NC}"
+
+    result=$(aws autoscaling update-auto-scaling-group \
+        --auto-scaling-group-name "$asg_name" \
+        --min-size "$min" \
+        --max-size "$max" \
+        --desired-capacity "$desired" 2>&1)
+
+    if echo "$result" | grep -q "error\|Error"; then
+        echo -e "${RED}✗ Failed to scale $friendly_name${NC}"
+        echo "$result"
+        exit 1
+    else
+        echo -e "${GREEN}✓ Successfully scaled $friendly_name${NC}"
+    fi
+}
+
+# Function to scale all ASGs
+scale_all_asgs() {
+    local min=$1
+    local max=$2
+    local desired=$3
+
+    # Get all ASGs
+    local json_result
+    json_result=$(get_all_asgs) || exit 1
+
+    # Convert JSON to array
+    local asg_array=()
+    while IFS= read -r asg; do
+        if [ -n "$asg" ]; then
+            asg_array+=("$asg")
+        fi
+    done < <(parse_asg_names "$json_result")
+
+    if [ ${#asg_array[@]} -eq 0 ]; then
+        echo -e "${RED}Error: No ASGs found${NC}"
+        exit 1
+    fi
+
+    echo -e "${BLUE}Scaling ${#asg_array[@]} ASG(s) to min=$min, max=$max, desired=$desired${NC}\n"
+
+    for asg in "${asg_array[@]}"; do
+        friendly=$(extract_friendly_name "$asg")
+
+        result=$(aws autoscaling update-auto-scaling-group \
+            --auto-scaling-group-name "$asg" \
+            --min-size "$min" \
+            --max-size "$max" \
+            --desired-capacity "$desired" 2>&1)
+
+        if echo "$result" | grep -q "error\|Error"; then
+            echo -e "${RED}✗ Failed to scale $friendly${NC}"
+            echo "$result"
+        else
+            echo -e "${GREEN}✓ Successfully scaled $friendly${NC}"
+        fi
+    done
+
+    echo -e "\n${GREEN}All ASGs have been scaled${NC}"
+}
+
+# Main script logic
+if [ $# -eq 0 ]; then
+    usage
+fi
+
+# Handle 'list' command
+if [ "$1" == "list" ]; then
+    list_asgs
+    exit 0
+fi
+
+# Parse arguments
+ASG_NAME=""
+REPLICAS=""
+MIN=""
+MAX=""
+DESIRED=""
+SKIP_PROMPT=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --asg)
+            ASG_NAME="$2"
+            shift 2
+            ;;
+        --replicas)
+            REPLICAS="$2"
+            shift 2
+            ;;
+        --min)
+            MIN="$2"
+            shift 2
+            ;;
+        --max)
+            MAX="$2"
+            shift 2
+            ;;
+        --desired)
+            DESIRED="$2"
+            shift 2
+            ;;
+        --skip-verify)
+            SKIP_VERIFY=true
+            shift 1
+            ;;
+        --no-prompt)
+            SKIP_PROMPT=true
+            shift 1
+            ;;
+        *)
+            echo -e "${RED}Unknown option: $1${NC}"
+            usage
+            ;;
+    esac
+done
+
+# Validate required arguments
+if [ -z "$ASG_NAME" ]; then
+    echo -e "${RED}Error: --asg is required${NC}"
+    usage
+fi
+
+# Handle --replicas mode (simple scaling)
+if [ -n "$REPLICAS" ]; then
+    if [ -n "$MIN" ] || [ -n "$MAX" ] || [ -n "$DESIRED" ]; then
+        echo -e "${RED}Error: Cannot use --replicas with --min/--max/--desired${NC}"
+        usage
+    fi
+
+    if [ "$REPLICAS" -eq 0 ]; then
+        MIN=0
+        MAX=0
+        DESIRED=0
+    else
+        MIN=0
+        MAX="$REPLICAS"
+        DESIRED="$REPLICAS"
+    fi
+# Handle custom min/max/desired mode
+elif [ -n "$MIN" ] && [ -n "$MAX" ] && [ -n "$DESIRED" ]; then
+    # Validate values
+    if [ "$MIN" -gt "$MAX" ]; then
+        echo -e "${RED}Error: min ($MIN) cannot be greater than max ($MAX)${NC}"
+        exit 1
+    fi
+    if [ "$DESIRED" -lt "$MIN" ] || [ "$DESIRED" -gt "$MAX" ]; then
+        echo -e "${RED}Error: desired ($DESIRED) must be between min ($MIN) and max ($MAX)${NC}"
+        exit 1
+    fi
+else
+    echo -e "${RED}Error: Must provide either --replicas or all of --min/--max/--desired${NC}"
+    usage
+fi
+
+# Confirm action unless --skip-verify is set
+if [ "$SKIP_VERIFY" = false ]; then
+    confirm_action "$ASG_NAME" "$MIN" "$MAX" "$DESIRED"
+fi
+
+# Scale the ASG(s)
+if [ "$ASG_NAME" == "all" ]; then
+    scale_all_asgs "$MIN" "$MAX" "$DESIRED"
+else
+    scale_asg "$ASG_NAME" "$MIN" "$MAX" "$DESIRED"
+fi
+
+echo -e "\n${BLUE}Current status:${NC}"
+list_asgs

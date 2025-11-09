@@ -195,6 +195,9 @@ type ColorManager interface {
 	BoldColor(text string) string
 	StatusColor(status string) string
 	DimColor(text string) string
+	SuccessColor(text string) string
+	WarningColor(text string) string
+	ErrorColor(text string) string
 }
 
 // StateManager manages the current state of the fuzzy finder

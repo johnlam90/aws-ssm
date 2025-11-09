@@ -332,6 +332,67 @@ func convertNodeGroup(ng *ekstypes.Nodegroup) *NodeGroup {
 	return nodeGroup
 }
 
+// ListNodeGroupsForCluster retrieves all node group names for a cluster (public method)
+func (c *Client) ListNodeGroupsForCluster(ctx context.Context, clusterName string) ([]string, error) {
+	eksClient := eks.NewFromConfig(c.Config)
+
+	var nodeGroupNames []string
+	input := &eks.ListNodegroupsInput{
+		ClusterName: &clusterName,
+	}
+
+	paginator := eks.NewListNodegroupsPaginator(eksClient, input)
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list node groups: %w", err)
+		}
+		nodeGroupNames = append(nodeGroupNames, page.Nodegroups...)
+	}
+
+	return nodeGroupNames, nil
+}
+
+// DescribeNodeGroupPublic retrieves details about a specific node group (public method)
+func (c *Client) DescribeNodeGroupPublic(ctx context.Context, clusterName, nodeGroupName string) (*NodeGroup, error) {
+	eksClient := eks.NewFromConfig(c.Config)
+	return c.describeNodeGroup(ctx, eksClient, clusterName, nodeGroupName)
+}
+
+// UpdateNodeGroupScaling updates the scaling configuration of a node group
+func (c *Client) UpdateNodeGroupScaling(ctx context.Context, clusterName, nodeGroupName string, minSize, maxSize, desiredSize int32) error {
+	eksClient := eks.NewFromConfig(c.Config)
+
+	// Validate scaling parameters
+	if minSize < 0 {
+		return fmt.Errorf("min size cannot be negative")
+	}
+	if maxSize < minSize {
+		return fmt.Errorf("max size (%d) cannot be less than min size (%d)", maxSize, minSize)
+	}
+	if desiredSize < minSize || desiredSize > maxSize {
+		return fmt.Errorf("desired size (%d) must be between min size (%d) and max size (%d)", desiredSize, minSize, maxSize)
+	}
+
+	input := &eks.UpdateNodegroupConfigInput{
+		ClusterName:   &clusterName,
+		NodegroupName: &nodeGroupName,
+		ScalingConfig: &ekstypes.NodegroupScalingConfig{
+			MinSize:     &minSize,
+			MaxSize:     &maxSize,
+			DesiredSize: &desiredSize,
+		},
+	}
+
+	_, err := eksClient.UpdateNodegroupConfig(ctx, input)
+	if err != nil {
+		return fmt.Errorf("failed to update node group scaling: %w", err)
+	}
+
+	return nil
+}
+
 func convertFargateProfile(fp *ekstypes.FargateProfile) *FargateProfile {
 	if fp == nil {
 		return nil

@@ -86,6 +86,61 @@ type Taint struct {
 	Effect string
 }
 
+// GetName returns the node group name
+func (ng *NodeGroup) GetName() string {
+	return ng.Name
+}
+
+// GetStatus returns the node group status
+func (ng *NodeGroup) GetStatus() string {
+	return ng.Status
+}
+
+// GetVersion returns the node group version
+func (ng *NodeGroup) GetVersion() string {
+	return ng.Version
+}
+
+// GetInstanceTypes returns the node group instance types
+func (ng *NodeGroup) GetInstanceTypes() []string {
+	return ng.InstanceTypes
+}
+
+// GetDesiredSize returns the node group desired size
+func (ng *NodeGroup) GetDesiredSize() int32 {
+	return ng.DesiredSize
+}
+
+// GetMinSize returns the node group min size
+func (ng *NodeGroup) GetMinSize() int32 {
+	return ng.MinSize
+}
+
+// GetMaxSize returns the node group max size
+func (ng *NodeGroup) GetMaxSize() int32 {
+	return ng.MaxSize
+}
+
+// GetCurrentSize returns the node group current size
+func (ng *NodeGroup) GetCurrentSize() int32 {
+	return ng.CurrentSize
+}
+
+// GetCreatedAt returns the node group creation time
+func (ng *NodeGroup) GetCreatedAt() time.Time {
+	return ng.CreatedAt
+}
+
+// GetTags returns the node group tags
+func (ng *NodeGroup) GetTags() map[string]string {
+	return ng.Tags
+}
+
+// GetLaunchTemplateName returns the node group launch template name
+func (ng *NodeGroup) GetLaunchTemplateName() string {
+	return ng.LaunchTemplate.Name
+}
+
 // FargateProfile represents an EKS Fargate profile
 type FargateProfile struct {
 	Name                string

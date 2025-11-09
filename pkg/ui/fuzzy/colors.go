@@ -144,3 +144,27 @@ func (c *DefaultColorManager) BoldColor(text string) string {
 	}
 	return ColorBold + text + ColorReset
 }
+
+// SuccessColor returns green colored text for success messages
+func (c *DefaultColorManager) SuccessColor(text string) string {
+	if c.noColor {
+		return text
+	}
+	return ColorGreen + text + ColorReset
+}
+
+// WarningColor returns yellow colored text for warning messages
+func (c *DefaultColorManager) WarningColor(text string) string {
+	if c.noColor {
+		return text
+	}
+	return ColorYellow + text + ColorReset
+}
+
+// ErrorColor returns red colored text for error messages
+func (c *DefaultColorManager) ErrorColor(text string) string {
+	if c.noColor {
+		return text
+	}
+	return ColorRed + text + ColorReset
+}
