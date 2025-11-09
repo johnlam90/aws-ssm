@@ -158,7 +158,9 @@ func (l *AWSEKSLoader) convertToEKSCluster(clusterDetail any) EKSCluster {
 		eksCluster.Endpoint = endpointField.String()
 	}
 	if createdField := val.FieldByName("CreatedAt"); createdField.IsValid() {
-		eksCluster.CreatedAt = createdField.Interface().(time.Time).Format("2006-01-02 15:04:05")
+		if timeValue, ok := createdField.Interface().(time.Time); ok {
+			eksCluster.CreatedAt = timeValue.Format("2006-01-02 15:04:05")
+		}
 	}
 	if tagsField := val.FieldByName("Tags"); tagsField.IsValid() && tagsField.Kind() == reflect.Map {
 		eksCluster.Tags = make(map[string]string)

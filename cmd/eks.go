@@ -63,9 +63,9 @@ func runEKS(cmd *cobra.Command, args []string) error {
 		clusterName = args[0]
 	} else {
 		// Use interactive fuzzy finder to select cluster
-		cluster, err := selectEKSClusterInteractive(ctx, client)
-		if err != nil {
-			return fmt.Errorf("failed to select EKS cluster: %w", err)
+		cluster, selectionErr := selectEKSClusterInteractive(ctx, client)
+		if selectionErr != nil {
+			return fmt.Errorf("failed to select EKS cluster: %w", selectionErr)
 		}
 
 		if cluster == nil {
