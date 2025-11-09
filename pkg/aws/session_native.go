@@ -39,19 +39,19 @@ func (c *Client) StartNativeSession(ctx context.Context, instanceID string) erro
 
 	// Use the ssm-session-client library for shell session
 	// It accepts AWS SDK v2 config directly
-	if err := ssmclient.ShellSession(c.Config, instanceID); err != nil {
+	if sessionErr := ssmclient.ShellSession(c.Config, instanceID); sessionErr != nil {
 		// Attempt to terminate the session even if it failed
 		terminateErr := c.terminateSessionSilently(ctx, sessionID)
 		if terminateErr != nil {
 			fmt.Printf("Warning: failed to terminate session after error: %v\n", terminateErr)
 		}
-		return fmt.Errorf("failed to start native session: %w", err)
+		return fmt.Errorf("failed to start native session: %w", sessionErr)
 	}
 
 	// Terminate the session after it completes
-	if err := c.terminateSessionSilently(ctx, sessionID); err != nil {
+	if terminateErr := c.terminateSessionSilently(ctx, sessionID); terminateErr != nil {
 		// Log but don't fail - session might already be terminated
-		fmt.Printf("Warning: failed to terminate session: %v\n", err)
+		fmt.Printf("Warning: failed to terminate session: %v\n", terminateErr)
 	}
 
 	return nil
@@ -95,19 +95,19 @@ func (c *Client) StartPortForwardingSession(ctx context.Context, instanceID stri
 		LocalPort:  localPort,
 	}
 
-	if err := ssmclient.PortForwardingSession(c.Config, portForwardingInput); err != nil {
+	if sessionErr := ssmclient.PortForwardingSession(c.Config, portForwardingInput); sessionErr != nil {
 		// Attempt to terminate the session even if it failed
 		terminateErr := c.terminateSessionSilently(ctx, sessionID)
 		if terminateErr != nil {
 			fmt.Printf("Warning: failed to terminate session after error: %v\n", terminateErr)
 		}
-		return fmt.Errorf("failed to start port forwarding session: %w", err)
+		return fmt.Errorf("failed to start port forwarding session: %w", sessionErr)
 	}
 
 	// Terminate the session after it completes
-	if err := c.terminateSessionSilently(ctx, sessionID); err != nil {
+	if terminateErr := c.terminateSessionSilently(ctx, sessionID); terminateErr != nil {
 		// Log but don't fail - session might already be terminated
-		fmt.Printf("Warning: failed to terminate session: %v\n", err)
+		fmt.Printf("Warning: failed to terminate session: %v\n", terminateErr)
 	}
 
 	return nil
