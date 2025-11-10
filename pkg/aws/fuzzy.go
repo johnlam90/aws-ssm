@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/johnlam90/aws-ssm/pkg/cache"
 	"github.com/johnlam90/aws-ssm/pkg/ui/fuzzy"
-	"github.com/aws/aws-sdk-go-v2/aws"
 )
 
 // columnNamesToConfig converts CLI column names to ColumnConfig

@@ -7,9 +7,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	awsconfig "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/johnlam90/aws-ssm/pkg/aws"
 	"github.com/johnlam90/aws-ssm/pkg/ui/fuzzy"
-	awsconfig "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/spf13/cobra"
 )
 

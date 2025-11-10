@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 
-	appconfig "github.com/johnlam90/aws-ssm/pkg/config"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	appconfig "github.com/johnlam90/aws-ssm/pkg/config"
 )
 
 // Ensure Client implements the fuzzy.AWSClientInterface interface
