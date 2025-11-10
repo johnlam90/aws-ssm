@@ -116,6 +116,17 @@ jobs:
       - name: Run tests with race detection
         run: |
           go test -race -covermode=atomic -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out | grep Total | awk '{print "TOTAL_COVERAGE=" $3}' >> $GITHUB_ENV
+      - name: Run unit-tag tests (circuit breaker deterministic)
+        run: |
+          go test -tags unit ./pkg/aws -cover
+      - name: Fail if coverage below threshold
+        run: |
+          MIN_COVERAGE=30
+          echo "Required minimum coverage: $MIN_COVERAGE%"
+          PERCENT=$(echo $TOTAL_COVERAGE | tr -d '%')
+          echo "Reported coverage: $PERCENT%"
+          awk -v pct="$PERCENT" -v min="$MIN_COVERAGE" 'BEGIN { if (pct+0 < min+0) { exit 1 } }'
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5

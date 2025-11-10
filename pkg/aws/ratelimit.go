@@ -292,6 +292,11 @@ type RetryMetrics struct {
 	mu            sync.Mutex
 }
 
+// NewRetryMetrics creates a new retry metrics instance
+func NewRetryMetrics() *RetryMetrics {
+    return &RetryMetrics{}
+}
+
 // Success records a successful retry operation
 func (rm *RetryMetrics) Success() {
 	rm.mu.Lock()
@@ -352,6 +357,7 @@ type CircuitBreaker struct {
 	resetTimeout      time.Duration
 	mu                sync.RWMutex
 	logger            logging.Logger
+	clock             Clock
 }
 
 // CircuitBreakerConfig holds circuit breaker configuration
@@ -371,44 +377,63 @@ func DefaultCircuitBreakerConfig() *CircuitBreakerConfig {
 }
 
 // NewCircuitBreaker creates a new circuit breaker
+// Clock abstraction for deterministic testing
+type Clock interface {
+	Now() time.Time
+}
+
+type realClock struct{}
+
+func (realClock) Now() time.Time { return time.Now() }
+
 func NewCircuitBreaker(cfg *CircuitBreakerConfig) *CircuitBreaker {
+	return NewCircuitBreakerWithClock(cfg, realClock{})
+}
+
+// NewCircuitBreakerWithClock creates a new circuit breaker with injected clock (test use)
+func NewCircuitBreakerWithClock(cfg *CircuitBreakerConfig, clk Clock) *CircuitBreaker {
 	return &CircuitBreaker{
 		state:            CircuitClosed,
 		failureThreshold: cfg.FailureThreshold,
 		resetTimeout:     cfg.ResetTimeout,
 		halfOpenMaxCalls: cfg.HalfOpenMaxCalls,
 		logger:           logging.With(logging.String("component", "circuit_breaker")),
+		clock:            clk,
 	}
 }
 
 // Allow checks if an operation should be allowed
 func (cb *CircuitBreaker) Allow() error {
-	cb.mu.Lock()
-	defer cb.mu.Unlock()
-
-	switch cb.state {
-	case CircuitClosed:
-		return nil
-	case CircuitOpen:
-		// Check if reset timeout has passed
-		if time.Since(cb.lastFailureTime) > cb.resetTimeout {
-			cb.state = CircuitHalfOpen
-			cb.halfOpenCallCount = 0
-			cb.logger.Info("Circuit breaker half-open",
-				logging.String("previous_state", "open"),
-				logging.String("new_state", "half_open"))
-			return cb.Allow()
-		}
-		return fmt.Errorf("circuit breaker is open")
-	case CircuitHalfOpen:
-		// Allow limited number of calls in half-open state
-		if cb.halfOpenCallCount < cb.halfOpenMaxCalls {
-			cb.halfOpenCallCount++
+	for {
+		cb.mu.Lock()
+		switch cb.state {
+		case CircuitClosed:
+			cb.mu.Unlock()
 			return nil
+		case CircuitOpen:
+			if cb.clock.Now().Sub(cb.lastFailureTime) > cb.resetTimeout {
+				cb.state = CircuitHalfOpen
+				cb.halfOpenCallCount = 0
+				cb.logger.Info("Circuit breaker half-open",
+					logging.String("previous_state", "open"),
+					logging.String("new_state", "half_open"))
+				cb.mu.Unlock()
+				continue
+			}
+			cb.mu.Unlock()
+			return fmt.Errorf("circuit breaker is open")
+		case CircuitHalfOpen:
+			if cb.halfOpenCallCount < cb.halfOpenMaxCalls {
+				cb.halfOpenCallCount++
+				cb.mu.Unlock()
+				return nil
+			}
+			cb.mu.Unlock()
+			return fmt.Errorf("circuit breaker half-open limit exceeded")
+		default:
+			cb.mu.Unlock()
+			return fmt.Errorf("unknown circuit breaker state")
 		}
-		return fmt.Errorf("circuit breaker half-open limit exceeded")
-	default:
-		return fmt.Errorf("unknown circuit breaker state")
 	}
 }
 
@@ -443,7 +468,7 @@ func (cb *CircuitBreaker) RecordFailure() {
 	switch cb.state {
 	case CircuitClosed, CircuitHalfOpen:
 		cb.failureCount++
-		cb.lastFailureTime = time.Now()
+		cb.lastFailureTime = cb.clock.Now()
 
 		if cb.state == CircuitClosed && cb.failureCount >= cb.failureThreshold {
 			// Open circuit breaker

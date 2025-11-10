@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	appconfig "github.com/johnlam90/aws-ssm/pkg/config"
 )
@@ -22,6 +23,9 @@ type Client struct {
 	Config         aws.Config
 	AppConfig      *appconfig.Config // Cached application config for performance
 	CircuitBreaker *CircuitBreaker   // Circuit breaker for AWS API calls
+
+	// Test hook: if set, overrides instance description logic used by FindInstances
+	describeInstancesHook func(ctx context.Context, filters []types.Filter) ([]Instance, error)
 
 	// Interactive UI flags
 	InteractiveMode bool
@@ -84,6 +88,7 @@ func NewClient(ctx context.Context, region, profile string) (*Client, error) {
 		Config:         cfg,
 		AppConfig:      appCfg,
 		CircuitBreaker: NewCircuitBreaker(DefaultCircuitBreakerConfig()),
+		describeInstancesHook: nil,
 		// Interactive UI flags
 		InteractiveMode: false,
 		InteractiveCols: []string{},

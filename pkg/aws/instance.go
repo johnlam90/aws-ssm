@@ -138,6 +138,9 @@ func (c *Client) ListInstances(ctx context.Context, tagFilters map[string]string
 }
 
 func (c *Client) describeInstances(ctx context.Context, filters []types.Filter) ([]Instance, error) {
+	if c.describeInstancesHook != nil {
+		return c.describeInstancesHook(ctx, filters)
+	}
 	var instances []Instance
 	var nextToken *string
 
