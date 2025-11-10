@@ -636,7 +636,7 @@ func mergeMaps(dest, src map[string]interface{}) map[string]interface{} {
 }
 
 // ValidateWithContext validates with context awareness
-func ValidateWithContext(ctx context.Context, value interface{}, validator Validator) *Result {
+func ValidateWithContext(_ context.Context, value interface{}, validator Validator) *Result {
 	// Add validation to context for logging/monitoring
 	// This can be extended to include request IDs, user context, etc.
 	return validator.Validate(value)

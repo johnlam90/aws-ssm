@@ -20,7 +20,7 @@ func NewProvidedInstanceLoader(instances []Instance) *ProvidedInstanceLoader {
 }
 
 // LoadInstances returns the provided instances directly (no channel overhead)
-func (l *ProvidedInstanceLoader) LoadInstances(ctx context.Context, query *SearchQuery) ([]Instance, error) {
+func (l *ProvidedInstanceLoader) LoadInstances(_ context.Context, query *SearchQuery) ([]Instance, error) {
 	// Pre-allocate with capacity for better performance
 	filtered := make([]Instance, 0, len(l.instances))
 
@@ -35,7 +35,7 @@ func (l *ProvidedInstanceLoader) LoadInstances(ctx context.Context, query *Searc
 }
 
 // LoadInstance finds a specific instance by ID
-func (l *ProvidedInstanceLoader) LoadInstance(ctx context.Context, instanceID string) (*Instance, error) {
+func (l *ProvidedInstanceLoader) LoadInstance(_ context.Context, instanceID string) (*Instance, error) {
 	for _, inst := range l.instances {
 		if inst.InstanceID == instanceID {
 			return &inst, nil

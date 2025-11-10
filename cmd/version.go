@@ -23,7 +23,7 @@ func init() {
 	versionCmd.Flags().BoolVarP(&versionShort, "short", "s", false, "Print only the version number")
 }
 
-func runVersion(cmd *cobra.Command, args []string) {
+func runVersion(_ *cobra.Command, _ []string) {
 	if versionShort {
 		fmt.Println(version.GetVersion())
 		return

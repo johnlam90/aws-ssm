@@ -71,7 +71,7 @@ func init() {
 	sessionCmd.Flags().BoolVarP(&useNative, "native", "n", true, "Use native Go implementation (no plugin required)")
 }
 
-func runSession(cmd *cobra.Command, args []string) error {
+func runSession(_ *cobra.Command, args []string) error {
 	// Create a context that can be cancelled with Ctrl+C
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()

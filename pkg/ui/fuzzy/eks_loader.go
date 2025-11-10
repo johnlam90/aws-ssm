@@ -198,7 +198,7 @@ func (l *AWSEKSLoader) convertToEKSCluster(clusterDetail any) EKSCluster {
 }
 
 // LoadCluster loads a single EKS cluster by name
-func (l *AWSEKSLoader) LoadCluster(ctx context.Context, clusterName string) (*EKSCluster, error) {
+func (l *AWSEKSLoader) LoadCluster(_ context.Context, clusterName string) (*EKSCluster, error) {
 	// Return a basic cluster entry - full details will be loaded on selection
 	return &EKSCluster{
 		Name: clusterName,
@@ -230,12 +230,12 @@ func NewProvidedEKSLoader(clusters []EKSCluster, region string) *ProvidedEKSLoad
 }
 
 // LoadClusters returns the provided clusters
-func (l *ProvidedEKSLoader) LoadClusters(ctx context.Context) ([]EKSCluster, error) {
+func (l *ProvidedEKSLoader) LoadClusters(_ context.Context) ([]EKSCluster, error) {
 	return l.clusters, nil
 }
 
 // LoadCluster loads a single cluster by name
-func (l *ProvidedEKSLoader) LoadCluster(ctx context.Context, clusterName string) (*EKSCluster, error) {
+func (l *ProvidedEKSLoader) LoadCluster(_ context.Context, clusterName string) (*EKSCluster, error) {
 	for i, cluster := range l.clusters {
 		if cluster.Name == clusterName {
 			return &l.clusters[i], nil

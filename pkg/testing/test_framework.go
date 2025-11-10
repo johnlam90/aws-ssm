@@ -436,7 +436,7 @@ func countFailed(results []Result) int {
 }
 
 // CreateTestFile generates test files from source files
-func (tf *TestFramework) CreateTestFile(sourcePath, testPath string, generateTemplate bool) error {
+func (tf *TestFramework) CreateTestFile(_ string, _ string, _ bool) error {
 	// This would implement automatic test file generation
 	// For now, just a placeholder
 	return nil
@@ -546,7 +546,7 @@ func DefaultTestConfig() *TestConfig {
 }
 
 // RunBenchmark runs a benchmark test
-func (tf *TestFramework) RunBenchmark(name string, fn func(b *testing.B)) *BenchmarkResult {
+func (tf *TestFramework) RunBenchmark(name string, _ func(b *testing.B)) *BenchmarkResult {
 	tf.logger.Info("Running benchmark", logging.String("name", name))
 
 	start := time.Now()

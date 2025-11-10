@@ -80,7 +80,7 @@ func init() {
 	scaleCmd.Flags().BoolVar(&skipConfirm, "skip-confirm", false, "Skip confirmation prompt")
 }
 
-func runScale(cmd *cobra.Command, args []string) error {
+func runScale(_ *cobra.Command, args []string) error {
 	// Setup context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

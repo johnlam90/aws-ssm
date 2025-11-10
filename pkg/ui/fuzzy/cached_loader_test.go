@@ -13,10 +13,10 @@ type stubLoader struct {
 	single    *Instance
 }
 
-func (s *stubLoader) LoadInstances(ctx context.Context, q *SearchQuery) ([]Instance, error) {
+func (s *stubLoader) LoadInstances(_ context.Context, _ *SearchQuery) ([]Instance, error) {
 	return s.instances, nil
 }
-func (s *stubLoader) LoadInstance(ctx context.Context, id string) (*Instance, error) {
+func (s *stubLoader) LoadInstance(_ context.Context, _ string) (*Instance, error) {
 	return s.single, nil
 }
 func (s *stubLoader) GetRegions() []string     { return []string{"us-west-2"} }

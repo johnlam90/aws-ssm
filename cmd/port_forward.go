@@ -57,7 +57,7 @@ func init() {
 	}
 }
 
-func runPortForward(cmd *cobra.Command, args []string) error {
+func runPortForward(_ *cobra.Command, args []string) error {
 	identifier := args[0]
 
 	// Create a context that can be cancelled with Ctrl+C

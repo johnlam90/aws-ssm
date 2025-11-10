@@ -18,7 +18,7 @@ func NewDefaultPreviewRenderer(colors ColorManager) *DefaultPreviewRenderer {
 }
 
 // Render renders the preview for an instance
-func (r *DefaultPreviewRenderer) Render(instance *Instance, width, height int) string {
+func (r *DefaultPreviewRenderer) Render(instance *Instance, width, _ int) string {
 	if instance == nil {
 		return ""
 	}
@@ -28,7 +28,7 @@ func (r *DefaultPreviewRenderer) Render(instance *Instance, width, height int) s
 	// Header
 	preview.WriteString(r.colors.HeaderColor("Instance Details"))
 	preview.WriteString("\n")
-	preview.WriteString(strings.Repeat("─", min(width, 50)))
+	preview.WriteString(strings.Repeat("─", minimum(width, 50)))
 	preview.WriteString("\n\n")
 
 	// Basic information
@@ -137,7 +137,7 @@ func (r *DefaultPreviewRenderer) formatUptime(uptime time.Duration) string {
 }
 
 // min returns the minimum of two integers
-func min(a, b int) int {
+func minimum(a, b int) int {
 	if a < b {
 		return a
 	}

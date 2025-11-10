@@ -50,7 +50,7 @@ func (r *EKSPreviewRenderer) renderBasicWithError(cluster *EKSCluster, width int
 
 	preview.WriteString(r.colors.HeaderColor("EKS Cluster Details"))
 	preview.WriteString("\n")
-	preview.WriteString(strings.Repeat("─", min(width, 60)))
+	preview.WriteString(strings.Repeat("─", minimum(width, 60)))
 	preview.WriteString("\n\n")
 
 	preview.WriteString(r.colors.BoldColor("Basic Information:"))
@@ -65,7 +65,7 @@ func (r *EKSPreviewRenderer) renderBasicWithError(cluster *EKSCluster, width int
 }
 
 // Render renders the preview for an EKS cluster
-func (r *EKSPreviewRenderer) Render(cluster *EKSCluster, width, height int) string {
+func (r *EKSPreviewRenderer) Render(cluster *EKSCluster, width, _ int) string {
 	if cluster == nil {
 		return ""
 	}
@@ -75,7 +75,7 @@ func (r *EKSPreviewRenderer) Render(cluster *EKSCluster, width, height int) stri
 	// Header
 	preview.WriteString(r.colors.HeaderColor("EKS Cluster Details"))
 	preview.WriteString("\n")
-	preview.WriteString(strings.Repeat("─", min(width, 60)))
+	preview.WriteString(strings.Repeat("─", minimum(width, 60)))
 	preview.WriteString("\n\n")
 
 	// Basic Information
@@ -122,7 +122,7 @@ func (r *EKSPreviewRenderer) Render(cluster *EKSCluster, width, height int) stri
 }
 
 // RenderDetailed renders detailed EKS cluster information (for full cluster details)
-func (r *EKSPreviewRenderer) RenderDetailed(cluster *EKSCluster, nodeGroups []string, fargateProfiles []string, width, height int) string {
+func (r *EKSPreviewRenderer) RenderDetailed(cluster *EKSCluster, nodeGroups []string, fargateProfiles []string, width, _ int) string {
 	if cluster == nil {
 		return ""
 	}
@@ -132,7 +132,7 @@ func (r *EKSPreviewRenderer) RenderDetailed(cluster *EKSCluster, nodeGroups []st
 	// Header
 	preview.WriteString(r.colors.HeaderColor("EKS Cluster Details"))
 	preview.WriteString("\n")
-	preview.WriteString(strings.Repeat("─", min(width, 60)))
+	preview.WriteString(strings.Repeat("─", minimum(width, 60)))
 	preview.WriteString("\n\n")
 
 	// Basic Information

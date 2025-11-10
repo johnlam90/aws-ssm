@@ -276,19 +276,19 @@ func (sm *Manager) ValidateSession(sessionID string, userID string) error {
 	return nil
 }
 
-func (sm *Manager) checkSessionTimeout(sessionID string) error {
+func (sm *Manager) checkSessionTimeout(_ string) error {
 	// This would check against actual session store
 	// For now, just return nil as placeholder
 	return nil
 }
 
-func (sm *Manager) checkRateLimit(userID string) error {
+func (sm *Manager) checkRateLimit(_ string) error {
 	// This would check against a rate limiter
 	// For now, just return nil as placeholder
 	return nil
 }
 
-func (sm *Manager) checkCredentialRotation(userID string) error {
+func (sm *Manager) checkCredentialRotation(_ string) error {
 	// This would check if credentials have been rotated recently
 	// For now, just return nil as placeholder
 	return nil

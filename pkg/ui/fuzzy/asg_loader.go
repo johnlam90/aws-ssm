@@ -172,7 +172,7 @@ func NewASGFuzzyFinder(asgs []ASGInfo, colors ColorManager) *ASGFuzzyFinder {
 }
 
 // Select displays the fuzzy finder and returns the selected ASG index
-func (f *ASGFuzzyFinder) Select(ctx context.Context) (int, error) {
+func (f *ASGFuzzyFinder) Select(_ context.Context) (int, error) {
 	// Create preview renderer
 	renderer := NewASGPreviewRenderer(f.colors)
 

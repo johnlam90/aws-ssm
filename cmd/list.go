@@ -44,7 +44,7 @@ func init() {
 	listCmd.Flags().BoolVarP(&allStates, "all", "a", false, "Show instances in all states (not just running)")
 }
 
-func runList(cmd *cobra.Command, args []string) error {
+func runList(_ *cobra.Command, _ []string) error {
 	// Create a context that can be cancelled with Ctrl+C
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()

@@ -45,7 +45,7 @@ func init() {
 	rootCmd.AddCommand(eksCmd)
 }
 
-func runEKS(cmd *cobra.Command, args []string) error {
+func runEKS(_ *cobra.Command, args []string) error {
 	// Create a context that can be cancelled with Ctrl+C
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()

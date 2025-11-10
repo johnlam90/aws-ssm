@@ -75,7 +75,7 @@ func init() {
 	interfacesCmd.Flags().BoolVar(&showAll, "all", false, "Show all instances including stopped ones (default: running only)")
 }
 
-func runInterfaces(cmd *cobra.Command, args []string) error {
+func runInterfaces(_ *cobra.Command, args []string) error {
 	// Create a context that can be cancelled with Ctrl+C
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()

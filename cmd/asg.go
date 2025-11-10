@@ -88,7 +88,7 @@ func init() {
 	asgScaleCmd.Flags().BoolVar(&asgSkipConfirm, "skip-confirm", false, "Skip confirmation prompt")
 }
 
-func runASGScale(cmd *cobra.Command, args []string) error {
+func runASGScale(_ *cobra.Command, args []string) error {
 	// Setup context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

@@ -17,7 +17,7 @@ func NewNodeGroupPreviewRenderer(colors ColorManager) *NodeGroupPreviewRenderer 
 }
 
 // Render renders the preview for a node group
-func (r *NodeGroupPreviewRenderer) Render(ng *NodeGroupInfo, width, height int) string {
+func (r *NodeGroupPreviewRenderer) Render(ng *NodeGroupInfo, width, _ int) string {
 	if ng == nil {
 		return ""
 	}
@@ -27,7 +27,7 @@ func (r *NodeGroupPreviewRenderer) Render(ng *NodeGroupInfo, width, height int) 
 	// Header
 	preview.WriteString(r.colors.HeaderColor("Node Group Details"))
 	preview.WriteString("\n")
-	preview.WriteString(strings.Repeat("─", min(width, 60)))
+	preview.WriteString(strings.Repeat("─", minimum(width, 60)))
 	preview.WriteString("\n\n")
 
 	// Basic information

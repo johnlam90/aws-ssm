@@ -188,7 +188,7 @@ func NewNodeGroupFuzzyFinder(nodeGroups []NodeGroupInfo, colors ColorManager) *N
 }
 
 // Select displays the fuzzy finder and returns the selected node group index
-func (f *NodeGroupFuzzyFinder) Select(ctx context.Context) (int, error) {
+func (f *NodeGroupFuzzyFinder) Select(_ context.Context) (int, error) {
 	// Create preview renderer
 	renderer := NewNodeGroupPreviewRenderer(f.colors)
 

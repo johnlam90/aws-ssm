@@ -82,7 +82,7 @@ func TestRegistry(t *testing.T) {
 	}
 }
 
-func TestPerformanceMonitor(t *testing.T) {
+func TestPerformanceMonitor(_ *testing.T) {
 	pm := NewPerformanceMonitor()
 	tc := pm.StartOperation("op")
 	time.Sleep(1 * time.Millisecond)

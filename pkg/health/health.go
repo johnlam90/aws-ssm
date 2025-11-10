@@ -465,7 +465,7 @@ func (c *CompositeHealthCheck) Check(ctx context.Context) *CheckResult {
 	start := time.Now()
 
 	results := make([]*CheckResult, 0, len(c.checks))
-	var overallStatus Status = StatusOK
+	var overallStatus = StatusOK
 
 	passCount := 0
 	for _, check := range c.checks {
@@ -582,7 +582,7 @@ func (hc *Checker) CheckAll(ctx context.Context) *CompositeResult {
 	start := time.Now()
 
 	results := make(map[string]*CheckResult)
-	var overallStatus Status = StatusOK
+	var overallStatus = StatusOK
 	var passCount int
 
 	for i, check := range checks {

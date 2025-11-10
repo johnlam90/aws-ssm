@@ -17,7 +17,7 @@ func NewASGPreviewRenderer(colors ColorManager) *ASGPreviewRenderer {
 }
 
 // Render renders the preview for an Auto Scaling Group
-func (r *ASGPreviewRenderer) Render(asg *ASGInfo, width, height int) string {
+func (r *ASGPreviewRenderer) Render(asg *ASGInfo, width, _ int) string {
 	if asg == nil {
 		return ""
 	}
@@ -27,7 +27,7 @@ func (r *ASGPreviewRenderer) Render(asg *ASGInfo, width, height int) string {
 	// Header
 	preview.WriteString(r.colors.HeaderColor("Auto Scaling Group Details"))
 	preview.WriteString("\n")
-	preview.WriteString(strings.Repeat("─", min(width, 60)))
+	preview.WriteString(strings.Repeat("─", minimum(width, 60)))
 	preview.WriteString("\n\n")
 
 	// Basic information
