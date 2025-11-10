@@ -303,7 +303,7 @@ func (l *slogLogger) buildAttributes(level Level, fields []Field) []any {
 	if shouldAddCaller(level) {
 		if pc, file, line, ok := runtime.Caller(3); ok {
 			function := runtime.FuncForPC(pc).Name()
-			funcName := strings.TrimPrefix(function, "github.com/aws-ssm/")
+			funcName := strings.TrimPrefix(function, "github.com/johnlam90/aws-ssm/")
 			allAttrs = append(allAttrs, "caller", fmt.Sprintf("%s:%d", file, line), "function", funcName)
 		}
 	}

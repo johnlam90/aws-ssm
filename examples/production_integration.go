@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws-ssm/pkg/aws"
-	"github.com/aws-ssm/pkg/health"
-	"github.com/aws-ssm/pkg/logging"
-	"github.com/aws-ssm/pkg/metrics"
-	"github.com/aws-ssm/pkg/security"
-	testframework "github.com/aws-ssm/pkg/testing"
-	"github.com/aws-ssm/pkg/validation"
+	"github.com/johnlam90/aws-ssm/pkg/aws"
+	"github.com/johnlam90/aws-ssm/pkg/health"
+	"github.com/johnlam90/aws-ssm/pkg/logging"
+	"github.com/johnlam90/aws-ssm/pkg/metrics"
+	"github.com/johnlam90/aws-ssm/pkg/security"
+	testframework "github.com/johnlam90/aws-ssm/pkg/testing"
+	"github.com/johnlam90/aws-ssm/pkg/validation"
 )
 
 // ProductionIntegration demonstrates how to use all production-grade features together

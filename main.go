@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/aws-ssm/cmd"
-	"github.com/aws-ssm/pkg/metrics"
+	"github.com/johnlam90/aws-ssm/cmd"
+	"github.com/johnlam90/aws-ssm/pkg/metrics"
 )
 
 func main() {

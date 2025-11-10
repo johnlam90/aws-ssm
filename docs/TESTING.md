@@ -49,7 +49,7 @@ The `pkg/testing` package provides a comprehensive testing framework:
 ### Basic Usage
 
 ```go
-import "github.com/aws-ssm/pkg/testing"
+import "github.com/johnlam90/aws-ssm/pkg/testing"
 
 // Create a test framework instance
 tf := testing.NewTestFramework()
@@ -110,7 +110,7 @@ For integration testing, use mocked AWS services:
 ```go
 import (
     "context"
-    "github.com/aws-ssm/pkg/aws"
+    "github.com/johnlam90/aws-ssm/pkg/aws"
 )
 
 // Create a client with mocked services
@@ -280,4 +280,3 @@ go tool cover -html=coverage.out
 - [Go Testing Package](https://golang.org/pkg/testing/)
 - [Table-Driven Tests](https://github.com/golang/go/wiki/TableDrivenTests)
 - [Go Test Best Practices](https://golang.org/doc/effective_go#testing)
-

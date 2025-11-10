@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/aws-ssm/pkg/cache"
-	"github.com/aws-ssm/pkg/ui/fuzzy"
+	"github.com/johnlam90/aws-ssm/pkg/cache"
+	"github.com/johnlam90/aws-ssm/pkg/ui/fuzzy"
 	"github.com/aws/aws-sdk-go-v2/aws"
 )
 

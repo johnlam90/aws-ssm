@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws-ssm/pkg/logging"
+	"github.com/johnlam90/aws-ssm/pkg/logging"
 )
 
 // TestFramework provides a comprehensive testing framework for the AWS SSM CLI

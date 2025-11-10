@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/aws-ssm/pkg/cache"
+	"github.com/johnlam90/aws-ssm/pkg/cache"
 )
 
 // CachedInstanceLoader wraps an InstanceLoader with caching support

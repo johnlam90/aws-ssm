@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	appconfig "github.com/aws-ssm/pkg/config"
+	appconfig "github.com/johnlam90/aws-ssm/pkg/config"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"

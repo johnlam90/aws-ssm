@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws-ssm/pkg/logging"
-	"github.com/aws-ssm/pkg/validation"
+	"github.com/johnlam90/aws-ssm/pkg/logging"
+	"github.com/johnlam90/aws-ssm/pkg/validation"
 )
 
 // Level represents different security levels

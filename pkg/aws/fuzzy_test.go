@@ -3,7 +3,7 @@ package aws
 import (
 	"testing"
 
-	"github.com/aws-ssm/pkg/ui/fuzzy"
+	"github.com/johnlam90/aws-ssm/pkg/ui/fuzzy"
 )
 
 func TestColumnNamesToConfig(t *testing.T) {

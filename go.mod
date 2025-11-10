@@ -1,4 +1,4 @@
-module github.com/aws-ssm
+module github.com/johnlam90/aws-ssm
 
 go 1.24.0
 

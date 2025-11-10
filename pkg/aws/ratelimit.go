@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws-ssm/pkg/logging"
+	"github.com/johnlam90/aws-ssm/pkg/logging"
 )
 
 // Note: math/rand is automatically seeded in Go 1.20+ with a random value on first use.

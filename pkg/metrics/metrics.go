@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws-ssm/pkg/logging"
+	"github.com/johnlam90/aws-ssm/pkg/logging"
 )
 
 // MetricType represents different types of metrics

@@ -1,22 +1,45 @@
 # AWS SSM Manager CLI
 
-A blazing-fast Golang CLI for managing AWS EC2 instances and EKS clusters with **zero dependencies**. Connect to instances and manage clusters using instance ID, DNS, IP, tags, or interactive selection - **no bastion host or AWS session-manager-plugin required!**
+Fast, dependency-free Golang CLI to manage AWS EC2 instances and EKS clusters over AWS Systems Manager Session Manager. Single static binary: no session-manager-plugin, no SSH bastions, no external runtime.
 
 [![Go Version](https://img.shields.io/badge/Go-1.23%2B-blue.svg)](https://golang.org/dl/)
+[![Build](https://github.com/johnlam90/aws-ssm/actions/workflows/ci.yml/badge.svg)](https://github.com/johnlam90/aws-ssm/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/codecov/c/github/johnlam90/aws-ssm)](https://codecov.io/gh/johnlam90/aws-ssm)
+[![Go Report Card](https://goreportcard.com/badge/github.com/johnlam90/aws-ssm)](https://goreportcard.com/report/github.com/johnlam90/aws-ssm)
+[![Release](https://img.shields.io/github/v/release/johnlam90/aws-ssm)](https://github.com/johnlam90/aws-ssm/releases)
+[![Downloads](https://img.shields.io/github/downloads/johnlam90/aws-ssm/total)](https://github.com/johnlam90/aws-ssm/releases)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Security Policy](https://img.shields.io/badge/Security-Policy-important)](SECURITY.md)
+
+> Not affiliated with Amazon Web Services. Uses official AWS SDK v2.
 
 ## ✨ Key Features
 
-- 🎯 **Pure Go Implementation** - Single binary, no external dependencies
+- 🎯 **Pure Go Implementation** - Single binary, zero external runtime deps
 - 🔍 **Enhanced Interactive Selection** - Fuzzy finder with multi-select and rich search
 - 🚀 **Remote Command Execution** - Run commands without interactive sessions  
 - 🌐 **Network Interface Inspection** - View all interfaces (Multus, EKS, etc.)
 - ☸️ **EKS Cluster Management** - Interactive cluster selection and detailed info
 - 🔌 **Port Forwarding** - Forward local ports to remote services
-- 💾 **Smart Caching** - Performance-optimized with intelligent caching
+- 💾 **Smart Caching** - Configurable TTL & region-scoped caching
 - 🎨 **Rich Search Syntax** - `name:web state:running tag:Env=prod !tag:Env=dev`
 - 📊 **Flexible Display** - Customizable columns and color themes
-- 🔐 **Secure by Design** - Uses AWS SSM Session Manager
+- 📈 **Embedded Metrics** - Internal performance & usage metrics (optional reporters)
+- 🔐 **Secure by Design** - SSM tunnels, no inbound ports required
+- 🧩 **Extensible** - Planned plugin & completion support
+
+### Why This Tool?
+
+| Problem | Traditional Approach | This CLI |
+|---------|---------------------|----------|
+| Bastion / SSH required | Maintain jump hosts | Direct SSM tunnels |
+| Need session-manager-plugin | Install extra binary | Pure Go implementation |
+| Slow/manual instance selection | CLI filters + manual copy | Rich fuzzy finder & tagging |
+| Multi-instance ops cumbersome | Loops / scripts | Native multi-select + batch exec |
+| Observability of operations | Ad-hoc timing | Embedded metrics framework |
+| Complex EKS discovery | kubectl + aws cli | One command interactive selection |
+
+See `docs/IMPROVEMENTS.md` and `ROADMAP.md` for planned enhancements.
 
 ## 🚀 Quick Start
 
@@ -39,7 +62,7 @@ sudo mv aws-ssm-linux-amd64 /usr/local/bin/aws-ssm
 **Windows:**
 Download from [GitHub Releases](https://github.com/johnlam90/aws-ssm/releases/latest)
 
-**From Source:**
+**From Source (Go 1.23+):**
 
 ```bash
 go install github.com/johnlam90/aws-ssm@latest
@@ -207,7 +230,13 @@ All commands support:
 
 ### Configuration File
 
-Create `~/.config/aws-ssm/config.yaml`:
+Configuration precedence: CLI flags > Environment variables > Config file > Defaults.
+
+Environment variables recognized: `AWS_REGION`, `AWS_DEFAULT_REGION`, `AWS_PROFILE`.
+
+Default config directory: `~/.aws-ssm/` (XDG alternative supported if explicitly set via `--config`).
+
+Create `~/.aws-ssm/config.yaml`:
 
 ```yaml
 interactive:
@@ -233,9 +262,9 @@ cache:
 - SSM Agent 2.3.68.0+ installed and running
 - IAM role with SSM permissions
 
-### IAM Permissions
+### IAM Permissions (Example – tighten for least privilege)
 
-**User/Role Permissions:**
+**User/Role Permissions (baseline):**
 
 ```json
 {
@@ -259,7 +288,7 @@ cache:
 }
 ```
 
-**EC2 Instance Role:**
+**EC2 Instance Role (SSM agent baseline):**
 
 ```json
 {
@@ -327,7 +356,13 @@ go install .
 
 Contributions welcome! Please see [Contributing Guide](docs/CONTRIBUTING.md) for details.
 
-## 📄 License
+## 📄 License & Security
+
+MIT License - see [LICENSE](LICENSE).
+
+Security policy & vulnerability reporting: see [SECURITY.md](SECURITY.md).
+
+Disclaimer: Not affiliated with AWS. AWS trademarks belong to their owners.
 
 MIT License - see [LICENSE](LICENSE) file for details.
 

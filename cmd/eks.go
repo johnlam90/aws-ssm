@@ -8,7 +8,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/aws-ssm/pkg/aws"
+	"github.com/johnlam90/aws-ssm/pkg/aws"
 	"github.com/spf13/cobra"
 )
 

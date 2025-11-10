@@ -1,26 +1,16 @@
-# AWS SSM Manager CLI
+# AWS SSM Manager CLI (Documentation Index)
 
-A blazing-fast Golang CLI for managing AWS EC2 instances and EKS clusters with **zero dependencies**. Connect to instances and manage clusters using instance ID, DNS, IP, tags, or interactive selection - **no bastion host or AWS session-manager-plugin required!**
+The canonical project overview now lives in the root `README.md`. This file acts as a high-level index pointing to deeper technical documentation.
 
-[![Go Version](https://img.shields.io/badge/Go-1.23%2B-blue.svg)](https://golang.org/dl/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[Project README](../README.md) • [Roadmap](../ROADMAP.md) • [Security Policy](../SECURITY.md) • [Architecture](ARCHITECTURE.md)
 
-## ✨ Key Features
+## Reference
 
-- 🎯 **Pure Go Implementation** - Single binary, no external dependencies
-- 🔍 **Enhanced Interactive Selection** - Fuzzy finder with multi-select and rich search
-- 🚀 **Remote Command Execution** - Run commands without interactive sessions  
-- 🌐 **Network Interface Inspection** - View all interfaces (Multus, EKS, etc.)
-- ☸️ **EKS Cluster Management** - Interactive cluster selection and detailed info
-- 🔌 **Port Forwarding** - Forward local ports to remote services
-- 💾 **Smart Caching** - Performance-optimized with intelligent caching
-- 🎨 **Rich Search Syntax** - `name:web state:running tag:Env=prod !tag:Env=dev`
-- 📊 **Flexible Display** - Customizable columns and color themes
-- 🔐 **Secure by Design** - Uses AWS SSM Session Manager
+See full feature list in root README.
 
-## 🚀 Quick Start
+## Quick Start
 
-### Installation
+For installation, usage examples, troubleshooting, and configuration details, consult the root README. Below are condensed examples retained for convenience.
 
 **macOS (Homebrew):**
 
@@ -207,7 +197,7 @@ All commands support:
 
 ### Configuration File
 
-Create `~/.config/aws-ssm/config.yaml`:
+Create `~/.aws-ssm/config.yaml`:
 
 ```yaml
 interactive:

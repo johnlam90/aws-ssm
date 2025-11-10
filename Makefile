@@ -8,9 +8,9 @@ GO_VERSION := $(shell go version | awk '{print $$3}')
 
 # Build flags
 LDFLAGS := -ldflags "\
-	-X github.com/aws-ssm/pkg/version.Version=$(VERSION) \
-	-X github.com/aws-ssm/pkg/version.GitCommit=$(GIT_COMMIT) \
-	-X github.com/aws-ssm/pkg/version.BuildDate=$(BUILD_DATE)"
+	-X github.com/johnlam90/aws-ssm/pkg/version.Version=$(VERSION) \
+	-X github.com/johnlam90/aws-ssm/pkg/version.GitCommit=$(GIT_COMMIT) \
+	-X github.com/johnlam90/aws-ssm/pkg/version.BuildDate=$(BUILD_DATE)"
 
 # Binary name
 BINARY_NAME := aws-ssm
@@ -205,4 +205,3 @@ docker-build: ## Build Docker image (if Dockerfile exists)
 	else \
 		echo "Dockerfile not found"; \
 	fi
-
