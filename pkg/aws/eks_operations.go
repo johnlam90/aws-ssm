@@ -166,7 +166,7 @@ func (c *Client) describeFargateProfile(ctx context.Context, eksClient *eks.Clie
 	}
 
 	if output.FargateProfile == nil {
-		return nil, fmt.Errorf("Fargate profile %s not found", fargateProfileName)
+		return nil, fmt.Errorf("fargate profile %s not found", fargateProfileName)
 	}
 
 	return convertFargateProfile(output.FargateProfile), nil

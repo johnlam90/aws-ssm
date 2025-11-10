@@ -128,7 +128,7 @@ func NewLogger(opts ...Option) Logger {
 	handler := slog.NewJSONHandler(config.Output, &slog.HandlerOptions{
 		Level:     slogLevel,
 		AddSource: config.AddSource,
-		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
 			// Keep our custom timestamp if specified
 			if a.Key == "time" && config.TimeFormat != "" {
 				return slog.Attr{

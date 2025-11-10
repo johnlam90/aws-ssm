@@ -176,7 +176,7 @@ func DefaultHistogramConfig() *HistogramConfig {
 }
 
 // NewHistogram creates a new histogram
-func NewHistogram(name string, labels map[string]string, config *HistogramConfig) *Histogram {
+func NewHistogram(name string, labels map[string]string, _ *HistogramConfig) *Histogram {
 	return &Histogram{
 		name:    name,
 		labels:  labels,
@@ -527,7 +527,7 @@ func NewConsoleReporter() *ConsoleReporter {
 }
 
 // Report outputs metrics to the console
-func (r *ConsoleReporter) Report(ctx context.Context, metrics []*Metric) error {
+func (r *ConsoleReporter) Report(_ context.Context, metrics []*Metric) error {
 	// Log metrics summary
 	r.logger.Info("Metrics report",
 		logging.Int("metric_count", len(metrics)),
@@ -564,7 +564,7 @@ func NewPrometheusReporter() *PrometheusReporter {
 }
 
 // Report formats and outputs metrics in Prometheus format
-func (r *PrometheusReporter) Report(ctx context.Context, metrics []*Metric) error {
+func (r *PrometheusReporter) Report(_ context.Context, metrics []*Metric) error {
 	// In a real implementation, you would format metrics in Prometheus format
 	// and expose them via HTTP endpoint or write to a file
 	r.logger.Debug("Prometheus metrics reported", logging.Int("metric_count", len(metrics)))
@@ -582,7 +582,7 @@ func Inf() float64 {
 }
 
 // ExportToJSON exports metrics to JSON format
-func ExportToJSON(metrics []*Metric) (string, error) {
+func ExportToJSON(_ []*Metric) (string, error) {
 	// This would implement JSON export
 	// For now, return empty string
 	return "", nil

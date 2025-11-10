@@ -730,7 +730,7 @@ func (sm *Manager) CheckSecurityPolicy(policy string) error {
 	switch policy {
 	case "require_tls":
 		if !sm.config.EnableTLSVerification {
-			return fmt.Errorf("TLS verification is required but disabled")
+			return fmt.Errorf("tls verification is required but disabled")
 		}
 	case "require_audit":
 		if !sm.config.EnableAuditLogging {

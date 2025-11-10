@@ -5,13 +5,17 @@ package aws
 import (
 	"testing"
 	"time"
+
 	"github.com/johnlam90/aws-ssm/pkg/logging"
 )
 
 type testClock struct{ t time.Time }
-func (c *testClock) Now() time.Time { return c.t }
+
+func (c *testClock) Now() time.Time          { return c.t }
 func (c *testClock) Advance(d time.Duration) { c.t = c.t.Add(d) }
+
 type discardWriter struct{}
+
 func (discardWriter) Write(p []byte) (int, error) { return len(p), nil }
 
 func TestUnitCircuitBreakerTransitions(t *testing.T) {

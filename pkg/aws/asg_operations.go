@@ -43,7 +43,7 @@ func (c *Client) DescribeAutoScalingGroup(ctx context.Context, asgName string) (
 	}
 
 	if len(output.AutoScalingGroups) == 0 {
-		return nil, fmt.Errorf("Auto Scaling Group %s not found", asgName)
+		return nil, fmt.Errorf("auto scaling group %s not found", asgName)
 	}
 
 	return convertAutoScalingGroup(&output.AutoScalingGroups[0]), nil

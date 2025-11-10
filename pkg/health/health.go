@@ -200,7 +200,7 @@ func NewConfigHealthCheck(validateFunc func() error) *ConfigHealthCheck {
 }
 
 // Check performs the configuration health check
-func (c *ConfigHealthCheck) Check(ctx context.Context) *CheckResult {
+func (c *ConfigHealthCheck) Check(_ context.Context) *CheckResult {
 	start := time.Now()
 
 	result := NewCheckResult(StatusOK, "Configuration validation passed")
@@ -238,7 +238,7 @@ func NewMemoryHealthCheck(thresholdPercent float64) *MemoryHealthCheck {
 }
 
 // Check performs the memory usage health check
-func (c *MemoryHealthCheck) Check(ctx context.Context) *CheckResult {
+func (c *MemoryHealthCheck) Check(_ context.Context) *CheckResult {
 	start := time.Now()
 
 	result := NewCheckResult(StatusOK, "Memory usage within limits")
@@ -285,7 +285,7 @@ func NewDiskSpaceHealthCheck(thresholdPercent float64) *DiskSpaceHealthCheck {
 }
 
 // Check performs the disk space health check
-func (c *DiskSpaceHealthCheck) Check(ctx context.Context) *CheckResult {
+func (c *DiskSpaceHealthCheck) Check(_ context.Context) *CheckResult {
 	start := time.Now()
 
 	result := NewCheckResult(StatusOK, "Disk space within limits")
@@ -721,7 +721,7 @@ func (hc *Checker) ReadinessHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // LivenessHandler returns liveness status
-func (hc *Checker) LivenessHandler(w http.ResponseWriter, r *http.Request) {
+func (hc *Checker) LivenessHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write([]byte(`{"status": "alive", "timestamp": "` + time.Now().Format(time.RFC3339) + `"}`)); err != nil {
