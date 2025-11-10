@@ -1,8 +1,8 @@
 package metrics
 
 import (
-    "testing"
-    "time"
+	"testing"
+	"time"
 )
 
 func TestCounter(t *testing.T) {

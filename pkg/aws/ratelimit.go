@@ -294,7 +294,7 @@ type RetryMetrics struct {
 
 // NewRetryMetrics creates a new retry metrics instance
 func NewRetryMetrics() *RetryMetrics {
-    return &RetryMetrics{}
+	return &RetryMetrics{}
 }
 
 // Success records a successful retry operation

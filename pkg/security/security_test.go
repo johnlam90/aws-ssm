@@ -1,11 +1,11 @@
 package security
 
 import (
-    "net"
-    "testing"
-    "time"
+	"net"
+	"testing"
+	"time"
 
-    "github.com/johnlam90/aws-ssm/pkg/logging"
+	"github.com/johnlam90/aws-ssm/pkg/logging"
 )
 
 func TestCommandValidation(t *testing.T) {

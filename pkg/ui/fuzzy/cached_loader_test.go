@@ -1,11 +1,11 @@
 package fuzzy
 
 import (
-    "context"
-    "testing"
-    "time"
+	"context"
+	"testing"
+	"time"
 
-    "github.com/johnlam90/aws-ssm/pkg/cache"
+	"github.com/johnlam90/aws-ssm/pkg/cache"
 )
 
 type stubLoader struct { instances []Instance; single *Instance }

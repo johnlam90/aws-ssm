@@ -83,11 +83,11 @@ func NewClient(ctx context.Context, region, profile string) (*Client, error) {
 	}
 
 	return &Client{
-		EC2Client:      ec2.NewFromConfig(cfg),
-		SSMClient:      ssm.NewFromConfig(cfg),
-		Config:         cfg,
-		AppConfig:      appCfg,
-		CircuitBreaker: NewCircuitBreaker(DefaultCircuitBreakerConfig()),
+		EC2Client:             ec2.NewFromConfig(cfg),
+		SSMClient:             ssm.NewFromConfig(cfg),
+		Config:                cfg,
+		AppConfig:             appCfg,
+		CircuitBreaker:        NewCircuitBreaker(DefaultCircuitBreakerConfig()),
 		describeInstancesHook: nil,
 		// Interactive UI flags
 		InteractiveMode: false,

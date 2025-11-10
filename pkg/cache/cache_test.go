@@ -1,11 +1,11 @@
 package cache
 
 import (
-    "encoding/json"
-    "os"
-    "path/filepath"
-    "testing"
-    "time"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
 )
 
 func TestCacheSetAndGet(t *testing.T) {

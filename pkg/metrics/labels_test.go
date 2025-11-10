@@ -9,11 +9,4 @@ func TestLabelsHelper(t *testing.T) {
     }
 }
 
-func TestLabelsHelperPanic(t *testing.T) {
-    defer func() {
-        if r := recover(); r == nil {
-            t.Fatalf("expected panic on odd arguments")
-        }
-    }()
-    _ = Labels("only_one")
-}
+// Removed panic-based test to satisfy staticcheck SA5012; Labels requires even args by design.

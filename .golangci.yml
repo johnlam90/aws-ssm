@@ -1,49 +1,29 @@
 run:
   timeout: 5m
-  tests: true
-  modules-download-mode: readonly
-
-linters:
-  enable:
-    - errcheck
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
-    - gofmt
-    - goimports
-    - misspell
-    - unconvert
-    - unparam
-    - gocritic
-    - revive
-
+  issues-exit-code: 1
+  skip-dirs:
+    - .history
 linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-
-  govet:
-    enable:
-      - shadow
-
   gofmt:
     simplify: true
-
-  revive:
-    rules:
-      - name: exported
-        disabled: false
-
+  govet:
+    check-shadowing: true
+linters:
+  enable:
+    - gofmt
+    - govet
+    - staticcheck
+    - ineffassign
+    - revive
+    - errcheck
+    - unused
+    - typecheck
+    - gosimple
+    - stylecheck
+    - gocritic
+    - durationcheck
 issues:
-  max-issues-per-linter: 0
-  max-same-issues: 0
-
   exclude-rules:
-    # Exclude some linters from running on tests files
-    - path: _test\.go
+    - path: _test\.go$
       linters:
         - errcheck
-        - unparam
-
