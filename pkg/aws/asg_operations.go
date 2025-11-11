@@ -89,111 +89,99 @@ func convertAutoScalingGroup(asg *asgtypes.AutoScalingGroup) *AutoScalingGroup {
 		Tags: make(map[string]string),
 	}
 
-	// Safe pointer dereferences
-	if asg.AutoScalingGroupName != nil {
-		result.Name = *asg.AutoScalingGroupName
-	}
-	if asg.AutoScalingGroupARN != nil {
-		result.ARN = *asg.AutoScalingGroupARN
-	}
-	if asg.MinSize != nil {
-		result.MinSize = *asg.MinSize
-	}
-	if asg.MaxSize != nil {
-		result.MaxSize = *asg.MaxSize
-	}
-	if asg.DesiredCapacity != nil {
-		result.DesiredCapacity = *asg.DesiredCapacity
-	}
-	if asg.DefaultCooldown != nil {
-		result.DefaultCooldown = *asg.DefaultCooldown
-	}
-	if asg.HealthCheckType != nil {
-		result.HealthCheckType = *asg.HealthCheckType
-	}
-	if asg.HealthCheckGracePeriod != nil {
-		result.HealthCheckGracePeriod = *asg.HealthCheckGracePeriod
-	}
+	// Set basic string fields
+	setStringIfNotNil(asg.AutoScalingGroupName, &result.Name)
+	setStringIfNotNil(asg.AutoScalingGroupARN, &result.ARN)
+	setStringIfNotNil(asg.HealthCheckType, &result.HealthCheckType)
+	setStringIfNotNil(asg.VPCZoneIdentifier, &result.VPCZoneIdentifier)
+	setStringIfNotNil(asg.LaunchConfigurationName, &result.LaunchConfigurationName)
+
+	// Set integer fields
+	setInt32IfNotNil(asg.MinSize, &result.MinSize)
+	setInt32IfNotNil(asg.MaxSize, &result.MaxSize)
+	setInt32IfNotNil(asg.DesiredCapacity, &result.DesiredCapacity)
+	setInt32IfNotNil(asg.DefaultCooldown, &result.DefaultCooldown)
+	setInt32IfNotNil(asg.HealthCheckGracePeriod, &result.HealthCheckGracePeriod)
+
+	// Set time field
 	if asg.CreatedTime != nil {
 		result.CreatedTime = *asg.CreatedTime
 	}
-	if asg.VPCZoneIdentifier != nil {
-		result.VPCZoneIdentifier = *asg.VPCZoneIdentifier
-	}
 
-	// Current size is the number of instances
+	// Set current size based on instance count
 	result.CurrentSize = int32(len(asg.Instances))
 
-	// Copy availability zones
+	// Copy slice fields
 	result.AvailabilityZones = asg.AvailabilityZones
-
-	// Copy load balancer names
 	result.LoadBalancerNames = asg.LoadBalancerNames
-
-	// Copy target group ARNs
 	result.TargetGroupARNs = asg.TargetGroupARNs
 
-	// Handle launch template
-	if asg.LaunchTemplate != nil {
-		if asg.LaunchTemplate.LaunchTemplateName != nil {
-			result.LaunchTemplateName = *asg.LaunchTemplate.LaunchTemplateName
-		}
-		if asg.LaunchTemplate.Version != nil {
-			result.LaunchTemplateVersion = *asg.LaunchTemplate.Version
-		}
-	}
-
-	// Handle mixed instances policy launch template
-	if asg.MixedInstancesPolicy != nil && asg.MixedInstancesPolicy.LaunchTemplate != nil {
-		if asg.MixedInstancesPolicy.LaunchTemplate.LaunchTemplateSpecification != nil {
-			if asg.MixedInstancesPolicy.LaunchTemplate.LaunchTemplateSpecification.LaunchTemplateName != nil {
-				result.LaunchTemplateName = *asg.MixedInstancesPolicy.LaunchTemplate.LaunchTemplateSpecification.LaunchTemplateName
-			}
-			if asg.MixedInstancesPolicy.LaunchTemplate.LaunchTemplateSpecification.Version != nil {
-				result.LaunchTemplateVersion = *asg.MixedInstancesPolicy.LaunchTemplate.LaunchTemplateSpecification.Version
-			}
-		}
-	}
-
-	// Handle launch configuration
-	if asg.LaunchConfigurationName != nil {
-		result.LaunchConfigurationName = *asg.LaunchConfigurationName
-	}
-
 	// Convert tags
-	for _, tag := range asg.Tags {
-		if tag.Key != nil && tag.Value != nil {
-			result.Tags[*tag.Key] = *tag.Value
-		}
-	}
+	convertTagDescriptions(asg.Tags, result.Tags)
 
 	// Convert instances
-	for _, instance := range asg.Instances {
-		asgInstance := ASGInstance{}
-		if instance.InstanceId != nil {
-			asgInstance.InstanceID = *instance.InstanceId
-		}
-		if instance.AvailabilityZone != nil {
-			asgInstance.AvailabilityZone = *instance.AvailabilityZone
-		}
-		if instance.LifecycleState != "" {
-			asgInstance.LifecycleState = string(instance.LifecycleState)
-		}
-		if instance.HealthStatus != nil {
-			asgInstance.HealthStatus = *instance.HealthStatus
-		}
-		if instance.LaunchConfigurationName != nil {
-			asgInstance.LaunchConfigurationName = *instance.LaunchConfigurationName
-		}
-		if instance.LaunchTemplate != nil && instance.LaunchTemplate.LaunchTemplateName != nil {
-			asgInstance.LaunchTemplateName = *instance.LaunchTemplate.LaunchTemplateName
-		}
-		if instance.ProtectedFromScaleIn != nil {
-			asgInstance.ProtectedFromScaleIn = *instance.ProtectedFromScaleIn
-		}
-
-		result.Instances = append(result.Instances, asgInstance)
-	}
+	result.Instances = convertInstances(asg.Instances)
 
 	return result
+}
+
+// setStringIfNotNil safely sets a string field if the pointer is not nil
+func setStringIfNotNil(ptr *string, target *string) {
+	if ptr != nil {
+		*target = *ptr
+	}
+}
+
+// setInt32IfNotNil safely sets an int32 field if the pointer is not nil
+func setInt32IfNotNil(ptr *int32, target *int32) {
+	if ptr != nil {
+		*target = *ptr
+	}
+}
+
+// convertTagDescriptions converts AWS tag description slices to map
+func convertTagDescriptions(tags []asgtypes.TagDescription, tagMap map[string]string) {
+	for _, tag := range tags {
+		if tag.Key != nil && tag.Value != nil {
+			tagMap[*tag.Key] = *tag.Value
+		}
+	}
+}
+
+// convertInstances converts ASG instances from AWS types to internal types
+func convertInstances(instances []asgtypes.Instance) []ASGInstance {
+	var converted []ASGInstance
+	for _, instance := range instances {
+		converted = append(converted, convertInstance(instance))
+	}
+	return converted
+}
+
+// convertInstance converts a single ASG instance
+func convertInstance(instance asgtypes.Instance) ASGInstance {
+	asgInstance := ASGInstance{}
+
+	setStringIfNotNil(instance.InstanceId, &asgInstance.InstanceID)
+	setStringIfNotNil(instance.AvailabilityZone, &asgInstance.AvailabilityZone)
+	setStringIfNotNil(instance.HealthStatus, &asgInstance.HealthStatus)
+	setStringIfNotNil(instance.LaunchConfigurationName, &asgInstance.LaunchConfigurationName)
+
+	if instance.LifecycleState != "" {
+		asgInstance.LifecycleState = string(instance.LifecycleState)
+	}
+
+	if instance.LaunchTemplate != nil && instance.LaunchTemplate.LaunchTemplateName != nil {
+		asgInstance.LaunchTemplateName = *instance.LaunchTemplate.LaunchTemplateName
+	}
+
+	setBoolIfNotNil(instance.ProtectedFromScaleIn, &asgInstance.ProtectedFromScaleIn)
+
+	return asgInstance
+}
+
+// setBoolIfNotNil safely sets a bool field if the pointer is not nil
+func setBoolIfNotNil(ptr *bool, target *bool) {
+	if ptr != nil {
+		*target = *ptr
+	}
 }

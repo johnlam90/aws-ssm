@@ -5,6 +5,7 @@ on:
     branches: [
       main,
       develop,
+      gocyclo-fix
       'release/**'
     ]
   pull_request:
