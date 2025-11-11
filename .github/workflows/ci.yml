@@ -93,33 +93,50 @@ jobs:
       - name: Run Gosec Security Scanner
         uses: securego/gosec@master
         with:
-          args: '-no-fail -fmt sarif -out gosec.sarif ./pkg/... ./cmd/... ./examples/...'
+          args: '-no-fail -fmt sarif -out gosec-raw.sarif ./pkg/... ./cmd/... ./examples/...'
         continue-on-error: true
 
       - name: Fix Gosec SARIF format
-        if: always() && hashFiles('gosec.sarif') != ''
+        if: always() && hashFiles('gosec-raw.sarif') != ''
         run: |
           # Remove the invalid 'fixes' field from gosec SARIF output
           # This field is not properly formatted and causes upload failures
-          if [ -f gosec.sarif ]; then
-            python3 -c "
-          import json
-          import sys
-          try:
-              with open('gosec.sarif', 'r') as f:
-                  data = json.load(f)
-              # Remove fixes field from all results
-              for run in data.get('runs', []):
-                  for result in run.get('results', []):
-                      if 'fixes' in result:
-                          del result['fixes']
-              with open('gosec.sarif', 'w') as f:
-                  json.dump(data, f, indent=2)
-              print('✅ Fixed gosec.sarif format')
-          except Exception as e:
-              print(f'⚠️  Could not fix gosec.sarif: {e}')
-              sys.exit(0)
-          "
+          if [ -f gosec-raw.sarif ]; then
+            echo "Fixing gosec SARIF format..."
+            python3 << 'EOF'
+import json
+import sys
+
+try:
+    with open('gosec-raw.sarif', 'r') as f:
+        data = json.load(f)
+
+    # Remove fixes field from all results
+    fixed_count = 0
+    for run in data.get('runs', []):
+        for result in run.get('results', []):
+            if 'fixes' in result:
+                del result['fixes']
+                fixed_count += 1
+
+    with open('gosec.sarif', 'w') as f:
+        json.dump(data, f, indent=2)
+
+    print(f'✅ Fixed gosec.sarif format (removed {fixed_count} invalid fixes fields)')
+    sys.exit(0)
+except Exception as e:
+    print(f'❌ Error fixing gosec.sarif: {e}')
+    # If fix fails, try to use the raw file anyway
+    import shutil
+    try:
+        shutil.copy('gosec-raw.sarif', 'gosec.sarif')
+        print('⚠️  Using raw SARIF file (may fail upload)')
+    except:
+        pass
+    sys.exit(0)
+EOF
+          else
+            echo "⚠️  gosec-raw.sarif not found, skipping fix"
           fi
 
       - name: Upload Gosec SARIF file
@@ -127,6 +144,7 @@ jobs:
         if: always() && hashFiles('gosec.sarif') != ''
         with:
           sarif_file: gosec.sarif
+          category: gosec
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
@@ -142,6 +160,7 @@ jobs:
         if: always() && hashFiles('trivy-results.sarif') != ''
         with:
           sarif_file: 'trivy-results.sarif'
+          category: trivy
 
   # Unit tests
   test:
