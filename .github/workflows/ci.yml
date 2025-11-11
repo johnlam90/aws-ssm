@@ -2,17 +2,16 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [
-      main,
-      develop,
-      'release/**'
-    ]
+    branches:
+      - main
+      - develop
+      - gocyclo-fix
+      - 'release/**'
   pull_request:
-    branches: [
-      main,
-      develop,
-      'release/**'
-    ]
+    branches:
+      - main
+      - develop
+      - 'release/**'
 
 permissions:
   contents: read
@@ -43,13 +42,37 @@ jobs:
           version: latest
           args: --config=.golangci.yml --timeout=5m
 
-      - name: Check formatting
+      - name: Run go vet
         run: |
+          echo "Running go vet..."
+          go vet ./...
+
+      - name: Check formatting with go fmt
+        run: |
+          echo "Checking code formatting..."
           if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
-            echo "Code is not properly formatted"
+            echo "❌ Code is not properly formatted. Run 'go fmt ./...' to fix."
+            echo "Files that need formatting:"
             gofmt -s -l .
             exit 1
           fi
+          echo "✅ All files are properly formatted"
+
+      - name: Check cyclomatic complexity with gocyclo
+        run: |
+          echo "Installing gocyclo..."
+          go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+          echo "Running gocyclo (max complexity: 15)..."
+          # Find all .go files excluding vendor and test files
+          COMPLEX_FUNCS=$(gocyclo -over 15 . | grep -v "_test.go" || true)
+          if [ -n "$COMPLEX_FUNCS" ]; then
+            echo "❌ Found functions with cyclomatic complexity > 15:"
+            echo "$COMPLEX_FUNCS"
+            echo ""
+            echo "Please refactor these functions to reduce complexity."
+            exit 1
+          fi
+          echo "✅ All functions have acceptable cyclomatic complexity (≤15)"
 
       - name: Check imports
         run: go mod tidy && git diff --exit-code
@@ -70,14 +93,19 @@ jobs:
       - name: Run Gosec Security Scanner
         uses: securego/gosec@master
         with:
-          args: '-fmt sarif -out gosec.sarif ./pkg/... ./cmd/... ./examples/...'
+          args: '-no-fail -fmt sarif -out gosec-raw.sarif ./pkg/... ./cmd/... ./examples/...'
         continue-on-error: true
+
+      - name: Fix Gosec SARIF format
+        if: always() && hashFiles('gosec-raw.sarif') != ''
+        run: python3 .github/scripts/fix-gosec-sarif.py
 
       - name: Upload Gosec SARIF file
         uses: github/codeql-action/upload-sarif@v3
         if: always() && hashFiles('gosec.sarif') != ''
         with:
           sarif_file: gosec.sarif
+          category: gosec
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
@@ -90,9 +118,10 @@ jobs:
 
       - name: Upload Trivy scan results
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: always() && hashFiles('trivy-results.sarif') != ''
         with:
           sarif_file: 'trivy-results.sarif'
+          category: trivy
 
   # Unit tests
   test:
@@ -317,7 +346,7 @@ jobs:
     name: Compliance Check
     runs-on: ubuntu-latest
     needs: [security, build]
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/gocyclo-fix'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

@@ -121,17 +121,12 @@ func (l *AWSEKSLoader) GetClusterDetails(ctx context.Context, clusterName string
 
 // convertToEKSCluster converts a full cluster detail to EKSCluster for display
 func (l *AWSEKSLoader) convertToEKSCluster(clusterDetail any) EKSCluster {
-	// Type assert to *aws.Cluster
-	// We need to import aws package, but to avoid circular imports,
-	// we'll use reflection to extract the fields
-
 	eksCluster := EKSCluster{}
 
 	if clusterDetail == nil {
 		return eksCluster
 	}
 
-	// Use reflection to safely extract fields from the cluster
 	val := reflect.ValueOf(clusterDetail)
 	if val.Kind() == reflect.Ptr {
 		val = val.Elem()
@@ -141,60 +136,83 @@ func (l *AWSEKSLoader) convertToEKSCluster(clusterDetail any) EKSCluster {
 		return eksCluster
 	}
 
-	// Extract fields using reflection
-	if nameField := val.FieldByName("Name"); nameField.IsValid() {
-		eksCluster.Name = nameField.String()
-	}
-	if arnField := val.FieldByName("ARN"); arnField.IsValid() {
-		eksCluster.ARN = arnField.String()
-	}
-	if statusField := val.FieldByName("Status"); statusField.IsValid() {
-		eksCluster.Status = statusField.String()
-	}
-	if versionField := val.FieldByName("Version"); versionField.IsValid() {
-		eksCluster.Version = versionField.String()
-	}
-	if endpointField := val.FieldByName("Endpoint"); endpointField.IsValid() {
-		eksCluster.Endpoint = endpointField.String()
-	}
-	if createdField := val.FieldByName("CreatedAt"); createdField.IsValid() {
-		if timeValue, ok := createdField.Interface().(time.Time); ok {
-			eksCluster.CreatedAt = timeValue.Format("2006-01-02 15:04:05")
-		}
-	}
+	// Extract basic fields
+	l.extractBasicFields(val, &eksCluster)
+
+	// Extract VPC information
+	l.extractVPCInfo(val, &eksCluster)
+
+	// Extract resource counts
+	l.extractResourceCounts(val, &eksCluster)
+
+	return eksCluster
+}
+
+// extractBasicFields extracts basic cluster information
+func (l *AWSEKSLoader) extractBasicFields(val reflect.Value, cluster *EKSCluster) {
+	// Extract string fields
+	extractStringField(val, "Name", &cluster.Name)
+	extractStringField(val, "ARN", &cluster.ARN)
+	extractStringField(val, "Status", &cluster.Status)
+	extractStringField(val, "Version", &cluster.Version)
+	extractStringField(val, "Endpoint", &cluster.Endpoint)
+
+	// Extract tags
 	if tagsField := val.FieldByName("Tags"); tagsField.IsValid() && tagsField.Kind() == reflect.Map {
-		eksCluster.Tags = make(map[string]string)
-		for _, key := range tagsField.MapKeys() {
-			eksCluster.Tags[key.String()] = tagsField.MapIndex(key).String()
-		}
+		cluster.Tags = extractTagMap(tagsField)
 	}
 
-	// Extract VPC info
+	// Extract created time
+	if createdField := val.FieldByName("CreatedAt"); createdField.IsValid() {
+		if timeValue, ok := createdField.Interface().(time.Time); ok {
+			cluster.CreatedAt = timeValue.Format("2006-01-02 15:04:05")
+		}
+	}
+}
+
+// extractVPCInfo extracts VPC-related information
+func (l *AWSEKSLoader) extractVPCInfo(val reflect.Value, cluster *EKSCluster) {
 	if vpcField := val.FieldByName("VPC"); vpcField.IsValid() {
 		vpcVal := vpcField
 		if vpcVal.Kind() == reflect.Ptr {
 			vpcVal = vpcVal.Elem()
 		}
 		if vpcIDField := vpcVal.FieldByName("VpcID"); vpcIDField.IsValid() {
-			eksCluster.VpcID = vpcIDField.String()
+			cluster.VpcID = vpcIDField.String()
 		}
 		if subnetsField := vpcVal.FieldByName("SubnetIDs"); subnetsField.IsValid() && subnetsField.Kind() == reflect.Slice {
-			eksCluster.SubnetCount = subnetsField.Len()
+			cluster.SubnetCount = subnetsField.Len()
 		}
 		if sgField := vpcVal.FieldByName("SecurityGroupIDs"); sgField.IsValid() && sgField.Kind() == reflect.Slice {
-			eksCluster.SecurityGroupCount = sgField.Len()
+			cluster.SecurityGroupCount = sgField.Len()
 		}
 	}
+}
 
-	// Extract node groups and fargate profiles counts
+// extractResourceCounts extracts node group and Fargate profile counts
+func (l *AWSEKSLoader) extractResourceCounts(val reflect.Value, cluster *EKSCluster) {
 	if ngField := val.FieldByName("NodeGroups"); ngField.IsValid() && ngField.Kind() == reflect.Slice {
-		eksCluster.NodeGroupCount = ngField.Len()
+		cluster.NodeGroupCount = ngField.Len()
 	}
 	if fpField := val.FieldByName("FargateProfiles"); fpField.IsValid() && fpField.Kind() == reflect.Slice {
-		eksCluster.FargateProfileCount = fpField.Len()
+		cluster.FargateProfileCount = fpField.Len()
 	}
+}
 
-	return eksCluster
+// extractStringField safely extracts a string field using reflection
+func extractStringField(val reflect.Value, fieldName string, target *string) {
+	if field := val.FieldByName(fieldName); field.IsValid() {
+		*target = field.String()
+	}
+}
+
+// extractTagMap extracts tag map using reflection
+func extractTagMap(tagsField reflect.Value) map[string]string {
+	tagMap := make(map[string]string)
+	for _, key := range tagsField.MapKeys() {
+		tagMap[key.String()] = tagsField.MapIndex(key).String()
+	}
+	return tagMap
 }
 
 // LoadCluster loads a single EKS cluster by name

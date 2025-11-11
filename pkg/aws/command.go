@@ -30,16 +30,11 @@ func (c *Client) ExecuteCommand(ctx context.Context, instanceID, command string)
 // The command parameter should be a complete shell command string.
 // Multi-word commands must be properly quoted to be treated as a single command.
 func (c *Client) ExecuteCommandWithTimeout(ctx context.Context, instanceID, command string, timeout time.Duration) (string, error) {
-	// Validate timeout
-	if timeout > MaxCommandTimeout {
-		timeout = MaxCommandTimeout
-	}
-	if timeout < 10*time.Second {
-		timeout = 10 * time.Second
-	}
+	// Validate and normalize timeout
+	normalizedTimeout := normalizeTimeout(timeout)
 
 	// Create a context with timeout
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeout(ctx, normalizedTimeout)
 	defer cancel()
 
 	// Check circuit breaker before making API call
@@ -48,6 +43,32 @@ func (c *Client) ExecuteCommandWithTimeout(ctx context.Context, instanceID, comm
 	}
 
 	// Send the command using SSM SendCommand API
+	commandID, err := c.sendCommand(ctx, instanceID, command)
+	if err != nil {
+		return "", err
+	}
+
+	// Wait for the command to complete
+	fmt.Printf("Command ID: %s\n", commandID)
+	fmt.Printf("Waiting for command to complete (timeout: %v)...\n\n", normalizedTimeout)
+
+	// Poll for command completion
+	return c.pollCommandCompletion(ctx, instanceID, commandID)
+}
+
+// normalizeTimeout validates and normalizes the timeout value
+func normalizeTimeout(timeout time.Duration) time.Duration {
+	if timeout > MaxCommandTimeout {
+		timeout = MaxCommandTimeout
+	}
+	if timeout < 10*time.Second {
+		timeout = 10 * time.Second
+	}
+	return timeout
+}
+
+// sendCommand sends the command to the instance via SSM
+func (c *Client) sendCommand(ctx context.Context, instanceID, command string) (string, error) {
 	sendInput := &ssm.SendCommandInput{
 		InstanceIds:  []string{instanceID},
 		DocumentName: aws.String("AWS-RunShellScript"),
@@ -64,13 +85,11 @@ func (c *Client) ExecuteCommandWithTimeout(ctx context.Context, instanceID, comm
 	}
 
 	commandID := aws.ToString(sendResult.Command.CommandId)
+	return commandID, nil
+}
 
-	// Wait for the command to complete
-	fmt.Printf("Command ID: %s\n", commandID)
-	fmt.Printf("Waiting for command to complete (timeout: %v)...\n\n", timeout)
-
-	// Poll for command completion with exponential backoff
-	attempt := 0
+// pollCommandCompletion polls for command completion and returns the result
+func (c *Client) pollCommandCompletion(ctx context.Context, instanceID, commandID string) (string, error) {
 	backoff := 500 * time.Millisecond
 	maxBackoff := 5 * time.Second
 
@@ -82,15 +101,9 @@ func (c *Client) ExecuteCommandWithTimeout(ctx context.Context, instanceID, comm
 		}
 
 		// Get command invocation status
-		invocationInput := &ssm.GetCommandInvocationInput{
-			CommandId:  aws.String(commandID),
-			InstanceId: aws.String(instanceID),
-		}
-
-		invocationResult, err := c.SSMClient.GetCommandInvocation(ctx, invocationInput)
+		invocationResult, err := c.getCommandInvocation(ctx, instanceID, commandID)
 		if err != nil {
 			// Command might not be ready yet, continue polling with backoff
-			attempt++
 			time.Sleep(backoff)
 			// Exponential backoff with max cap
 			backoff = time.Duration(math.Min(float64(backoff*2), float64(maxBackoff)))
@@ -100,50 +113,79 @@ func (c *Client) ExecuteCommandWithTimeout(ctx context.Context, instanceID, comm
 		// Record success for the API call
 		c.CircuitBreaker.RecordSuccess()
 
-		status := invocationResult.Status
-
-		switch status {
-		case types.CommandInvocationStatusSuccess:
+		// Handle the command status
+		result, err := c.handleCommandStatus(invocationResult, backoff)
+		if err == nil {
 			// Command completed successfully
-			output := aws.ToString(invocationResult.StandardOutputContent)
-			stderr := aws.ToString(invocationResult.StandardErrorContent)
-
-			// Format output with clear separation between stdout and stderr
-			var result strings.Builder
-			if output != "" {
-				result.WriteString(output)
-			}
-			if stderr != "" {
-				if output != "" {
-					result.WriteString("\n")
-				}
-				result.WriteString("[STDERR]\n")
-				result.WriteString(stderr)
-			}
-			return result.String(), nil
-
-		case types.CommandInvocationStatusFailed:
-			// Command failed
-			stderr := aws.ToString(invocationResult.StandardErrorContent)
-			return "", fmt.Errorf("command failed: %s", stderr)
-
-		case types.CommandInvocationStatusCancelled:
-			return "", fmt.Errorf("command was cancelled")
-
-		case types.CommandInvocationStatusTimedOut:
-			return "", fmt.Errorf("command timed out")
-
-		case types.CommandInvocationStatusPending, types.CommandInvocationStatusInProgress:
-			// Still running, continue polling with backoff
-			attempt++
-			time.Sleep(backoff)
-			// Exponential backoff with max cap
+			return result, nil
+		}
+		if err.Error() == "command still in progress" {
+			// Update backoff for next iteration
 			backoff = time.Duration(math.Min(float64(backoff*2), float64(maxBackoff)))
 			continue
-
-		default:
-			// Unknown status
-			return "", fmt.Errorf("unknown command status: %s", status)
 		}
+		// Return other errors
+		return "", err
 	}
+}
+
+// getCommandInvocation gets the command invocation result
+func (c *Client) getCommandInvocation(ctx context.Context, instanceID, commandID string) (*ssm.GetCommandInvocationOutput, error) {
+	invocationInput := &ssm.GetCommandInvocationInput{
+		CommandId:  aws.String(commandID),
+		InstanceId: aws.String(instanceID),
+	}
+
+	return c.SSMClient.GetCommandInvocation(ctx, invocationInput)
+}
+
+// handleCommandStatus handles different command status outcomes
+func (c *Client) handleCommandStatus(invocationResult *ssm.GetCommandInvocationOutput, backoff time.Duration) (string, error) {
+	status := invocationResult.Status
+
+	switch status {
+	case types.CommandInvocationStatusSuccess:
+		// Command completed successfully
+		return c.formatCommandOutput(invocationResult), nil
+
+	case types.CommandInvocationStatusFailed:
+		// Command failed
+		stderr := aws.ToString(invocationResult.StandardErrorContent)
+		return "", fmt.Errorf("command failed: %s", stderr)
+
+	case types.CommandInvocationStatusCancelled:
+		return "", fmt.Errorf("command was cancelled")
+
+	case types.CommandInvocationStatusTimedOut:
+		return "", fmt.Errorf("command timed out")
+
+	case types.CommandInvocationStatusPending, types.CommandInvocationStatusInProgress:
+		// Still running, continue polling with backoff
+		time.Sleep(backoff)
+		return "", fmt.Errorf("command still in progress")
+
+	default:
+		// Unknown status
+		return "", fmt.Errorf("unknown command status: %s", status)
+	}
+}
+
+// formatCommandOutput formats the command output with clear separation between stdout and stderr
+func (c *Client) formatCommandOutput(invocationResult *ssm.GetCommandInvocationOutput) string {
+	output := aws.ToString(invocationResult.StandardOutputContent)
+	stderr := aws.ToString(invocationResult.StandardErrorContent)
+
+	// Format output with clear separation between stdout and stderr
+	var result strings.Builder
+	if output != "" {
+		result.WriteString(output)
+	}
+	if stderr != "" {
+		if output != "" {
+			result.WriteString("\n")
+		}
+		result.WriteString("[STDERR]\n")
+		result.WriteString(stderr)
+	}
+	return result.String()
 }

@@ -186,11 +186,21 @@ func convertEKSCluster(eksCluster *ekstypes.Cluster) *Cluster {
 		PlatformVersion: *eksCluster.PlatformVersion,
 	}
 
-	if eksCluster.Arn != nil {
-		cluster.ARN = *eksCluster.Arn
-	}
+	// Set optional fields
+	setStringIfNotNil(eksCluster.Arn, &cluster.ARN)
 
-	// Convert VPC info
+	// Convert complex nested structures
+	convertVPCInfo(eksCluster, cluster)
+	convertLoggingInfo(eksCluster, cluster)
+	convertEncryptionConfig(eksCluster, cluster)
+	convertIdentityInfo(eksCluster, cluster)
+	convertCertificateAuthority(eksCluster, cluster)
+
+	return cluster
+}
+
+// convertVPCInfo converts VPC configuration
+func convertVPCInfo(eksCluster *ekstypes.Cluster, cluster *Cluster) {
 	if eksCluster.ResourcesVpcConfig != nil {
 		cluster.VPC = VPCInfo{
 			VpcID:                 *eksCluster.ResourcesVpcConfig.VpcId,
@@ -201,15 +211,14 @@ func convertEKSCluster(eksCluster *ekstypes.Cluster) *Cluster {
 			EndpointPublicAccess:  eksCluster.ResourcesVpcConfig.EndpointPublicAccess,
 		}
 	}
+}
 
-	// Convert logging info
+// convertLoggingInfo converts logging configuration
+func convertLoggingInfo(eksCluster *ekstypes.Cluster, cluster *Cluster) {
 	if eksCluster.Logging != nil && eksCluster.Logging.ClusterLogging != nil {
 		for _, cl := range eksCluster.Logging.ClusterLogging {
 			if len(cl.Types) > 0 {
-				enabled := false
-				if cl.Enabled != nil {
-					enabled = *cl.Enabled
-				}
+				enabled := getEnabledValue(cl.Enabled)
 				for _, t := range cl.Types {
 					cluster.Logging.ClusterLogging = append(cluster.Logging.ClusterLogging, LoggingType{
 						Type:    string(t),
@@ -219,8 +228,18 @@ func convertEKSCluster(eksCluster *ekstypes.Cluster) *Cluster {
 			}
 		}
 	}
+}
 
-	// Convert encryption config
+// getEnabledValue safely gets the enabled value
+func getEnabledValue(enabled *bool) bool {
+	if enabled != nil {
+		return *enabled
+	}
+	return false
+}
+
+// convertEncryptionConfig converts encryption configuration
+func convertEncryptionConfig(eksCluster *ekstypes.Cluster, cluster *Cluster) {
 	if eksCluster.EncryptionConfig != nil {
 		for _, ec := range eksCluster.EncryptionConfig {
 			encConfig := EncryptionConfig{}
@@ -235,8 +254,10 @@ func convertEKSCluster(eksCluster *ekstypes.Cluster) *Cluster {
 			cluster.EncryptionConfig = append(cluster.EncryptionConfig, encConfig)
 		}
 	}
+}
 
-	// Convert identity info
+// convertIdentityInfo converts identity information
+func convertIdentityInfo(eksCluster *ekstypes.Cluster, cluster *Cluster) {
 	if eksCluster.Identity != nil && eksCluster.Identity.Oidc != nil && eksCluster.Identity.Oidc.Issuer != nil {
 		cluster.Identity = IdentityInfo{
 			OIDC: OIDCInfo{
@@ -244,15 +265,15 @@ func convertEKSCluster(eksCluster *ekstypes.Cluster) *Cluster {
 			},
 		}
 	}
+}
 
-	// Convert certificate authority
+// convertCertificateAuthority converts certificate authority
+func convertCertificateAuthority(eksCluster *ekstypes.Cluster, cluster *Cluster) {
 	if eksCluster.CertificateAuthority != nil && eksCluster.CertificateAuthority.Data != nil {
 		cluster.CertificateAuthority = CertificateAuthority{
 			Data: *eksCluster.CertificateAuthority.Data,
 		}
 	}
-
-	return cluster
 }
 
 func convertNodeGroup(ng *ekstypes.Nodegroup) *NodeGroup {
@@ -266,7 +287,7 @@ func convertNodeGroup(ng *ekstypes.Nodegroup) *NodeGroup {
 		Labels: ng.Labels,
 	}
 
-	// Safe pointer dereferences with nil checks
+	// Set basic fields
 	if ng.NodegroupName != nil {
 		nodeGroup.Name = *ng.NodegroupName
 	}
@@ -279,11 +300,20 @@ func convertNodeGroup(ng *ekstypes.Nodegroup) *NodeGroup {
 	if ng.CreatedAt != nil {
 		nodeGroup.CreatedAt = *ng.CreatedAt
 	}
+	if ng.NodegroupArn != nil {
+		nodeGroup.NodeGroupARN = *ng.NodegroupArn
+	}
 
-	// Handle InstanceTypes
+	// Set complex fields
 	nodeGroup.InstanceTypes = ng.InstanceTypes
+	convertScalingConfig(ng, nodeGroup)
+	convertLaunchTemplate(ng, nodeGroup)
+	convertTaints(ng, nodeGroup)
 
-	// Handle ScalingConfig
+	return nodeGroup
+}
+
+func convertScalingConfig(ng *ekstypes.Nodegroup, nodeGroup *NodeGroup) {
 	if ng.ScalingConfig != nil {
 		if ng.ScalingConfig.DesiredSize != nil {
 			nodeGroup.DesiredSize = *ng.ScalingConfig.DesiredSize
@@ -297,11 +327,10 @@ func convertNodeGroup(ng *ekstypes.Nodegroup) *NodeGroup {
 			nodeGroup.MaxSize = *ng.ScalingConfig.MaxSize
 		}
 	}
+}
 
-	if ng.NodegroupArn != nil {
-		nodeGroup.NodeGroupARN = *ng.NodegroupArn
-	}
-
+// convertLaunchTemplate converts launch template information
+func convertLaunchTemplate(ng *ekstypes.Nodegroup, nodeGroup *NodeGroup) {
 	if ng.LaunchTemplate != nil {
 		launchTemplate := LaunchTemplateInfo{}
 		if ng.LaunchTemplate.Id != nil {
@@ -315,7 +344,10 @@ func convertNodeGroup(ng *ekstypes.Nodegroup) *NodeGroup {
 		}
 		nodeGroup.LaunchTemplate = launchTemplate
 	}
+}
 
+// convertTaints converts taints information
+func convertTaints(ng *ekstypes.Nodegroup, nodeGroup *NodeGroup) {
 	if ng.Taints != nil {
 		for _, t := range ng.Taints {
 			taint := Taint{Effect: string(t.Effect)}
@@ -328,8 +360,6 @@ func convertNodeGroup(ng *ekstypes.Nodegroup) *NodeGroup {
 			nodeGroup.Taints = append(nodeGroup.Taints, taint)
 		}
 	}
-
-	return nodeGroup
 }
 
 // ListNodeGroupsForCluster retrieves all node group names for a cluster (public method)

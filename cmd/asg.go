@@ -90,8 +90,42 @@ func init() {
 
 func runASGScale(_ *cobra.Command, args []string) error {
 	// Setup context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := setupContext()
 	defer cancel()
+
+	// Create AWS client
+	client, err := aws.NewClient(ctx, region, profile)
+	if err != nil {
+		return fmt.Errorf("failed to create AWS client: %w", err)
+	}
+
+	// Resolve ASG and parameters
+	selectedASG, asgInfo, err := resolveASGAndParameters(ctx, client, args)
+	if err != nil {
+		return err
+	}
+
+	// Get current ASG details
+	asg, err := client.DescribeAutoScalingGroup(ctx, selectedASG)
+	if err != nil {
+		return fmt.Errorf("failed to get ASG details: %w", err)
+	}
+
+	// Calculate final scaling parameters
+	finalParams := calculateScalingParameters(asg, asgInfo)
+
+	// Display configuration and confirm
+	if !confirmASGScalingAction(selectedASG, asg, finalParams) {
+		return nil
+	}
+
+	// Perform the scaling operation
+	return executeASGScaling(ctx, client, selectedASG, finalParams)
+}
+
+// setupContext sets up context with signal handling
+func setupContext() (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// Handle Ctrl+C gracefully
 	sigChan := make(chan os.Signal, 1)
@@ -102,74 +136,97 @@ func runASGScale(_ *cobra.Command, args []string) error {
 		cancel()
 	}()
 
-	// Create AWS client
-	client, err := aws.NewClient(ctx, region, profile)
-	if err != nil {
-		return fmt.Errorf("failed to create AWS client: %w", err)
-	}
+	return ctx, cancel
+}
 
-	var selectedASG string
-
-	// Determine if we're in interactive mode or command-line mode
+// resolveASGAndParameters resolves ASG selection and scaling parameters
+func resolveASGAndParameters(ctx context.Context, client *aws.Client, args []string) (string, *fuzzy.ASGInfo, error) {
 	if len(args) > 0 {
-		selectedASG = args[0]
-		// When ASG is provided as argument, desired capacity is required
+		// Command-line mode
+		selectedASG := args[0]
 		if asgDesiredCapacity == -1 {
-			return fmt.Errorf("--desired flag is required when ASG name is provided")
+			return "", nil, fmt.Errorf("--desired flag is required when ASG name is provided")
 		}
-	} else {
-		// Interactive mode - use fuzzy finder to select ASG
-		colors := fuzzy.NewDefaultColorManager(noColor)
-		adapter := &asgClientAdapter{client: client}
-		loader := fuzzy.NewAWSASGLoader(adapter)
-		finder := fuzzy.NewASGFinder(loader, colors)
-
-		asgInfo, findErr := finder.SelectASGInteractive(ctx)
-		if findErr != nil {
-			return fmt.Errorf("failed to select ASG: %w", findErr)
-		}
-		if asgInfo == nil {
-			return fmt.Errorf("no ASG selected")
-		}
-
-		selectedASG = asgInfo.Name
-
-		// If in interactive mode and desired capacity not provided, prompt for it
-		if asgDesiredCapacity == -1 {
-			fmt.Printf("\nCurrent ASG configuration:\n")
-			fmt.Printf("  Min Size:          %d\n", asgInfo.MinSize)
-			fmt.Printf("  Max Size:          %d\n", asgInfo.MaxSize)
-			fmt.Printf("  Desired Capacity:  %d\n", asgInfo.DesiredCapacity)
-			fmt.Printf("  Current Size:      %d\n\n", asgInfo.CurrentSize)
-			fmt.Printf("Enter desired capacity: ")
-			if _, scanErr := fmt.Scanln(&asgDesiredCapacity); scanErr != nil {
-				return fmt.Errorf("failed to read desired capacity: %w", scanErr)
-			}
-		}
+		return selectedASG, &fuzzy.ASGInfo{}, nil
 	}
 
-	// Get current ASG details
-	asg, err := client.DescribeAutoScalingGroup(ctx, selectedASG)
-	if err != nil {
-		return fmt.Errorf("failed to get ASG details: %w", err)
+	// Interactive mode
+	return selectASGInteractively(ctx, client)
+}
+
+// selectASGInteractively selects ASG using fuzzy finder
+func selectASGInteractively(ctx context.Context, client *aws.Client) (string, *fuzzy.ASGInfo, error) {
+	colors := fuzzy.NewDefaultColorManager(noColor)
+	adapter := &asgClientAdapter{client: client}
+	loader := fuzzy.NewAWSASGLoader(adapter)
+	finder := fuzzy.NewASGFinder(loader, colors)
+
+	asgInfo, findErr := finder.SelectASGInteractive(ctx)
+	if findErr != nil {
+		return "", nil, fmt.Errorf("failed to select ASG: %w", findErr)
+	}
+	if asgInfo == nil {
+		return "", nil, fmt.Errorf("no ASG selected")
 	}
 
-	// Determine final min/max/desired values
+	// Prompt for desired capacity if not provided
+	if asgDesiredCapacity == -1 {
+		promptForDesiredCapacity(asgInfo)
+	}
+
+	return asgInfo.Name, asgInfo, nil
+}
+
+// promptForDesiredCapacity prompts user for desired capacity in interactive mode
+func promptForDesiredCapacity(asgInfo *fuzzy.ASGInfo) {
+	fmt.Printf("\nCurrent ASG configuration:\n")
+	fmt.Printf("  Min Size:          %d\n", asgInfo.MinSize)
+	fmt.Printf("  Max Size:          %d\n", asgInfo.MaxSize)
+	fmt.Printf("  Desired Capacity:  %d\n", asgInfo.DesiredCapacity)
+	fmt.Printf("  Current Size:      %d\n\n", asgInfo.CurrentSize)
+	fmt.Printf("Enter desired capacity: ")
+	if _, scanErr := fmt.Scanln(&asgDesiredCapacity); scanErr != nil {
+		fmt.Printf("Error reading desired capacity: %v\n", scanErr)
+		// Set a default value to avoid further issues
+		asgDesiredCapacity = 0
+	}
+}
+
+// ASGScalingParameters holds the final scaling configuration
+type ASGScalingParameters struct {
+	Min     int32
+	Max     int32
+	Desired int32
+}
+
+// calculateScalingParameters calculates final min, max, and desired values
+func calculateScalingParameters(asg *aws.AutoScalingGroup, _ *fuzzy.ASGInfo) ASGScalingParameters {
 	finalMin := asgMinSize
 	finalMax := asgMaxSize
 	finalDesired := asgDesiredCapacity
 
 	// If min and max are not provided, set them to desired capacity
-	switch {
-	case asgMinSize == -1 && asgMaxSize == -1:
+	if asgMinSize == -1 && asgMaxSize == -1 {
 		finalMin = asgDesiredCapacity
 		finalMax = asgDesiredCapacity
-	case asgMinSize == -1:
-		finalMin = asg.MinSize
-	case asgMaxSize == -1:
-		finalMax = asg.MaxSize
+	} else {
+		if asgMinSize == -1 {
+			finalMin = asg.MinSize
+		}
+		if asgMaxSize == -1 {
+			finalMax = asg.MaxSize
+		}
 	}
 
+	return ASGScalingParameters{
+		Min:     finalMin,
+		Max:     finalMax,
+		Desired: finalDesired,
+	}
+}
+
+// confirmASGScalingAction displays configuration and gets user confirmation
+func confirmASGScalingAction(selectedASG string, asg *aws.AutoScalingGroup, params ASGScalingParameters) bool {
 	// Display current and new configuration
 	fmt.Printf("\nAuto Scaling Group: %s\n", selectedASG)
 	fmt.Printf("\nCurrent configuration:\n")
@@ -179,26 +236,35 @@ func runASGScale(_ *cobra.Command, args []string) error {
 	fmt.Printf("  Current Size:      %d\n", asg.CurrentSize)
 
 	fmt.Printf("\nNew configuration:\n")
-	fmt.Printf("  Min Size:          %d\n", finalMin)
-	fmt.Printf("  Max Size:          %d\n", finalMax)
-	fmt.Printf("  Desired Capacity:  %d\n", finalDesired)
+	fmt.Printf("  Min Size:          %d\n", params.Min)
+	fmt.Printf("  Max Size:          %d\n", params.Max)
+	fmt.Printf("  Desired Capacity:  %d\n", params.Desired)
 
 	// Confirm before scaling (unless skip-confirm is set)
-	if !asgSkipConfirm {
-		fmt.Printf("\nDo you want to proceed with scaling? (yes/no): ")
-		var confirmation string
-		if _, scanErr := fmt.Scanln(&confirmation); scanErr != nil {
-			return fmt.Errorf("failed to read confirmation: %w", scanErr)
-		}
-		if confirmation != "yes" && confirmation != "y" {
-			fmt.Println("Scaling cancelled")
-			return nil
-		}
+	if asgSkipConfirm {
+		return true
 	}
 
-	// Perform the scaling operation
+	fmt.Printf("\nDo you want to proceed with scaling? (yes/no): ")
+	var confirmation string
+	if _, scanErr := fmt.Scanln(&confirmation); scanErr != nil {
+		fmt.Printf("Error reading confirmation: %v\n", scanErr)
+		return false
+	}
+
+	if confirmation != "yes" && confirmation != "y" {
+		fmt.Println("Scaling cancelled")
+		return false
+	}
+
+	return true
+}
+
+// executeASGScaling performs the actual scaling operation
+func executeASGScaling(ctx context.Context, client *aws.Client, selectedASG string, params ASGScalingParameters) error {
 	fmt.Printf("\nScaling Auto Scaling Group %s...\n", selectedASG)
-	err = client.UpdateAutoScalingGroupCapacity(ctx, selectedASG, finalMin, finalMax, finalDesired)
+
+	err := client.UpdateAutoScalingGroupCapacity(ctx, selectedASG, params.Min, params.Max, params.Desired)
 	if err != nil {
 		return fmt.Errorf("failed to scale ASG: %w", err)
 	}

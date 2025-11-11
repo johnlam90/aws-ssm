@@ -41,16 +41,65 @@ type Config struct {
 
 // LoadConfig loads configuration from file
 func LoadConfig(configPath string) (*Config, error) {
+	// Resolve and validate config path
+	validatedPath, err := resolveConfigPath(configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create default configuration
+	config := createDefaultConfig()
+
+	// Load configuration from file if it exists
+	if err := loadConfigFile(config, validatedPath); err != nil {
+		return nil, err
+	}
+
+	// Set default paths if not specified
+	if err := setDefaultPaths(config); err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
+// resolveConfigPath resolves and validates the config file path
+func resolveConfigPath(configPath string) (string, error) {
 	if configPath == "" {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get user home directory: %w", err)
+			return "", fmt.Errorf("failed to get user home directory: %w", err)
 		}
-		configPath = filepath.Join(homeDir, ".aws-ssm", "config.yaml")
+		return filepath.Join(homeDir, ".aws-ssm", "config.yaml"), nil
 	}
 
-	// Default configuration
-	config := &Config{
+	// Validate and clean the path to prevent directory traversal
+	cleanPath := filepath.Clean(configPath)
+
+	// Get absolute path to ensure we're comparing canonical paths
+	absPath, err := filepath.Abs(cleanPath)
+	if err != nil {
+		return "", fmt.Errorf("invalid config path: %w", err)
+	}
+
+	// Get the home directory as the base for config files
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to determine home directory: %w", err)
+	}
+
+	// Verify the absolute path is within the home directory or /etc
+	// This prevents directory traversal attacks
+	if !strings.HasPrefix(absPath, homeDir) && !strings.HasPrefix(absPath, "/etc") {
+		return "", fmt.Errorf("invalid config path: must be in home directory (~/.aws-ssm/) or /etc/aws-ssm/")
+	}
+
+	return cleanPath, nil
+}
+
+// createDefaultConfig creates the default configuration
+func createDefaultConfig() *Config {
+	return &Config{
 		Default: struct {
 			Region  string            `yaml:"region"`
 			Profile string            `yaml:"profile"`
@@ -118,58 +167,31 @@ func LoadConfig(configPath string) (*Config, error) {
 			Dir: "",
 		},
 	}
+}
 
-	// Validate and clean the path to prevent directory traversal
-	// Path restrictions:
-	// - Config files must be located in the user's home directory (~/.aws-ssm/) or /etc/aws-ssm/
-	// - Relative paths are not supported for security reasons (prevents path traversal attacks)
-	// - Absolute paths are required and must be within the allowed directories
-	// This ensures that config files cannot be placed in arbitrary locations or escape
-	// the intended configuration directories.
-	if configPath != "" {
-		cleanPath := filepath.Clean(configPath)
-
-		// Verify the cleaned path doesn't escape the expected base directory
-		// Get absolute path to ensure we're comparing canonical paths
-		absPath, err := filepath.Abs(cleanPath)
-		if err != nil {
-			return nil, fmt.Errorf("invalid config path: %w", err)
-		}
-
-		// Get the home directory as the base for config files
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return nil, fmt.Errorf("failed to determine home directory: %w", err)
-		}
-
-		// Verify the absolute path is within the home directory or /etc
-		// This prevents directory traversal attacks and ensures config files are in expected locations
-		if !strings.HasPrefix(absPath, homeDir) && !strings.HasPrefix(absPath, "/etc") {
-			return nil, fmt.Errorf("invalid config path: must be in home directory (~/.aws-ssm/) or /etc/aws-ssm/")
-		}
-
-		configPath = cleanPath
-	}
-
-	// Load configuration from file if it exists
+// loadConfigFile loads configuration from file if it exists
+func loadConfigFile(config *Config, configPath string) error {
 	if _, statErr := os.Stat(configPath); statErr == nil {
 		data, err := os.ReadFile(configPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read config file: %w", err)
+			return fmt.Errorf("failed to read config file: %w", err)
 		}
 
 		if err := yaml.Unmarshal(data, config); err != nil {
-			return nil, fmt.Errorf("failed to parse config file: %w", err)
+			return fmt.Errorf("failed to parse config file: %w", err)
 		}
 	} else if !os.IsNotExist(statErr) {
-		return nil, fmt.Errorf("failed to access config file: %w", statErr)
+		return fmt.Errorf("failed to access config file: %w", statErr)
 	}
+	return nil
+}
 
-	// Set default paths if not specified (call UserHomeDir once for efficiency)
+// setDefaultPaths sets default paths for directories if not specified
+func setDefaultPaths(config *Config) error {
 	if config.Bookmarks.File == "" || config.Cache.CacheDir == "" || config.Plugins.Dir == "" {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get user home directory: %w", err)
+			return fmt.Errorf("failed to get user home directory: %w", err)
 		}
 
 		if config.Bookmarks.File == "" {
@@ -184,8 +206,7 @@ func LoadConfig(configPath string) (*Config, error) {
 			config.Plugins.Dir = filepath.Join(homeDir, ".aws-ssm", "actions")
 		}
 	}
-
-	return config, nil
+	return nil
 }
 
 // SaveConfig saves configuration to file

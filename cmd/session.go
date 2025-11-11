@@ -82,124 +82,141 @@ func runSession(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create AWS client: %w", err)
 	}
 
-	var instance *aws.Instance
-	var command string
+	// Parse and resolve arguments
+	instance, command, err := parseAndResolveArgs(ctx, client, args)
+	if err != nil {
+		return err
+	}
 
-	// Parse arguments
+	// If no instance resolved, use interactive selection
+	if instance == nil {
+		instance, err = selectInstanceInteractive(ctx, client)
+		if err != nil {
+			return err
+		}
+		if instance == nil {
+			return nil // User cancelled
+		}
+	}
+
+	// Execute based on command presence
+	if command != "" {
+		return executeRemoteCommand(ctx, client, instance, command)
+	}
+
+	return startInteractiveSession(ctx, client, instance)
+}
+
+// parseAndResolveArgs parses command line arguments and resolves instance
+func parseAndResolveArgs(ctx context.Context, client *aws.Client, args []string) (*aws.Instance, string, error) {
 	switch len(args) {
 	case 0:
-		// No arguments - use interactive fuzzy finder
-		if interactive {
-			fmt.Println("Opening enhanced interactive instance selector...")
-			fmt.Println("(Use arrow keys to navigate, type to filter, Space to multi-select, Enter to confirm)")
-			fmt.Println()
-		} else {
-			fmt.Println("Opening interactive instance selector...")
-			fmt.Println("(Use arrow keys to navigate, type to filter, Enter to select, Esc to cancel)")
-			fmt.Println()
-		}
-
-		selectedInstance, err := client.SelectInstanceInteractive(ctx)
-		if err != nil {
-			// Check if it's a context cancellation (Ctrl+C)
-			if err == context.Canceled {
-				fmt.Println("\nSelection cancelled.")
-				return nil
-			}
-			return fmt.Errorf("failed to select instance: %w", err)
-		}
-		if selectedInstance == nil {
-			// User cancelled the selection (Esc)
-			fmt.Println("\nNo instance selected.")
-			return nil
-		}
-		instance = selectedInstance
+		return nil, "", nil // Interactive selection
 	case 1:
-		// One argument - instance identifier only (interactive shell)
-		identifier := args[0]
-		fmt.Printf("Searching for instance: %s\n", identifier)
-
-		resolvedInstance, err := client.ResolveSingleInstance(ctx, identifier)
+		// One argument - instance identifier only
+		instance, err := resolveInstance(ctx, client, args[0])
 		if err != nil {
-			if multiErr, ok := err.(*aws.MultipleInstancesError); ok && multiErr.AllowInteractive {
-				fmt.Print(multiErr.FormatInstanceList())
-				selected, selErr := client.SelectInstanceFromProvided(ctx, multiErr.Instances)
-				if selErr != nil {
-					// Check if it's a context cancellation (Ctrl+C)
-					if selErr == context.Canceled {
-						fmt.Println("\nSelection cancelled.")
-						return nil
-					}
-					return fmt.Errorf("instance selection cancelled or failed: %w", selErr)
-				}
-				if selected == nil {
-					// User cancelled the selection (Esc)
-					fmt.Println("\nNo instance selected.")
-					return nil
-				}
-				instance = selected
-				break
-			}
-			return err
+			err = handleInstanceResolutionError(ctx, client, err)
+			return nil, "", err
 		}
-		instance = resolvedInstance
+		return instance, "", nil
 	default:
 		// Two or more arguments - instance identifier and command
-		identifier := args[0]
-		command = args[1]
-
-		fmt.Printf("Searching for instance: %s\n", identifier)
-
-		resolvedInstance, err := client.ResolveSingleInstance(ctx, identifier)
+		instance, err := resolveInstance(ctx, client, args[0])
 		if err != nil {
-			if multiErr, ok := err.(*aws.MultipleInstancesError); ok && multiErr.AllowInteractive {
-				fmt.Print(multiErr.FormatInstanceList())
-				selected, selErr := client.SelectInstanceFromProvided(ctx, multiErr.Instances)
-				if selErr != nil {
-					// Check if it's a context cancellation (Ctrl+C)
-					if selErr == context.Canceled {
-						fmt.Println("\nSelection cancelled.")
-						return nil
-					}
-					return fmt.Errorf("instance selection cancelled or failed: %w", selErr)
-				}
-				if selected == nil {
-					// User cancelled the selection (Esc)
-					fmt.Println("\nNo instance selected.")
-					return nil
-				}
-				instance = selected
-				break
-			}
-			return err
+			err = handleInstanceResolutionError(ctx, client, err)
+			return nil, "", err
 		}
-		instance = resolvedInstance
+		return instance, args[1], nil
+	}
+}
+
+// resolveInstance resolves an instance from an identifier
+func resolveInstance(ctx context.Context, client *aws.Client, identifier string) (*aws.Instance, error) {
+	fmt.Printf("Searching for instance: %s\n", identifier)
+	return client.ResolveSingleInstance(ctx, identifier)
+}
+
+// handleInstanceResolutionError handles errors from instance resolution
+func handleInstanceResolutionError(ctx context.Context, client *aws.Client, err error) error {
+	if multiErr, ok := err.(*aws.MultipleInstancesError); ok && multiErr.AllowInteractive {
+		return selectFromMultipleInstances(ctx, client, multiErr.Instances)
+	}
+	return err
+}
+
+// selectFromMultipleInstances handles interactive selection from multiple matching instances
+func selectFromMultipleInstances(ctx context.Context, client *aws.Client, instances []aws.Instance) error {
+	fmt.Print("Multiple instances found:\n\n")
+
+	selected, selErr := client.SelectInstanceFromProvided(ctx, instances)
+	if selErr != nil {
+		if selErr == context.Canceled {
+			fmt.Println("\nSelection cancelled.")
+			return nil
+		}
+		return fmt.Errorf("instance selection cancelled or failed: %w", selErr)
 	}
 
-	// Display instance information
-	name := instance.Name
-	if name == "" {
-		name = "(no name)"
-	}
-
-	// If command is provided, execute it and return
-	if command != "" {
-		fmt.Printf("Executing command on instance:\n")
-		fmt.Printf("  ID:          %s\n", instance.InstanceID)
-		fmt.Printf("  Name:        %s\n", name)
-		fmt.Printf("  Command:     %s\n\n", command)
-
-		output, err := client.ExecuteCommand(ctx, instance.InstanceID, command)
-		if err != nil {
-			return fmt.Errorf("failed to execute command: %w", err)
-		}
-
-		// Print the output
-		fmt.Print(output)
+	if selected == nil {
+		fmt.Println("\nNo instance selected.")
 		return nil
 	}
 
-	// Otherwise, start an interactive session
+	return nil
+}
+
+// selectInstanceInteractive handles interactive instance selection
+func selectInstanceInteractive(ctx context.Context, client *aws.Client) (*aws.Instance, error) {
+	if interactive {
+		fmt.Println("Opening enhanced interactive instance selector...")
+		fmt.Println("(Use arrow keys to navigate, type to filter, Space to multi-select, Enter to confirm)")
+		fmt.Println()
+	} else {
+		fmt.Println("Opening interactive instance selector...")
+		fmt.Println("(Use arrow keys to navigate, type to filter, Enter to select, Esc to cancel)")
+		fmt.Println()
+	}
+
+	selectedInstance, err := client.SelectInstanceInteractive(ctx)
+	if err != nil {
+		if err == context.Canceled {
+			fmt.Println("\nSelection cancelled.")
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to select instance: %w", err)
+	}
+
+	if selectedInstance == nil {
+		fmt.Println("\nNo instance selected.")
+		return nil, nil
+	}
+
+	return selectedInstance, nil
+}
+
+// executeRemoteCommand executes a command on a remote instance
+func executeRemoteCommand(ctx context.Context, client *aws.Client, instance *aws.Instance, command string) error {
+	name := getInstanceDisplayName(instance)
+
+	fmt.Printf("Executing command on instance:\n")
+	fmt.Printf("  ID:          %s\n", instance.InstanceID)
+	fmt.Printf("  Name:        %s\n", name)
+	fmt.Printf("  Command:     %s\n\n", command)
+
+	output, err := client.ExecuteCommand(ctx, instance.InstanceID, command)
+	if err != nil {
+		return fmt.Errorf("failed to execute command: %w", err)
+	}
+
+	fmt.Print(output)
+	return nil
+}
+
+// startInteractiveSession starts an interactive SSM session
+func startInteractiveSession(ctx context.Context, client *aws.Client, instance *aws.Instance) error {
+	name := getInstanceDisplayName(instance)
+
 	fmt.Printf("Connecting to instance:\n")
 	fmt.Printf("  ID:          %s\n", instance.InstanceID)
 	fmt.Printf("  Name:        %s\n", name)
@@ -211,7 +228,6 @@ func runSession(_ *cobra.Command, args []string) error {
 	}
 	fmt.Printf("  AZ:          %s\n\n", instance.AvailabilityZone)
 
-	// Start SSM session - choose between native or plugin-based
 	if useNative {
 		if err := client.StartNativeSession(ctx, instance.InstanceID); err != nil {
 			return fmt.Errorf("failed to start native session: %w", err)
@@ -223,4 +239,12 @@ func runSession(_ *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// getInstanceDisplayName returns a display name for an instance
+func getInstanceDisplayName(instance *aws.Instance) string {
+	if name := instance.Name; name != "" {
+		return name
+	}
+	return "(no name)"
 }

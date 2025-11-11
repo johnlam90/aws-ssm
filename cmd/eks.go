@@ -121,7 +121,21 @@ func displayClusterInfo(cluster *aws.Cluster) {
 	fmt.Printf("EKS Cluster: %s\n", cluster.Name)
 	fmt.Println(separator)
 
-	// Basic Information
+	// Display each section
+	displayBasicInfo(cluster)
+	displayAPIEndpoint(cluster)
+	displayNetworking(cluster)
+	displayComputeResources(cluster)
+	displayLogging(cluster)
+	displayEncryption(cluster)
+	displayIdentityProvider(cluster)
+	displayTags(cluster)
+
+	fmt.Println("\n" + separator)
+}
+
+// displayBasicInfo displays basic cluster information
+func displayBasicInfo(cluster *aws.Cluster) {
 	fmt.Println("\n📋 Basic Information:")
 	fmt.Printf("  Status:              %s\n", cluster.Status)
 	fmt.Printf("  Version:             %s\n", cluster.Version)
@@ -129,58 +143,93 @@ func displayClusterInfo(cluster *aws.Cluster) {
 	fmt.Printf("  Created:             %s\n", cluster.CreatedAt.Format("2006-01-02 15:04:05"))
 	fmt.Printf("  ARN:                 %s\n", cluster.ARN)
 	fmt.Printf("  Role ARN:            %s\n", cluster.RoleARN)
+}
 
-	// API Server Endpoint
+// displayAPIEndpoint displays API server information
+func displayAPIEndpoint(cluster *aws.Cluster) {
 	fmt.Println("\n🔗 API Server:")
 	fmt.Printf("  Endpoint:            %s\n", cluster.Endpoint)
+}
 
-	// Networking Configuration
+// displayNetworking displays networking configuration
+func displayNetworking(cluster *aws.Cluster) {
 	fmt.Println("\n🌐 Networking:")
 	fmt.Printf("  VPC ID:              %s\n", cluster.VPC.VpcID)
-	fmt.Printf("  Subnets:             %d\n", len(cluster.VPC.SubnetIDs))
-	if len(cluster.VPC.SubnetIDs) > 0 {
-		for i, subnet := range cluster.VPC.SubnetIDs {
+
+	displaySubnets(cluster.VPC.SubnetIDs)
+	displaySecurityGroups(cluster.VPC.SecurityGroupIDs)
+	displayEndpointAccess(cluster.VPC)
+}
+
+// displaySubnets displays subnet information
+func displaySubnets(subnets []string) {
+	fmt.Printf("  Subnets:             %d\n", len(subnets))
+	if len(subnets) > 0 {
+		for i, subnet := range subnets {
 			if i < 3 { // Show first 3
 				fmt.Printf("    • %s\n", subnet)
 			}
 		}
-		if len(cluster.VPC.SubnetIDs) > 3 {
-			fmt.Printf("    • ... and %d more\n", len(cluster.VPC.SubnetIDs)-3)
+		if len(subnets) > 3 {
+			fmt.Printf("    • ... and %d more\n", len(subnets)-3)
 		}
 	}
-	fmt.Printf("  Security Groups:     %d\n", len(cluster.VPC.SecurityGroupIDs))
-	if len(cluster.VPC.SecurityGroupIDs) > 0 {
-		for i, sg := range cluster.VPC.SecurityGroupIDs {
+}
+
+// displaySecurityGroups displays security group information
+func displaySecurityGroups(sgs []string) {
+	fmt.Printf("  Security Groups:     %d\n", len(sgs))
+	if len(sgs) > 0 {
+		for i, sg := range sgs {
 			if i < 3 { // Show first 3
 				fmt.Printf("    • %s\n", sg)
 			}
 		}
-		if len(cluster.VPC.SecurityGroupIDs) > 3 {
-			fmt.Printf("    • ... and %d more\n", len(cluster.VPC.SecurityGroupIDs)-3)
+		if len(sgs) > 3 {
+			fmt.Printf("    • ... and %d more\n", len(sgs)-3)
 		}
 	}
-	fmt.Printf("  Endpoint Private Access: %v\n", cluster.VPC.EndpointPrivateAccess)
-	fmt.Printf("  Endpoint Public Access:  %v\n", cluster.VPC.EndpointPublicAccess)
-	if len(cluster.VPC.PublicAccessCIDRs) > 0 {
-		fmt.Printf("  Public Access CIDRs:     %v\n", cluster.VPC.PublicAccessCIDRs)
-	}
+}
 
-	// Compute Resources
+// displayEndpointAccess displays endpoint access information
+func displayEndpointAccess(vpc aws.VPCInfo) {
+	fmt.Printf("  Endpoint Private Access: %v\n", vpc.EndpointPrivateAccess)
+	fmt.Printf("  Endpoint Public Access:  %v\n", vpc.EndpointPublicAccess)
+	if len(vpc.PublicAccessCIDRs) > 0 {
+		fmt.Printf("  Public Access CIDRs:     %v\n", vpc.PublicAccessCIDRs)
+	}
+}
+
+// displayComputeResources displays node groups and Fargate profiles
+func displayComputeResources(cluster *aws.Cluster) {
 	fmt.Println("\n⚙️  Compute Resources:")
-	fmt.Printf("  Node Groups:         %d\n", len(cluster.NodeGroups))
-	if len(cluster.NodeGroups) > 0 {
-		for _, ng := range cluster.NodeGroups {
+
+	displayNodeGroups(cluster.NodeGroups)
+	displayFargateProfiles(cluster.FargateProfiles)
+}
+
+// displayNodeGroups displays node group information
+func displayNodeGroups(ngs []aws.NodeGroup) {
+	fmt.Printf("  Node Groups:         %d\n", len(ngs))
+	if len(ngs) > 0 {
+		for _, ng := range ngs {
 			fmt.Printf("    • %s (%s) - %d/%d nodes\n", ng.Name, ng.Status, ng.CurrentSize, ng.DesiredSize)
 		}
 	}
-	fmt.Printf("  Fargate Profiles:    %d\n", len(cluster.FargateProfiles))
-	if len(cluster.FargateProfiles) > 0 {
-		for _, fp := range cluster.FargateProfiles {
+}
+
+// displayFargateProfiles displays Fargate profile information
+func displayFargateProfiles(fps []aws.FargateProfile) {
+	fmt.Printf("  Fargate Profiles:    %d\n", len(fps))
+	if len(fps) > 0 {
+		for _, fp := range fps {
 			fmt.Printf("    • %s (%s)\n", fp.Name, fp.Status)
 		}
 	}
+}
 
-	// Logging Configuration
+// displayLogging displays logging configuration
+func displayLogging(cluster *aws.Cluster) {
 	if len(cluster.Logging.ClusterLogging) > 0 {
 		fmt.Println("\n📝 Logging:")
 		for _, log := range cluster.Logging.ClusterLogging {
@@ -191,8 +240,10 @@ func displayClusterInfo(cluster *aws.Cluster) {
 			fmt.Printf("  • %s: %s\n", log.Type, status)
 		}
 	}
+}
 
-	// Encryption Configuration
+// displayEncryption displays encryption configuration
+func displayEncryption(cluster *aws.Cluster) {
 	if len(cluster.EncryptionConfig) > 0 {
 		fmt.Println("\n🔐 Encryption:")
 		for _, enc := range cluster.EncryptionConfig {
@@ -200,20 +251,22 @@ func displayClusterInfo(cluster *aws.Cluster) {
 			fmt.Printf("  Key ARN:   %s\n", enc.Provider.KeyARN)
 		}
 	}
+}
 
-	// Identity Provider
+// displayIdentityProvider displays identity provider information
+func displayIdentityProvider(cluster *aws.Cluster) {
 	if cluster.Identity.OIDC.Issuer != "" {
 		fmt.Println("\n🔑 Identity Provider:")
 		fmt.Printf("  OIDC Issuer: %s\n", cluster.Identity.OIDC.Issuer)
 	}
+}
 
-	// Tags
+// displayTags displays cluster tags
+func displayTags(cluster *aws.Cluster) {
 	if len(cluster.Tags) > 0 {
 		fmt.Println("\n🏷️  Tags:")
 		for key, value := range cluster.Tags {
 			fmt.Printf("  %s: %s\n", key, value)
 		}
 	}
-
-	fmt.Println("\n" + separator)
 }
