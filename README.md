@@ -3,13 +3,13 @@
 Fast, dependency-free Golang CLI to manage AWS EC2 instances and EKS clusters over AWS Systems Manager Session Manager. Single static binary: no session-manager-plugin, no SSH bastions, no external runtime.
 
 [![Go Version](https://img.shields.io/badge/Go-1.23%2B-blue.svg)](https://golang.org/dl/)
-[![Build](https://github.com/johnlam90/aws-ssm/actions/workflows/ci.yml/badge.svg)](https://github.com/johnlam90/aws-ssm/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/codecov/c/github/johnlam90/aws-ssm)](https://codecov.io/gh/johnlam90/aws-ssm)
-[![Go Report Card](https://goreportcard.com/badge/github.com/johnlam90/aws-ssm)](https://goreportcard.com/report/github.com/johnlam90/aws-ssm)
-[![Release](https://img.shields.io/github/v/release/johnlam90/aws-ssm)](https://github.com/johnlam90/aws-ssm/releases)
-[![Downloads](https://img.shields.io/github/downloads/johnlam90/aws-ssm/total)](https://github.com/johnlam90/aws-ssm/releases)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Security Policy](https://img.shields.io/badge/Security-Policy-important)](SECURITY.md)
+[![CI Pipeline](https://github.com/johnlam90/aws-ssm/actions/workflows/ci.yml/badge.svg)](https://github.com/johnlam90/aws-ssm/actions/workflows/ci.yml)
+[![coverage](https://img.shields.io/codecov/c/github/johnlam90/aws-ssm?label=coverage&logo=codecov)](https://codecov.io/gh/johnlam90/aws-ssm)
+[![go report](https://goreportcard.com/badge/github.com/johnlam90/aws-ssm)](https://goreportcard.com/report/github.com/johnlam90/aws-ssm)
+[![release](https://img.shields.io/github/v/release/johnlam90/aws-ssm?label=release)](https://github.com/johnlam90/aws-ssm/releases)
+[![downloads](https://img.shields.io/github/downloads/johnlam90/aws-ssm/total?label=downloads)](https://github.com/johnlam90/aws-ssm/releases)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Security](https://img.shields.io/badge/security-policy-important)](SECURITY.md)
 
 > Not affiliated with Amazon Web Services. Uses official AWS SDK v2.
 
