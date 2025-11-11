@@ -22,11 +22,12 @@ type InterfacesOptions struct {
 
 // NetworkInterface represents a network interface with its details
 type NetworkInterface struct {
-	InterfaceName string
-	SubnetID      string
-	CIDR          string
-	SecurityGroup string
-	DeviceIndex   int32
+	InterfaceName    string
+	SubnetID         string
+	CIDR             string
+	SecurityGroup    string
+	DeviceIndex      int32
+	NetworkCardIndex int32
 }
 
 // InstanceInterfaces represents an instance with its network interfaces
@@ -59,6 +60,81 @@ func (c *Client) GetSubnetCIDR(ctx context.Context, subnetID string) (string, er
 	return "N/A", nil
 }
 
+// getInstanceName extracts the instance name from tags
+func getInstanceName(instance types.Instance) string {
+	for _, tag := range instance.Tags {
+		if aws.ToString(tag.Key) == "Name" {
+			return aws.ToString(tag.Value)
+		}
+	}
+	return "N/A"
+}
+
+// sortInterfacesByCardAndDevice sorts network interfaces by network card index first, then device index
+func sortInterfacesByCardAndDevice(interfaces []types.InstanceNetworkInterface) []types.InstanceNetworkInterface {
+	sortedInterfaces := make([]types.InstanceNetworkInterface, len(interfaces))
+	copy(sortedInterfaces, interfaces)
+	sort.Slice(sortedInterfaces, func(i, j int) bool {
+		cardI, indexI := int32(0), int32(0)
+		cardJ, indexJ := int32(0), int32(0)
+
+		if sortedInterfaces[i].Attachment != nil {
+			cardI = aws.ToInt32(sortedInterfaces[i].Attachment.NetworkCardIndex)
+			indexI = aws.ToInt32(sortedInterfaces[i].Attachment.DeviceIndex)
+		}
+		if sortedInterfaces[j].Attachment != nil {
+			cardJ = aws.ToInt32(sortedInterfaces[j].Attachment.NetworkCardIndex)
+			indexJ = aws.ToInt32(sortedInterfaces[j].Attachment.DeviceIndex)
+		}
+
+		// Sort by network card first, then by device index
+		if cardI != cardJ {
+			return cardI < cardJ
+		}
+		return indexI < indexJ
+	})
+	return sortedInterfaces
+}
+
+// processInterface creates a NetworkInterface from an EC2 interface with ENS naming
+func (c *Client) processInterface(ctx context.Context, iface types.InstanceNetworkInterface, ensName string) (NetworkInterface, error) {
+	networkCardIndex := int32(0)
+	deviceIndex := int32(0)
+	if iface.Attachment != nil {
+		networkCardIndex = aws.ToInt32(iface.Attachment.NetworkCardIndex)
+		deviceIndex = aws.ToInt32(iface.Attachment.DeviceIndex)
+	}
+
+	subnetID := aws.ToString(iface.SubnetId)
+	if subnetID == "" {
+		subnetID = "N/A"
+	}
+
+	// Get CIDR block for the subnet
+	cidr := "N/A"
+	if subnetID != "N/A" {
+		cidrBlock, err := c.GetSubnetCIDR(ctx, subnetID)
+		if err == nil {
+			cidr = cidrBlock
+		}
+	}
+
+	// Get first security group ID
+	securityGroup := "N/A"
+	if len(iface.Groups) > 0 {
+		securityGroup = aws.ToString(iface.Groups[0].GroupId)
+	}
+
+	return NetworkInterface{
+		InterfaceName:    ensName,
+		SubnetID:         subnetID,
+		CIDR:             cidr,
+		SecurityGroup:    securityGroup,
+		DeviceIndex:      deviceIndex,
+		NetworkCardIndex: networkCardIndex,
+	}, nil
+}
+
 // GetInstanceInterfaces retrieves network interfaces for a specific instance
 func (c *Client) GetInstanceInterfaces(ctx context.Context, instance types.Instance) (*InstanceInterfaces, error) {
 	instanceID := aws.ToString(instance.InstanceId)
@@ -67,70 +143,37 @@ func (c *Client) GetInstanceInterfaces(ctx context.Context, instance types.Insta
 		dnsName = "N/A"
 	}
 
-	// Get instance name from tags
-	instanceName := "N/A"
-	for _, tag := range instance.Tags {
-		if aws.ToString(tag.Key) == "Name" {
-			instanceName = aws.ToString(tag.Value)
-			break
-		}
-	}
+	instanceName := getInstanceName(instance)
 
 	// Process network interfaces
 	var interfaces []NetworkInterface
 
-	// Sort interfaces by device index
-	sortedInterfaces := make([]types.InstanceNetworkInterface, len(instance.NetworkInterfaces))
-	copy(sortedInterfaces, instance.NetworkInterfaces)
-	sort.Slice(sortedInterfaces, func(i, j int) bool {
-		indexI := int32(0)
-		indexJ := int32(0)
-		if sortedInterfaces[i].Attachment != nil {
-			indexI = aws.ToInt32(sortedInterfaces[i].Attachment.DeviceIndex)
+	// Sort interfaces by network card index first, then by device index
+	sortedInterfaces := sortInterfacesByCardAndDevice(instance.NetworkInterfaces)
+
+	// First pass: count interfaces per network card
+	// This is needed to calculate continuous ENS naming across network cards
+	interfaceCountPerCard := make(map[int32]int32)
+	for _, iface := range sortedInterfaces {
+		if iface.Attachment != nil {
+			networkCardIndex := aws.ToInt32(iface.Attachment.NetworkCardIndex)
+			interfaceCountPerCard[networkCardIndex]++
 		}
-		if sortedInterfaces[j].Attachment != nil {
-			indexJ = aws.ToInt32(sortedInterfaces[j].Attachment.DeviceIndex)
-		}
-		return indexI < indexJ
-	})
+	}
+
+	// Second pass: process interfaces and calculate ENS names
+	// Use a running counter to ensure continuous numbering
+	ensCounter := int32(5) // Start at ens5 (first interface)
 
 	for _, iface := range sortedInterfaces {
-		deviceIndex := int32(0)
-		if iface.Attachment != nil {
-			deviceIndex = aws.ToInt32(iface.Attachment.DeviceIndex)
+		ensName := fmt.Sprintf("ens%d", ensCounter)
+		ensCounter++ // Increment for next interface
+
+		netInterface, err := c.processInterface(ctx, iface, ensName)
+		if err != nil {
+			continue // Skip interfaces that fail to process
 		}
-
-		// For Amazon Linux 2023, interfaces start at ens5
-		// ens5 = device index 0, ens6 = device index 1, etc.
-		interfaceName := fmt.Sprintf("ens%d", deviceIndex+5)
-
-		subnetID := aws.ToString(iface.SubnetId)
-		if subnetID == "" {
-			subnetID = "N/A"
-		}
-
-		// Get CIDR block for the subnet
-		cidr := "N/A"
-		if subnetID != "N/A" {
-			cidrBlock, err := c.GetSubnetCIDR(ctx, subnetID)
-			if err == nil {
-				cidr = cidrBlock
-			}
-		}
-
-		// Get first security group ID
-		securityGroup := "N/A"
-		if len(iface.Groups) > 0 {
-			securityGroup = aws.ToString(iface.Groups[0].GroupId)
-		}
-
-		interfaces = append(interfaces, NetworkInterface{
-			InterfaceName: interfaceName,
-			SubnetID:      subnetID,
-			CIDR:          cidr,
-			SecurityGroup: securityGroup,
-			DeviceIndex:   deviceIndex,
-		})
+		interfaces = append(interfaces, netInterface)
 	}
 
 	return &InstanceInterfaces{

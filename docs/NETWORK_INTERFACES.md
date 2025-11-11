@@ -113,7 +113,21 @@ The interface names follow the Amazon Linux 2023 naming convention:
 - **ens8**: Device index 3
 - And so on...
 
-The formula is: `ens{device_index + 5}`
+### Single Network Card Instances
+
+For instances with a single network card, the formula is: `ens{device_index + 5}`
+
+### Multiple Network Card Instances
+
+For instances with multiple network cards (e.g., m6in.32xlarge, c6in.32xlarge), the ENS naming continues sequentially across network cards:
+
+- **Network Card 0**: ens5-ens12 (device indices 0-7)
+- **Network Card 1**: ens13-ens20 (device indices 0-7, continuing from card 0)
+- **Network Card 2**: ens21-ens28 (device indices 0-7, continuing from card 1)
+
+**Note**: Some network cards may not start at device index 0. For example, if network card 1 starts at device index 1, the interfaces will be ens14-ens20 (skipping ens13).
+
+The tool automatically detects all network cards and calculates the correct ENS device names across all cards.
 
 ## Filtering Options
 

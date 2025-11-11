@@ -6,10 +6,13 @@ linters-settings:
     simplify: true
   govet:
     check-shadowing: true
+  gocyclo:
+    min-complexity: 15
 linters:
   enable:
     - gofmt
     - govet
+    - gocyclo
     - staticcheck
     - ineffassign
     - revive
