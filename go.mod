@@ -11,6 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.264.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.74.7
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.0
+	github.com/briandowns/spinner v1.23.2
 	github.com/ktr0731/go-fuzzyfinder v0.9.0
 	github.com/mmmorris1975/ssm-session-client v0.402.0
 	github.com/spf13/cobra v1.10.1
@@ -36,7 +37,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.39.1 // indirect
 	github.com/aws/session-manager-plugin v0.0.0-20250205214155-b2b0bcd769d1 // indirect
 	github.com/aws/smithy-go v1.23.2 // indirect
-	github.com/briandowns/spinner v1.23.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/clipperhouse/stringish v0.1.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.3.0 // indirect

@@ -145,22 +145,6 @@ func resolveASGAndParameters(ctx context.Context, client *aws.Client, args []str
 
 // selectASGInteractively selects ASG using fuzzy finder
 func selectASGInteractively(ctx context.Context, client *aws.Client) (string, *fuzzy.ASGInfo, error) {
-	// Show loading message with spinner
-	s := createLoadingSpinner("Loading Auto Scaling Groups...")
-	s.Start()
-
-	// Load ASGs first (this is the slow part)
-	asgs, err := client.ListAutoScalingGroups(ctx)
-	s.Stop()
-
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to list Auto Scaling Groups: %w", err)
-	}
-
-	if len(asgs) == 0 {
-		return "", nil, fmt.Errorf("no Auto Scaling Groups found")
-	}
-
 	// Now show the interactive prompt
 	printInteractivePrompt("Auto Scaling Group selector")
 	fmt.Println()

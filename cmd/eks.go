@@ -90,23 +90,7 @@ func runEKS(_ *cobra.Command, args []string) error {
 
 // selectEKSClusterInteractive displays an interactive fuzzy finder to select an EKS cluster
 func selectEKSClusterInteractive(ctx context.Context, client *aws.Client) (*aws.Cluster, error) {
-	// Show loading message with spinner
-	s := createLoadingSpinner("Loading EKS clusters...")
-	s.Start()
-
-	// Load clusters first (this is the slow part)
-	clusterNames, err := client.ListClusters(ctx)
-	s.Stop()
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to list EKS clusters: %w", err)
-	}
-
-	if len(clusterNames) == 0 {
-		return nil, fmt.Errorf("no EKS clusters found")
-	}
-
-	// Now show the interactive prompt
+	// Show the interactive prompt before loading/selection begins
 	printInteractivePrompt("EKS cluster selector")
 	fmt.Println()
 
