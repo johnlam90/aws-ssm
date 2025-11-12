@@ -89,8 +89,8 @@ func init() {
 }
 
 func runASGScale(_ *cobra.Command, args []string) error {
-	// Setup context with cancellation
-	ctx, cancel := setupContext()
+	// Create a context that can be cancelled with Ctrl+C
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	// Create AWS client
@@ -103,6 +103,11 @@ func runASGScale(_ *cobra.Command, args []string) error {
 	selectedASG, asgInfo, err := resolveASGAndParameters(ctx, client, args)
 	if err != nil {
 		return err
+	}
+
+	// Check if user cancelled selection
+	if selectedASG == "" {
+		return nil
 	}
 
 	// Get current ASG details
@@ -123,22 +128,6 @@ func runASGScale(_ *cobra.Command, args []string) error {
 	return executeASGScaling(ctx, client, selectedASG, finalParams)
 }
 
-// setupContext sets up context with signal handling
-func setupContext() (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(context.Background())
-
-	// Handle Ctrl+C gracefully
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigChan
-		fmt.Println("\nOperation cancelled by user")
-		cancel()
-	}()
-
-	return ctx, cancel
-}
-
 // resolveASGAndParameters resolves ASG selection and scaling parameters
 func resolveASGAndParameters(ctx context.Context, client *aws.Client, args []string) (string, *fuzzy.ASGInfo, error) {
 	if len(args) > 0 {
@@ -156,6 +145,10 @@ func resolveASGAndParameters(ctx context.Context, client *aws.Client, args []str
 
 // selectASGInteractively selects ASG using fuzzy finder
 func selectASGInteractively(ctx context.Context, client *aws.Client) (string, *fuzzy.ASGInfo, error) {
+	fmt.Println("Opening interactive Auto Scaling Group selector...")
+	fmt.Println("(Use arrow keys to navigate, type to filter, Enter to select, Esc to cancel)")
+	fmt.Println()
+
 	colors := fuzzy.NewDefaultColorManager(noColor)
 	adapter := &asgClientAdapter{client: client}
 	loader := fuzzy.NewAWSASGLoader(adapter)
@@ -163,10 +156,16 @@ func selectASGInteractively(ctx context.Context, client *aws.Client) (string, *f
 
 	asgInfo, findErr := finder.SelectASGInteractive(ctx)
 	if findErr != nil {
+		// Check if it's a context cancellation (Ctrl+C)
+		if findErr == context.Canceled {
+			fmt.Println("\nSelection cancelled.")
+			return "", nil, nil
+		}
 		return "", nil, fmt.Errorf("failed to select ASG: %w", findErr)
 	}
 	if asgInfo == nil {
-		return "", nil, fmt.Errorf("no ASG selected")
+		fmt.Println("\nNo Auto Scaling Group selected.")
+		return "", nil, nil
 	}
 
 	// Prompt for desired capacity if not provided

@@ -120,18 +120,9 @@ func init() {
 }
 
 func runScale(_ *cobra.Command, args []string) error {
-	// Setup context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
+	// Create a context that can be cancelled with Ctrl+C
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-
-	// Handle Ctrl+C gracefully
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigChan
-		fmt.Println("\nOperation cancelled by user")
-		cancel()
-	}()
 
 	// Create AWS client
 	client, err := aws.NewClient(ctx, region, profile)
@@ -449,18 +440,9 @@ func (a *launchTemplateClientAdapter) GetConfig() awsconfig.Config {
 }
 
 func runUpdateLT(_ *cobra.Command, args []string) error {
-	// Setup context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
+	// Create a context that can be cancelled with Ctrl+C
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-
-	// Handle Ctrl+C gracefully
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigChan
-		fmt.Println("\nOperation cancelled by user")
-		cancel()
-	}()
 
 	// Create AWS client
 	client, err := aws.NewClient(ctx, region, profile)

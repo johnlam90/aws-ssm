@@ -172,11 +172,11 @@ func NewASGFuzzyFinder(asgs []ASGInfo, colors ColorManager) *ASGFuzzyFinder {
 }
 
 // Select displays the fuzzy finder and returns the selected ASG index
-func (f *ASGFuzzyFinder) Select(_ context.Context) (int, error) {
+func (f *ASGFuzzyFinder) Select(ctx context.Context) (int, error) {
 	// Create preview renderer
 	renderer := NewASGPreviewRenderer(f.colors)
 
-	// Use fuzzyfinder to select
+	// Use fuzzyfinder to select with context support for Ctrl+C handling
 	selectedIndex, err := fuzzyfinder.Find(
 		f.asgs,
 		func(i int) string {
@@ -189,6 +189,7 @@ func (f *ASGFuzzyFinder) Select(_ context.Context) (int, error) {
 			return renderer.Render(&f.asgs[i], width, height)
 		}),
 		fuzzyfinder.WithPromptString("Auto Scaling Group > "),
+		fuzzyfinder.WithContext(ctx),
 	)
 
 	if err != nil {

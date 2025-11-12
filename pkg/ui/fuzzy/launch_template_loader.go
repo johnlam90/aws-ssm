@@ -157,11 +157,11 @@ func NewLaunchTemplateVersionFuzzyFinder(versions []LaunchTemplateVersionInfo, c
 }
 
 // Select displays the fuzzy finder and returns the selected version index
-func (f *LaunchTemplateVersionFuzzyFinder) Select(_ context.Context) (int, error) {
+func (f *LaunchTemplateVersionFuzzyFinder) Select(ctx context.Context) (int, error) {
 	// Create preview renderer
 	renderer := NewLaunchTemplateVersionPreviewRenderer(f.colors)
 
-	// Use fuzzyfinder to select
+	// Use fuzzyfinder to select with context support for Ctrl+C handling
 	selectedIndex, err := fuzzyfinder.Find(
 		f.versions,
 		func(i int) string {
@@ -174,6 +174,7 @@ func (f *LaunchTemplateVersionFuzzyFinder) Select(_ context.Context) (int, error
 			return renderer.Render(&f.versions[i], width, height)
 		}),
 		fuzzyfinder.WithPromptString("Launch Template Version > "),
+		fuzzyfinder.WithContext(ctx),
 	)
 
 	if err != nil {

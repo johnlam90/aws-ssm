@@ -336,7 +336,7 @@ func (f *EKSFuzzyFinder) Select(ctx context.Context) (int, error) {
 	// Create preview renderer with loader for lazy loading
 	renderer := NewEKSPreviewRenderer(f.colors, f.loader)
 
-	// Use fuzzyfinder to select
+	// Use fuzzyfinder to select with context support for Ctrl+C handling
 	selectedIndex, err := fuzzyfinder.Find(
 		f.clusters,
 		func(i int) string {
@@ -350,6 +350,7 @@ func (f *EKSFuzzyFinder) Select(ctx context.Context) (int, error) {
 			return renderer.RenderWithLazyLoad(ctx, &f.clusters[i], width, height)
 		}),
 		fuzzyfinder.WithPromptString("EKS Cluster > "),
+		fuzzyfinder.WithContext(ctx),
 	)
 
 	if err != nil {
