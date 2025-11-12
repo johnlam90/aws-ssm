@@ -14,11 +14,12 @@ import (
 )
 
 var (
-	nodeGroupName string
-	minSize       int32
-	maxSize       int32
-	desiredSize   int32
-	skipConfirm   bool
+	nodeGroupName         string
+	minSize               int32
+	maxSize               int32
+	desiredSize           int32
+	skipConfirm           bool
+	launchTemplateVersion string
 )
 
 var eksNodeGroupCmd = &cobra.Command{
@@ -65,12 +66,45 @@ Examples:
 	RunE: runScale,
 }
 
+var updateLTCmd = &cobra.Command{
+	Use:     "update-lt [cluster-name]",
+	Aliases: []string{"update-launch-template"},
+	Short:   "Update the launch template version of an EKS node group",
+	Long: `Update the launch template version of an EKS node group.
+
+If the cluster name or node group name is not provided, an interactive fuzzy finder
+will be displayed to select them. If the launch template version is not provided,
+an interactive selection will be displayed.
+
+Examples:
+  # Interactive selection (recommended)
+  aws-ssm eks nodegroup update-lt
+
+  # Interactive selection for specific cluster
+  aws-ssm eks nodegroup update-lt my-cluster
+
+  # Update specific node group to specific version
+  aws-ssm eks nodegroup update-lt my-cluster --nodegroup my-ng --version 5
+
+  # Update to $Latest version
+  aws-ssm eks nodegroup update-lt my-cluster --nodegroup my-ng --version '$Latest'
+
+  # Update to $Default version
+  aws-ssm eks nodegroup update-lt my-cluster --nodegroup my-ng --version '$Default'
+
+  # Skip confirmation prompt
+  aws-ssm eks ng update-lt my-cluster --nodegroup my-ng --version 5 --skip-confirm`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: runUpdateLT,
+}
+
 func init() {
 	// Add nodegroup command to eks command
 	eksCmd.AddCommand(eksNodeGroupCmd)
 
-	// Add scale subcommand to nodegroup command
+	// Add subcommands to nodegroup command
 	eksNodeGroupCmd.AddCommand(scaleCmd)
+	eksNodeGroupCmd.AddCommand(updateLTCmd)
 
 	// Scale command flags
 	scaleCmd.Flags().StringVar(&nodeGroupName, "nodegroup", "", "Node group name (if not provided, interactive selection will be used)")
@@ -78,6 +112,11 @@ func init() {
 	scaleCmd.Flags().Int32Var(&maxSize, "max", -1, "Maximum size (optional - defaults to current or desired)")
 	scaleCmd.Flags().Int32Var(&desiredSize, "desired", -1, "Desired size (required when cluster is specified)")
 	scaleCmd.Flags().BoolVar(&skipConfirm, "skip-confirm", false, "Skip confirmation prompt")
+
+	// Update launch template command flags
+	updateLTCmd.Flags().StringVar(&nodeGroupName, "nodegroup", "", "Node group name (if not provided, interactive selection will be used)")
+	updateLTCmd.Flags().StringVar(&launchTemplateVersion, "version", "", "Launch template version (if not provided, interactive selection will be used)")
+	updateLTCmd.Flags().BoolVar(&skipConfirm, "skip-confirm", false, "Skip confirmation prompt")
 }
 
 func runScale(_ *cobra.Command, args []string) error {
@@ -381,4 +420,206 @@ func selectNodeGroupInteractive(ctx context.Context, client *aws.Client, cluster
 	}
 
 	return selectedNodeGroup, nil
+}
+
+// launchTemplateClientAdapter adapts aws.Client to fuzzy.AWSLaunchTemplateClientInterface
+type launchTemplateClientAdapter struct {
+	client *aws.Client
+}
+
+// ListLaunchTemplateVersions implements fuzzy.AWSLaunchTemplateClientInterface
+func (a *launchTemplateClientAdapter) ListLaunchTemplateVersions(ctx context.Context, launchTemplateID string) ([]fuzzy.LaunchTemplateVersionDetail, error) {
+	versions, err := a.client.ListLaunchTemplateVersions(ctx, launchTemplateID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to interface slice
+	var details []fuzzy.LaunchTemplateVersionDetail
+	for i := range versions {
+		var detail fuzzy.LaunchTemplateVersionDetail = &versions[i]
+		details = append(details, detail)
+	}
+	return details, nil
+}
+
+// GetConfig implements fuzzy.AWSLaunchTemplateClientInterface
+func (a *launchTemplateClientAdapter) GetConfig() awsconfig.Config {
+	return a.client.GetConfig()
+}
+
+func runUpdateLT(_ *cobra.Command, args []string) error {
+	// Setup context with cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Handle Ctrl+C gracefully
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		fmt.Println("\nOperation cancelled by user")
+		cancel()
+	}()
+
+	// Create AWS client
+	client, err := aws.NewClient(ctx, region, profile)
+	if err != nil {
+		return fmt.Errorf("failed to create AWS client: %w", err)
+	}
+
+	// Resolve cluster name
+	clusterName, err := resolveClusterNameForLT(ctx, client, args)
+	if err != nil {
+		return err
+	}
+
+	// Resolve node group name
+	resolvedNodeGroupName, err := resolveNodeGroupName(ctx, client, clusterName)
+	if err != nil {
+		return err
+	}
+
+	// Get current node group details
+	ng, err := client.DescribeNodeGroupPublic(ctx, clusterName, resolvedNodeGroupName)
+	if err != nil {
+		return fmt.Errorf("failed to describe node group: %w", err)
+	}
+
+	// Check if node group has a launch template
+	if ng.LaunchTemplate.ID == "" {
+		return fmt.Errorf("node group %s does not use a launch template", resolvedNodeGroupName)
+	}
+
+	// Resolve launch template version
+	version, err := resolveLaunchTemplateVersion(ctx, client, ng)
+	if err != nil {
+		return err
+	}
+
+	// Display configuration
+	displayLTUpdateConfiguration(clusterName, resolvedNodeGroupName, ng, version)
+
+	// Confirm action
+	if !confirmLTUpdateAction() {
+		return nil
+	}
+
+	// Perform update
+	return executeLTUpdate(ctx, client, clusterName, resolvedNodeGroupName, version)
+}
+
+func resolveClusterNameForLT(ctx context.Context, client *aws.Client, args []string) (string, error) {
+	if len(args) > 0 {
+		return args[0], nil
+	}
+
+	// Interactive selection
+	cluster, err := selectEKSClusterInteractive(ctx, client)
+	if err != nil {
+		return "", fmt.Errorf("failed to select EKS cluster: %w", err)
+	}
+	if cluster == nil {
+		return "", fmt.Errorf("no cluster selected")
+	}
+	return cluster.Name, nil
+}
+
+func resolveLaunchTemplateVersion(ctx context.Context, client *aws.Client, ng *aws.NodeGroup) (string, error) {
+	if launchTemplateVersion != "" {
+		return launchTemplateVersion, nil
+	}
+
+	// Interactive selection
+	return selectLaunchTemplateVersionInteractive(ctx, client, ng)
+}
+
+func selectLaunchTemplateVersionInteractive(ctx context.Context, client *aws.Client, ng *aws.NodeGroup) (string, error) {
+	fmt.Println("\nOpening interactive launch template version selector...")
+	fmt.Println("(Use arrow keys to navigate, type to filter, Enter to select, Esc to cancel)")
+	fmt.Printf("\nCurrent version: %s\n", ng.LaunchTemplate.Version)
+	fmt.Println()
+
+	// Create adapter
+	adapter := &launchTemplateClientAdapter{client: client}
+
+	// Create launch template version loader
+	loader := fuzzy.NewAWSLaunchTemplateLoader(adapter, ng.LaunchTemplate.ID, ng.LaunchTemplate.Name)
+
+	// Create color manager
+	colors := fuzzy.NewDefaultColorManager(noColor)
+
+	// Create launch template version finder
+	finder := fuzzy.NewLaunchTemplateVersionFinder(loader, colors)
+
+	// Select version
+	selectedVersion, err := finder.SelectVersionInteractive(ctx)
+	if err != nil {
+		// Check if it's a context cancellation (Ctrl+C)
+		if err == context.Canceled {
+			fmt.Println("\nSelection cancelled.")
+			return "", nil
+		}
+		return "", fmt.Errorf("failed to select launch template version: %w", err)
+	}
+
+	if selectedVersion == nil {
+		return "", fmt.Errorf("no version selected")
+	}
+
+	// Convert version to string
+	return fuzzy.GetVersionString(selectedVersion), nil
+}
+
+func displayLTUpdateConfiguration(clusterName, nodeGroupName string, ng *aws.NodeGroup, version string) {
+	fmt.Printf("\n")
+	fmt.Printf("Cluster:                  %s\n", clusterName)
+	fmt.Printf("Node Group:               %s\n", nodeGroupName)
+	fmt.Printf("\n")
+	fmt.Printf("Current Configuration:\n")
+	fmt.Printf("  Launch Template:        %s (%s)\n", ng.LaunchTemplate.Name, ng.LaunchTemplate.ID)
+	fmt.Printf("  Current Version:        %s\n", ng.LaunchTemplate.Version)
+	fmt.Printf("\n")
+	fmt.Printf("Target Configuration:\n")
+	fmt.Printf("  New Version:            %s\n", version)
+	fmt.Printf("\n")
+}
+
+func confirmLTUpdateAction() bool {
+	if skipConfirm {
+		return true
+	}
+
+	fmt.Printf("⚠️  Are you sure you want to update the launch template version? (yes/no): ")
+	var response string
+	_, err := fmt.Scanln(&response)
+	if err != nil {
+		fmt.Printf("Error reading input: %v\n", err)
+		return false
+	}
+
+	if response != "yes" && response != "y" {
+		fmt.Println("Operation cancelled.")
+		return false
+	}
+
+	fmt.Printf("\n")
+	return true
+}
+
+func executeLTUpdate(ctx context.Context, client *aws.Client, clusterName, nodeGroupName, version string) error {
+	fmt.Printf("Updating launch template version for node group %s...\n", nodeGroupName)
+
+	err := client.UpdateNodeGroupLaunchTemplate(ctx, clusterName, nodeGroupName, version)
+	if err != nil {
+		return fmt.Errorf("failed to update launch template: %w", err)
+	}
+
+	fmt.Printf("✓ Successfully initiated launch template update for node group %s\n", nodeGroupName)
+	fmt.Printf("\n")
+	fmt.Printf("Note: The update operation may take several minutes to complete.\n")
+	fmt.Printf("      Nodes will be replaced with the new launch template version.\n")
+	fmt.Printf("You can check the status with: aws-ssm eks %s\n", clusterName)
+
+	return nil
 }

@@ -423,6 +423,31 @@ func (c *Client) UpdateNodeGroupScaling(ctx context.Context, clusterName, nodeGr
 	return nil
 }
 
+// UpdateNodeGroupLaunchTemplate updates the launch template version of a node group
+func (c *Client) UpdateNodeGroupLaunchTemplate(ctx context.Context, clusterName, nodeGroupName, version string) error {
+	eksClient := eks.NewFromConfig(c.Config)
+
+	// Validate version parameter
+	if version == "" {
+		return fmt.Errorf("launch template version cannot be empty")
+	}
+
+	input := &eks.UpdateNodegroupVersionInput{
+		ClusterName:   &clusterName,
+		NodegroupName: &nodeGroupName,
+		LaunchTemplate: &ekstypes.LaunchTemplateSpecification{
+			Version: &version,
+		},
+	}
+
+	_, err := eksClient.UpdateNodegroupVersion(ctx, input)
+	if err != nil {
+		return fmt.Errorf("failed to update node group launch template: %w", err)
+	}
+
+	return nil
+}
+
 func convertFargateProfile(fp *ekstypes.FargateProfile) *FargateProfile {
 	if fp == nil {
 		return nil
