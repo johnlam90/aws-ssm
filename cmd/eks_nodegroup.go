@@ -130,8 +130,13 @@ func runScale(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create AWS client: %w", err)
 	}
 
-	// Resolve cluster and node group parameters
-	clusterName, resolvedNodeGroupName, err := resolveScalingParameters(ctx, client, args)
+	// Validate required flags for CLI mode
+	if len(args) > 0 && desiredSize == -1 {
+		return fmt.Errorf("--desired flag is required when cluster name is provided")
+	}
+
+	// Resolve cluster and node group
+	clusterName, resolvedNodeGroupName, err := resolveClusterAndNodeGroup(ctx, client, args)
 	if err != nil {
 		return err
 	}
@@ -162,8 +167,9 @@ func runScale(_ *cobra.Command, args []string) error {
 	return executeScaling(ctx, client, clusterName, resolvedNodeGroupName, finalParams)
 }
 
-// resolveScalingParameters resolves cluster and node group from args or interactive selection
-func resolveScalingParameters(ctx context.Context, client *aws.Client, args []string) (string, string, error) {
+// resolveClusterAndNodeGroup resolves cluster and node group from args or interactive selection
+// This is a generic function used by both scale and update-lt commands
+func resolveClusterAndNodeGroup(ctx context.Context, client *aws.Client, args []string) (string, string, error) {
 	// Get cluster name
 	clusterName, err := resolveClusterName(ctx, client, args)
 	if err != nil {
@@ -182,10 +188,6 @@ func resolveScalingParameters(ctx context.Context, client *aws.Client, args []st
 // resolveClusterName gets cluster name from args or interactive selection
 func resolveClusterName(ctx context.Context, client *aws.Client, args []string) (string, error) {
 	if len(args) > 0 {
-		// When cluster is provided as argument, desired size is required
-		if desiredSize == -1 {
-			return "", fmt.Errorf("--desired flag is required when cluster name is provided")
-		}
 		return args[0], nil
 	}
 
@@ -383,8 +385,24 @@ func (a *nodeGroupClientAdapter) GetConfig() awsconfig.Config {
 
 // selectNodeGroupInteractive displays an interactive fuzzy finder to select a node group
 func selectNodeGroupInteractive(ctx context.Context, client *aws.Client, clusterName string) (*fuzzy.NodeGroupInfo, error) {
-	fmt.Println("Opening interactive node group selector...")
-	fmt.Println("(Use arrow keys to navigate, type to filter, Enter to select, Esc to cancel)")
+	// Show loading message with spinner
+	s := createLoadingSpinner("Loading node groups...")
+	s.Start()
+
+	// Load node groups first (this is the slow part)
+	nodeGroupNames, err := client.ListNodeGroupsForCluster(ctx, clusterName)
+	s.Stop()
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list node groups: %w", err)
+	}
+
+	if len(nodeGroupNames) == 0 {
+		return nil, fmt.Errorf("no node groups found in cluster %s", clusterName)
+	}
+
+	// Now show the interactive prompt
+	printInteractivePrompt("node group selector")
 	fmt.Println()
 
 	// Create adapter
@@ -404,7 +422,7 @@ func selectNodeGroupInteractive(ctx context.Context, client *aws.Client, cluster
 	if err != nil {
 		// Check if it's a context cancellation (Ctrl+C)
 		if err == context.Canceled {
-			fmt.Println("\nSelection cancelled.")
+			printSelectionCancelled()
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to select node group: %w", err)
@@ -450,14 +468,8 @@ func runUpdateLT(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create AWS client: %w", err)
 	}
 
-	// Resolve cluster name
-	clusterName, err := resolveClusterNameForLT(ctx, client, args)
-	if err != nil {
-		return err
-	}
-
-	// Resolve node group name
-	resolvedNodeGroupName, err := resolveNodeGroupName(ctx, client, clusterName)
+	// Resolve cluster and node group
+	clusterName, resolvedNodeGroupName, err := resolveClusterAndNodeGroup(ctx, client, args)
 	if err != nil {
 		return err
 	}
@@ -491,22 +503,6 @@ func runUpdateLT(_ *cobra.Command, args []string) error {
 	return executeLTUpdate(ctx, client, clusterName, resolvedNodeGroupName, version)
 }
 
-func resolveClusterNameForLT(ctx context.Context, client *aws.Client, args []string) (string, error) {
-	if len(args) > 0 {
-		return args[0], nil
-	}
-
-	// Interactive selection
-	cluster, err := selectEKSClusterInteractive(ctx, client)
-	if err != nil {
-		return "", fmt.Errorf("failed to select EKS cluster: %w", err)
-	}
-	if cluster == nil {
-		return "", fmt.Errorf("no cluster selected")
-	}
-	return cluster.Name, nil
-}
-
 func resolveLaunchTemplateVersion(ctx context.Context, client *aws.Client, ng *aws.NodeGroup) (string, error) {
 	if launchTemplateVersion != "" {
 		return launchTemplateVersion, nil
@@ -517,9 +513,35 @@ func resolveLaunchTemplateVersion(ctx context.Context, client *aws.Client, ng *a
 }
 
 func selectLaunchTemplateVersionInteractive(ctx context.Context, client *aws.Client, ng *aws.NodeGroup) (string, error) {
-	fmt.Println("\nOpening interactive launch template version selector...")
-	fmt.Println("(Use arrow keys to navigate, type to filter, Enter to select, Esc to cancel)")
-	fmt.Printf("\nCurrent version: %s\n", ng.LaunchTemplate.Version)
+	fmt.Println()
+
+	// Show loading message with spinner
+	s := createLoadingSpinner("Loading launch template versions...")
+	s.Start()
+
+	// Load versions first (this is the slow part)
+	versions, err := client.ListLaunchTemplateVersions(ctx, ng.LaunchTemplate.ID)
+	s.Stop()
+
+	if err != nil {
+		return "", fmt.Errorf("failed to list launch template versions: %w", err)
+	}
+
+	if len(versions) == 0 {
+		return "", fmt.Errorf("no launch template versions found")
+	}
+
+	// Now show the interactive prompt
+	printInteractivePrompt("launch template version selector")
+
+	// Display current version with color
+	if noColor {
+		fmt.Printf("\nCurrent version: %s\n", ng.LaunchTemplate.Version)
+	} else {
+		label := fuzzy.ColorDim + "Current version:" + fuzzy.ColorReset
+		version := fuzzy.ColorCyan + ng.LaunchTemplate.Version + fuzzy.ColorReset
+		fmt.Printf("\n%s %s\n", label, version)
+	}
 	fmt.Println()
 
 	// Create adapter
@@ -539,7 +561,7 @@ func selectLaunchTemplateVersionInteractive(ctx context.Context, client *aws.Cli
 	if err != nil {
 		// Check if it's a context cancellation (Ctrl+C)
 		if err == context.Canceled {
-			fmt.Println("\nSelection cancelled.")
+			printSelectionCancelled()
 			return "", nil
 		}
 		return "", fmt.Errorf("failed to select launch template version: %w", err)

@@ -145,8 +145,24 @@ func resolveASGAndParameters(ctx context.Context, client *aws.Client, args []str
 
 // selectASGInteractively selects ASG using fuzzy finder
 func selectASGInteractively(ctx context.Context, client *aws.Client) (string, *fuzzy.ASGInfo, error) {
-	fmt.Println("Opening interactive Auto Scaling Group selector...")
-	fmt.Println("(Use arrow keys to navigate, type to filter, Enter to select, Esc to cancel)")
+	// Show loading message with spinner
+	s := createLoadingSpinner("Loading Auto Scaling Groups...")
+	s.Start()
+
+	// Load ASGs first (this is the slow part)
+	asgs, err := client.ListAutoScalingGroups(ctx)
+	s.Stop()
+
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to list Auto Scaling Groups: %w", err)
+	}
+
+	if len(asgs) == 0 {
+		return "", nil, fmt.Errorf("no Auto Scaling Groups found")
+	}
+
+	// Now show the interactive prompt
+	printInteractivePrompt("Auto Scaling Group selector")
 	fmt.Println()
 
 	colors := fuzzy.NewDefaultColorManager(noColor)
@@ -158,13 +174,13 @@ func selectASGInteractively(ctx context.Context, client *aws.Client) (string, *f
 	if findErr != nil {
 		// Check if it's a context cancellation (Ctrl+C)
 		if findErr == context.Canceled {
-			fmt.Println("\nSelection cancelled.")
+			printSelectionCancelled()
 			return "", nil, nil
 		}
 		return "", nil, fmt.Errorf("failed to select ASG: %w", findErr)
 	}
 	if asgInfo == nil {
-		fmt.Println("\nNo Auto Scaling Group selected.")
+		printNoSelection("Auto Scaling Group")
 		return "", nil, nil
 	}
 
