@@ -424,18 +424,22 @@ func (c *Client) UpdateNodeGroupScaling(ctx context.Context, clusterName, nodeGr
 }
 
 // UpdateNodeGroupLaunchTemplate updates the launch template version of a node group
-func (c *Client) UpdateNodeGroupLaunchTemplate(ctx context.Context, clusterName, nodeGroupName, version string) error {
+func (c *Client) UpdateNodeGroupLaunchTemplate(ctx context.Context, clusterName, nodeGroupName, launchTemplateID, version string) error {
 	eksClient := eks.NewFromConfig(c.Config)
 
-	// Validate version parameter
+	// Validate parameters
 	if version == "" {
 		return fmt.Errorf("launch template version cannot be empty")
+	}
+	if launchTemplateID == "" {
+		return fmt.Errorf("launch template ID cannot be empty")
 	}
 
 	input := &eks.UpdateNodegroupVersionInput{
 		ClusterName:   &clusterName,
 		NodegroupName: &nodeGroupName,
 		LaunchTemplate: &ekstypes.LaunchTemplateSpecification{
+			Id:      &launchTemplateID,
 			Version: &version,
 		},
 	}

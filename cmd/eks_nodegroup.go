@@ -500,7 +500,7 @@ func runUpdateLT(_ *cobra.Command, args []string) error {
 	}
 
 	// Perform update
-	return executeLTUpdate(ctx, client, clusterName, resolvedNodeGroupName, version)
+	return executeLTUpdate(ctx, client, clusterName, resolvedNodeGroupName, ng.LaunchTemplate.ID, version)
 }
 
 func resolveLaunchTemplateVersion(ctx context.Context, client *aws.Client, ng *aws.NodeGroup) (string, error) {
@@ -611,10 +611,10 @@ func confirmLTUpdateAction() bool {
 	return true
 }
 
-func executeLTUpdate(ctx context.Context, client *aws.Client, clusterName, nodeGroupName, version string) error {
+func executeLTUpdate(ctx context.Context, client *aws.Client, clusterName, nodeGroupName, launchTemplateID, version string) error {
 	fmt.Printf("Updating launch template version for node group %s...\n", nodeGroupName)
 
-	err := client.UpdateNodeGroupLaunchTemplate(ctx, clusterName, nodeGroupName, version)
+	err := client.UpdateNodeGroupLaunchTemplate(ctx, clusterName, nodeGroupName, launchTemplateID, version)
 	if err != nil {
 		return fmt.Errorf("failed to update launch template: %w", err)
 	}
