@@ -99,33 +99,64 @@ func runASGScale(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create AWS client: %w", err)
 	}
 
-	// Resolve ASG and parameters
-	selectedASG, asgInfo, err := resolveASGAndParameters(ctx, client, args)
-	if err != nil {
+	// For CLI mode (non-interactive), run once without loop
+	if len(args) > 0 {
+		_, err := runASGScaleOnce(ctx, client, args)
 		return err
 	}
 
-	// Check if user cancelled selection
+	// For interactive mode, allow retry on cancel
+	for {
+		shouldRetry, err := runASGScaleOnce(ctx, client, args)
+		if err != nil {
+			return err
+		}
+		if !shouldRetry {
+			// User completed the operation or cancelled at fuzzy finder
+			return nil
+		}
+		// User cancelled after selection, loop back to fuzzy finder
+		fmt.Println("\nReturning to ASG selection...")
+	}
+}
+
+// runASGScaleOnce executes one iteration of the ASG scale workflow
+// Returns (shouldRetry, error) where shouldRetry indicates if user wants to select a different ASG
+func runASGScaleOnce(ctx context.Context, client *aws.Client, args []string) (bool, error) {
+	// Resolve ASG and parameters
+	selectedASG, asgInfo, err := resolveASGAndParameters(ctx, client, args)
+	if err != nil {
+		return false, err
+	}
+
+	// Check if user cancelled selection (pressed ESC at fuzzy finder)
 	if selectedASG == "" {
-		return nil
+		return false, nil
 	}
 
 	// Get current ASG details
 	asg, err := client.DescribeAutoScalingGroup(ctx, selectedASG)
 	if err != nil {
-		return fmt.Errorf("failed to get ASG details: %w", err)
+		return false, fmt.Errorf("failed to get ASG details: %w", err)
 	}
 
 	// Calculate final scaling parameters
 	finalParams := calculateScalingParameters(asg, asgInfo)
 
 	// Display configuration and confirm
-	if !confirmASGScalingAction(selectedASG, asg, finalParams) {
-		return nil
+	shouldRetry, confirmed := confirmASGScalingActionWithRetry(selectedASG, asg, finalParams)
+	if !confirmed {
+		if shouldRetry {
+			// User wants to select a different ASG
+			return true, nil
+		}
+		// User cancelled
+		return false, nil
 	}
 
 	// Perform the scaling operation
-	return executeASGScaling(ctx, client, selectedASG, finalParams)
+	err = executeASGScaling(ctx, client, selectedASG, finalParams)
+	return false, err
 }
 
 // resolveASGAndParameters resolves ASG selection and scaling parameters
@@ -189,6 +220,39 @@ func promptForDesiredCapacity(asgInfo *fuzzy.ASGInfo) {
 		// Set a default value to avoid further issues
 		asgDesiredCapacity = 0
 	}
+}
+
+// promptForDesiredCapacityWithRetry prompts user for desired capacity with retry support
+// Returns true if user wants to retry (select different ASG), false otherwise
+func promptForDesiredCapacityWithRetry(asgInfo *fuzzy.ASGInfo) bool {
+	fmt.Printf("\nCurrent ASG configuration:\n")
+	fmt.Printf("  Min Size:          %d\n", asgInfo.MinSize)
+	fmt.Printf("  Max Size:          %d\n", asgInfo.MaxSize)
+	fmt.Printf("  Desired Capacity:  %d\n", asgInfo.DesiredCapacity)
+	fmt.Printf("  Current Size:      %d\n\n", asgInfo.CurrentSize)
+	fmt.Printf("Enter desired capacity (or 'back' to select a different ASG): ")
+
+	var input string
+	if _, scanErr := fmt.Scanln(&input); scanErr != nil {
+		fmt.Printf("Error reading desired capacity: %v\n", scanErr)
+		return false
+	}
+
+	// Check if user wants to go back
+	if input == "back" || input == "b" {
+		return true
+	}
+
+	// Try to parse as integer
+	var capacity int32
+	_, parseErr := fmt.Sscanf(input, "%d", &capacity)
+	if parseErr != nil {
+		fmt.Printf("Invalid input. Please enter a number or 'back'.\n")
+		return false
+	}
+
+	asgDesiredCapacity = capacity
+	return false
 }
 
 // ASGScalingParameters holds the final scaling configuration
@@ -257,6 +321,47 @@ func confirmASGScalingAction(selectedASG string, asg *aws.AutoScalingGroup, para
 	}
 
 	return true
+}
+
+// confirmASGScalingActionWithRetry displays configuration and gets user confirmation with retry support
+// Returns (shouldRetry, confirmed) where shouldRetry indicates if user wants to select a different ASG
+func confirmASGScalingActionWithRetry(selectedASG string, asg *aws.AutoScalingGroup, params ASGScalingParameters) (bool, bool) {
+	// Display current and new configuration
+	fmt.Printf("\nAuto Scaling Group: %s\n", selectedASG)
+	fmt.Printf("\nCurrent configuration:\n")
+	fmt.Printf("  Min Size:          %d\n", asg.MinSize)
+	fmt.Printf("  Max Size:          %d\n", asg.MaxSize)
+	fmt.Printf("  Desired Capacity:  %d\n", asg.DesiredCapacity)
+	fmt.Printf("  Current Size:      %d\n", asg.CurrentSize)
+
+	fmt.Printf("\nNew configuration:\n")
+	fmt.Printf("  Min Size:          %d\n", params.Min)
+	fmt.Printf("  Max Size:          %d\n", params.Max)
+	fmt.Printf("  Desired Capacity:  %d\n", params.Desired)
+
+	// Confirm before scaling (unless skip-confirm is set)
+	if asgSkipConfirm {
+		return false, true
+	}
+
+	fmt.Printf("\nDo you want to proceed with scaling? (yes/no/back): ")
+	var confirmation string
+	if _, scanErr := fmt.Scanln(&confirmation); scanErr != nil {
+		fmt.Printf("Error reading confirmation: %v\n", scanErr)
+		return false, false
+	}
+
+	// Check if user wants to go back
+	if confirmation == "back" || confirmation == "b" {
+		return true, false
+	}
+
+	if confirmation != "yes" && confirmation != "y" {
+		fmt.Println("Scaling cancelled")
+		return false, false
+	}
+
+	return false, true
 }
 
 // executeASGScaling performs the actual scaling operation
