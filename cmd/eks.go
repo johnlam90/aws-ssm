@@ -90,16 +90,17 @@ func runEKS(_ *cobra.Command, args []string) error {
 
 // selectEKSClusterInteractive displays an interactive fuzzy finder to select an EKS cluster
 func selectEKSClusterInteractive(ctx context.Context, client *aws.Client) (*aws.Cluster, error) {
-	fmt.Println("Opening interactive EKS cluster selector...")
-	fmt.Println("(Use arrow keys to navigate, type to filter, Enter to select, Esc to cancel)")
+	// Show the interactive prompt before loading/selection begins
+	printInteractivePrompt("EKS cluster selector")
 	fmt.Println()
 
 	// Use the client's SelectEKSClusterInteractive method
 	cluster, err := client.SelectEKSClusterInteractive(ctx)
+
 	if err != nil {
 		// Check if it's a context cancellation (Ctrl+C)
 		if err == context.Canceled {
-			fmt.Println("\nSelection cancelled.")
+			printSelectionCancelled()
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to select EKS cluster: %w", err)
@@ -107,7 +108,7 @@ func selectEKSClusterInteractive(ctx context.Context, client *aws.Client) (*aws.
 
 	if cluster == nil {
 		// User cancelled the selection (Esc)
-		fmt.Println("\nNo cluster selected.")
+		printNoSelection("cluster")
 		return nil, nil
 	}
 

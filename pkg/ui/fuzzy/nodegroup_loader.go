@@ -188,11 +188,11 @@ func NewNodeGroupFuzzyFinder(nodeGroups []NodeGroupInfo, colors ColorManager) *N
 }
 
 // Select displays the fuzzy finder and returns the selected node group index
-func (f *NodeGroupFuzzyFinder) Select(_ context.Context) (int, error) {
+func (f *NodeGroupFuzzyFinder) Select(ctx context.Context) (int, error) {
 	// Create preview renderer
 	renderer := NewNodeGroupPreviewRenderer(f.colors)
 
-	// Use fuzzyfinder to select
+	// Use fuzzyfinder to select with context support for Ctrl+C handling
 	selectedIndex, err := fuzzyfinder.Find(
 		f.nodeGroups,
 		func(i int) string {
@@ -205,6 +205,7 @@ func (f *NodeGroupFuzzyFinder) Select(_ context.Context) (int, error) {
 			return renderer.Render(&f.nodeGroups[i], width, height)
 		}),
 		fuzzyfinder.WithPromptString("Node Group > "),
+		fuzzyfinder.WithContext(ctx),
 	)
 
 	if err != nil {

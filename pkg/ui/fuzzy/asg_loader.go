@@ -2,12 +2,16 @@ package fuzzy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/aws"
 	fuzzyfinder "github.com/ktr0731/go-fuzzyfinder"
+	"golang.org/x/sync/errgroup"
 )
+
+const maxASGDescribeConcurrency = 6
 
 // ASGInfo represents an Auto Scaling Group for fuzzy finder display
 type ASGInfo struct {
@@ -70,16 +74,47 @@ func (l *AWSASGLoader) LoadASGs(ctx context.Context) ([]ASGInfo, error) {
 		return nil, fmt.Errorf("failed to list Auto Scaling Groups: %w", err)
 	}
 
-	// Load details for each ASG
-	var asgs []ASGInfo
-	for _, name := range asgNames {
-		asgDetail, err := l.client.DescribeAutoScalingGroup(ctx, name)
-		if err != nil {
-			fmt.Printf("Warning: failed to describe ASG %s: %v\n", name, err)
-			continue
-		}
+	if len(asgNames) == 0 {
+		return []ASGInfo{}, nil
+	}
 
-		asgs = append(asgs, l.convertToASGInfo(asgDetail))
+	asgs := make([]ASGInfo, len(asgNames))
+	workerLimit := maxASGDescribeConcurrency
+	if len(asgNames) < workerLimit {
+		workerLimit = len(asgNames)
+	}
+	sem := make(chan struct{}, workerLimit)
+
+	g, gCtx := errgroup.WithContext(ctx)
+	for idx, name := range asgNames {
+		idx, name := idx, name
+		g.Go(func() error {
+			select {
+			case <-gCtx.Done():
+				return gCtx.Err()
+			default:
+			}
+
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			asgDetail, err := l.client.DescribeAutoScalingGroup(gCtx, name)
+			if err != nil {
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					return err
+				}
+				fmt.Printf("Warning: failed to describe ASG %s: %v\n", name, err)
+				asgs[idx] = ASGInfo{Name: name}
+				return nil
+			}
+
+			asgs[idx] = l.convertToASGInfo(asgDetail)
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 
 	return asgs, nil
@@ -172,11 +207,11 @@ func NewASGFuzzyFinder(asgs []ASGInfo, colors ColorManager) *ASGFuzzyFinder {
 }
 
 // Select displays the fuzzy finder and returns the selected ASG index
-func (f *ASGFuzzyFinder) Select(_ context.Context) (int, error) {
+func (f *ASGFuzzyFinder) Select(ctx context.Context) (int, error) {
 	// Create preview renderer
 	renderer := NewASGPreviewRenderer(f.colors)
 
-	// Use fuzzyfinder to select
+	// Use fuzzyfinder to select with context support for Ctrl+C handling
 	selectedIndex, err := fuzzyfinder.Find(
 		f.asgs,
 		func(i int) string {
@@ -189,6 +224,7 @@ func (f *ASGFuzzyFinder) Select(_ context.Context) (int, error) {
 			return renderer.Render(&f.asgs[i], width, height)
 		}),
 		fuzzyfinder.WithPromptString("Auto Scaling Group > "),
+		fuzzyfinder.WithContext(ctx),
 	)
 
 	if err != nil {

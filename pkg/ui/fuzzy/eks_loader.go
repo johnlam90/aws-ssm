@@ -2,13 +2,17 @@ package fuzzy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	fuzzyfinder "github.com/ktr0731/go-fuzzyfinder"
+	"golang.org/x/sync/errgroup"
 )
+
+const maxEKSDescribeConcurrency = 6
 
 // EKSCluster represents an EKS cluster for fuzzy finder display
 type EKSCluster struct {
@@ -76,21 +80,49 @@ func (l *AWSEKSLoader) LoadClusters(ctx context.Context) ([]EKSCluster, error) {
 		return nil, fmt.Errorf("failed to list EKS clusters: %w", err)
 	}
 
-	var clusters []EKSCluster
-	for _, name := range clusterNames {
-		// Fetch basic cluster info (status, version, etc.) but not node groups/Fargate
-		// This is much faster than full DescribeCluster
-		clusterDetail, err := l.client.DescribeClusterBasic(ctx, name)
-		if err != nil {
-			fmt.Printf("Warning: failed to describe cluster %s: %v\n", name, err)
-			// Still add a basic entry if describe fails
-			clusters = append(clusters, EKSCluster{Name: name})
-			continue
-		}
+	if len(clusterNames) == 0 {
+		return []EKSCluster{}, nil
+	}
 
-		// Convert to EKSCluster with basic info
-		eksCluster := l.convertToEKSCluster(clusterDetail)
-		clusters = append(clusters, eksCluster)
+	clusters := make([]EKSCluster, len(clusterNames))
+	workerLimit := maxEKSDescribeConcurrency
+	if len(clusterNames) < workerLimit {
+		workerLimit = len(clusterNames)
+	}
+	sem := make(chan struct{}, workerLimit)
+
+	g, gCtx := errgroup.WithContext(ctx)
+	for idx, name := range clusterNames {
+		idx, name := idx, name
+		g.Go(func() error {
+			select {
+			case <-gCtx.Done():
+				return gCtx.Err()
+			default:
+			}
+
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			clusterDetail, err := l.client.DescribeClusterBasic(gCtx, name)
+			if err != nil {
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					return err
+				}
+
+				fmt.Printf("Warning: failed to describe cluster %s: %v\n", name, err)
+				clusters[idx] = EKSCluster{Name: name}
+				return nil
+			}
+
+			eksCluster := l.convertToEKSCluster(clusterDetail)
+			clusters[idx] = eksCluster
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 
 	return clusters, nil
@@ -336,7 +368,7 @@ func (f *EKSFuzzyFinder) Select(ctx context.Context) (int, error) {
 	// Create preview renderer with loader for lazy loading
 	renderer := NewEKSPreviewRenderer(f.colors, f.loader)
 
-	// Use fuzzyfinder to select
+	// Use fuzzyfinder to select with context support for Ctrl+C handling
 	selectedIndex, err := fuzzyfinder.Find(
 		f.clusters,
 		func(i int) string {
@@ -350,6 +382,7 @@ func (f *EKSFuzzyFinder) Select(ctx context.Context) (int, error) {
 			return renderer.RenderWithLazyLoad(ctx, &f.clusters[i], width, height)
 		}),
 		fuzzyfinder.WithPromptString("EKS Cluster > "),
+		fuzzyfinder.WithContext(ctx),
 	)
 
 	if err != nil {

@@ -14,11 +14,12 @@ import (
 )
 
 var (
-	nodeGroupName string
-	minSize       int32
-	maxSize       int32
-	desiredSize   int32
-	skipConfirm   bool
+	nodeGroupName         string
+	minSize               int32
+	maxSize               int32
+	desiredSize           int32
+	skipConfirm           bool
+	launchTemplateVersion string
 )
 
 var eksNodeGroupCmd = &cobra.Command{
@@ -65,12 +66,45 @@ Examples:
 	RunE: runScale,
 }
 
+var updateLTCmd = &cobra.Command{
+	Use:     "update-lt [cluster-name]",
+	Aliases: []string{"update-launch-template"},
+	Short:   "Update the launch template version of an EKS node group",
+	Long: `Update the launch template version of an EKS node group.
+
+If the cluster name or node group name is not provided, an interactive fuzzy finder
+will be displayed to select them. If the launch template version is not provided,
+an interactive selection will be displayed.
+
+Examples:
+  # Interactive selection (recommended)
+  aws-ssm eks nodegroup update-lt
+
+  # Interactive selection for specific cluster
+  aws-ssm eks nodegroup update-lt my-cluster
+
+  # Update specific node group to specific version
+  aws-ssm eks nodegroup update-lt my-cluster --nodegroup my-ng --version 5
+
+  # Update to $Latest version
+  aws-ssm eks nodegroup update-lt my-cluster --nodegroup my-ng --version '$Latest'
+
+  # Update to $Default version
+  aws-ssm eks nodegroup update-lt my-cluster --nodegroup my-ng --version '$Default'
+
+  # Skip confirmation prompt
+  aws-ssm eks ng update-lt my-cluster --nodegroup my-ng --version 5 --skip-confirm`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: runUpdateLT,
+}
+
 func init() {
 	// Add nodegroup command to eks command
 	eksCmd.AddCommand(eksNodeGroupCmd)
 
-	// Add scale subcommand to nodegroup command
+	// Add subcommands to nodegroup command
 	eksNodeGroupCmd.AddCommand(scaleCmd)
+	eksNodeGroupCmd.AddCommand(updateLTCmd)
 
 	// Scale command flags
 	scaleCmd.Flags().StringVar(&nodeGroupName, "nodegroup", "", "Node group name (if not provided, interactive selection will be used)")
@@ -78,21 +112,17 @@ func init() {
 	scaleCmd.Flags().Int32Var(&maxSize, "max", -1, "Maximum size (optional - defaults to current or desired)")
 	scaleCmd.Flags().Int32Var(&desiredSize, "desired", -1, "Desired size (required when cluster is specified)")
 	scaleCmd.Flags().BoolVar(&skipConfirm, "skip-confirm", false, "Skip confirmation prompt")
+
+	// Update launch template command flags
+	updateLTCmd.Flags().StringVar(&nodeGroupName, "nodegroup", "", "Node group name (if not provided, interactive selection will be used)")
+	updateLTCmd.Flags().StringVar(&launchTemplateVersion, "version", "", "Launch template version (if not provided, interactive selection will be used)")
+	updateLTCmd.Flags().BoolVar(&skipConfirm, "skip-confirm", false, "Skip confirmation prompt")
 }
 
 func runScale(_ *cobra.Command, args []string) error {
-	// Setup context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
+	// Create a context that can be cancelled with Ctrl+C
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-
-	// Handle Ctrl+C gracefully
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigChan
-		fmt.Println("\nOperation cancelled by user")
-		cancel()
-	}()
 
 	// Create AWS client
 	client, err := aws.NewClient(ctx, region, profile)
@@ -100,40 +130,90 @@ func runScale(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create AWS client: %w", err)
 	}
 
-	// Resolve cluster and node group parameters
-	clusterName, resolvedNodeGroupName, err := resolveScalingParameters(ctx, client, args)
-	if err != nil {
+	// Validate required flags for CLI mode
+	if len(args) > 0 && desiredSize == -1 {
+		return fmt.Errorf("--desired flag is required when cluster name is provided")
+	}
+
+	// For CLI mode (non-interactive), run once without loop
+	if len(args) > 0 {
+		_, err := runScaleOnce(ctx, client, args)
 		return err
+	}
+
+	// For interactive mode, allow retry on cancel
+	for {
+		shouldRetry, err := runScaleOnce(ctx, client, args)
+		if err != nil {
+			return err
+		}
+		if !shouldRetry {
+			// User completed the operation or cancelled at fuzzy finder
+			return nil
+		}
+		// User cancelled after selection, loop back to fuzzy finder
+		fmt.Println("\nReturning to nodegroup selection...")
+	}
+}
+
+// runScaleOnce executes one iteration of the scale workflow
+// Returns (shouldRetry, error) where shouldRetry indicates if user wants to select a different nodegroup
+func runScaleOnce(ctx context.Context, client *aws.Client, args []string) (bool, error) {
+	// Resolve cluster and node group
+	clusterName, resolvedNodeGroupName, err := resolveClusterAndNodeGroup(ctx, client, args)
+	if err != nil {
+		return false, err
+	}
+
+	// If no nodegroup was selected (user pressed ESC at fuzzy finder), exit
+	if resolvedNodeGroupName == "" {
+		return false, nil
 	}
 
 	// Get current node group details
 	ng, err := client.DescribeNodeGroupPublic(ctx, clusterName, resolvedNodeGroupName)
 	if err != nil {
-		return fmt.Errorf("failed to describe node group: %w", err)
+		return false, fmt.Errorf("failed to describe node group: %w", err)
 	}
 
 	// Calculate final scaling parameters
-	finalParams := calculateFinalParameters(ng, minSize, maxSize, desiredSize, len(args))
+	shouldRetry, finalParams, err := calculateFinalParametersWithRetry(ng, minSize, maxSize, desiredSize, len(args))
+	if err != nil {
+		return false, err
+	}
+	if shouldRetry {
+		// User cancelled at desired size prompt
+		return true, nil
+	}
 
 	// Validate parameters
-	if err := validateScalingParameters(finalParams); err != nil {
-		return err
+	err = validateScalingParameters(finalParams)
+	if err != nil {
+		return false, err
 	}
 
 	// Display configuration
 	displayScalingConfiguration(clusterName, resolvedNodeGroupName, ng, finalParams)
 
 	// Confirm action
-	if !confirmScalingAction() {
-		return nil
+	shouldRetry, confirmed := confirmScalingActionWithRetry()
+	if !confirmed {
+		if shouldRetry {
+			// User wants to select a different nodegroup
+			return true, nil
+		}
+		// User cancelled at fuzzy finder or wants to exit
+		return false, nil
 	}
 
 	// Perform scaling
-	return executeScaling(ctx, client, clusterName, resolvedNodeGroupName, finalParams)
+	err = executeScaling(ctx, client, clusterName, resolvedNodeGroupName, finalParams)
+	return false, err
 }
 
-// resolveScalingParameters resolves cluster and node group from args or interactive selection
-func resolveScalingParameters(ctx context.Context, client *aws.Client, args []string) (string, string, error) {
+// resolveClusterAndNodeGroup resolves cluster and node group from args or interactive selection
+// This is a generic function used by both scale and update-lt commands
+func resolveClusterAndNodeGroup(ctx context.Context, client *aws.Client, args []string) (string, string, error) {
 	// Get cluster name
 	clusterName, err := resolveClusterName(ctx, client, args)
 	if err != nil {
@@ -152,10 +232,6 @@ func resolveScalingParameters(ctx context.Context, client *aws.Client, args []st
 // resolveClusterName gets cluster name from args or interactive selection
 func resolveClusterName(ctx context.Context, client *aws.Client, args []string) (string, error) {
 	if len(args) > 0 {
-		// When cluster is provided as argument, desired size is required
-		if desiredSize == -1 {
-			return "", fmt.Errorf("--desired flag is required when cluster name is provided")
-		}
 		return args[0], nil
 	}
 
@@ -195,6 +271,8 @@ type ScalingParameters struct {
 }
 
 // calculateFinalParameters calculates the final min, max, and desired values
+//
+//nolint:unused // Kept for backward compatibility
 func calculateFinalParameters(ng *aws.NodeGroup, minSize, maxSize, desiredSize int32, argCount int) ScalingParameters {
 	// Prompt for desired size in interactive mode if not provided
 	if argCount == 0 && desiredSize == -1 {
@@ -213,7 +291,32 @@ func calculateFinalParameters(ng *aws.NodeGroup, minSize, maxSize, desiredSize i
 	}
 }
 
+// calculateFinalParametersWithRetry calculates the final min, max, and desired values
+// Returns (shouldRetry, params, error) where shouldRetry indicates if user wants to select a different nodegroup
+func calculateFinalParametersWithRetry(ng *aws.NodeGroup, minSize, maxSize, desiredSize int32, argCount int) (bool, ScalingParameters, error) {
+	// Prompt for desired size in interactive mode if not provided
+	if argCount == 0 && desiredSize == -1 {
+		shouldRetry := promptForDesiredSizeWithRetry(ng)
+		if shouldRetry {
+			return true, ScalingParameters{}, nil
+		}
+	}
+
+	// Calculate final values
+	finalMin := resolveMinSize(ng, minSize, desiredSize)
+	finalMax := resolveMaxSize(ng, maxSize, desiredSize)
+	finalDesired := desiredSize
+
+	return false, ScalingParameters{
+		Min:     finalMin,
+		Max:     finalMax,
+		Desired: finalDesired,
+	}, nil
+}
+
 // promptForDesiredSize prompts user for desired size in interactive mode
+//
+//nolint:unused // Kept for backward compatibility
 func promptForDesiredSize(ng *aws.NodeGroup) {
 	fmt.Printf("\nCurrent node group configuration:\n")
 	fmt.Printf("  Min Size:     %d\n", ng.MinSize)
@@ -225,6 +328,40 @@ func promptForDesiredSize(ng *aws.NodeGroup) {
 	if err != nil {
 		fmt.Printf("Error reading input: %v\n", err)
 	}
+}
+
+// promptForDesiredSizeWithRetry prompts user for desired size with retry support
+// Returns true if user wants to retry (select different nodegroup), false otherwise
+func promptForDesiredSizeWithRetry(ng *aws.NodeGroup) bool {
+	fmt.Printf("\nCurrent node group configuration:\n")
+	fmt.Printf("  Min Size:     %d\n", ng.MinSize)
+	fmt.Printf("  Max Size:     %d\n", ng.MaxSize)
+	fmt.Printf("  Desired Size: %d\n", ng.DesiredSize)
+	fmt.Printf("  Current Size: %d\n\n", ng.CurrentSize)
+	fmt.Printf("Enter desired size (or 'back' to select a different nodegroup): ")
+
+	var input string
+	_, err := fmt.Scanln(&input)
+	if err != nil {
+		fmt.Printf("Error reading input: %v\n", err)
+		return false
+	}
+
+	// Check if user wants to go back
+	if input == "back" || input == "b" {
+		return true
+	}
+
+	// Try to parse as integer
+	var size int32
+	_, parseErr := fmt.Sscanf(input, "%d", &size)
+	if parseErr != nil {
+		fmt.Printf("Invalid input. Please enter a number or 'back'.\n")
+		return false
+	}
+
+	desiredSize = size
+	return false
 }
 
 // resolveMinSize determines the final minimum size
@@ -286,6 +423,8 @@ func displayScalingConfiguration(clusterName, nodeGroupName string, ng *aws.Node
 }
 
 // confirmScalingAction prompts for user confirmation
+//
+//nolint:unused // Kept for backward compatibility
 func confirmScalingAction() bool {
 	if skipConfirm {
 		return true
@@ -306,6 +445,35 @@ func confirmScalingAction() bool {
 
 	fmt.Printf("\n")
 	return true
+}
+
+// confirmScalingActionWithRetry prompts for user confirmation with retry support
+// Returns (shouldRetry, confirmed) where shouldRetry indicates if user wants to select a different nodegroup
+func confirmScalingActionWithRetry() (bool, bool) {
+	if skipConfirm {
+		return false, true
+	}
+
+	fmt.Printf("⚠️  Are you sure you want to scale this node group? (yes/no/back): ")
+	var response string
+	_, err := fmt.Scanln(&response)
+	if err != nil {
+		fmt.Printf("Error reading input: %v\n", err)
+		return false, false
+	}
+
+	// Check if user wants to go back
+	if response == "back" || response == "b" {
+		return true, false
+	}
+
+	if response != "yes" && response != "y" {
+		fmt.Println("Operation cancelled.")
+		return false, false
+	}
+
+	fmt.Printf("\n")
+	return false, true
 }
 
 // executeScaling performs the actual scaling operation
@@ -353,8 +521,24 @@ func (a *nodeGroupClientAdapter) GetConfig() awsconfig.Config {
 
 // selectNodeGroupInteractive displays an interactive fuzzy finder to select a node group
 func selectNodeGroupInteractive(ctx context.Context, client *aws.Client, clusterName string) (*fuzzy.NodeGroupInfo, error) {
-	fmt.Println("Opening interactive node group selector...")
-	fmt.Println("(Use arrow keys to navigate, type to filter, Enter to select, Esc to cancel)")
+	// Show loading message with spinner
+	s := createLoadingSpinner("Loading node groups...")
+	s.Start()
+
+	// Load node groups first (this is the slow part)
+	nodeGroupNames, err := client.ListNodeGroupsForCluster(ctx, clusterName)
+	s.Stop()
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list node groups: %w", err)
+	}
+
+	if len(nodeGroupNames) == 0 {
+		return nil, fmt.Errorf("no node groups found in cluster %s", clusterName)
+	}
+
+	// Now show the interactive prompt
+	printInteractivePrompt("node group selector")
 	fmt.Println()
 
 	// Create adapter
@@ -374,11 +558,357 @@ func selectNodeGroupInteractive(ctx context.Context, client *aws.Client, cluster
 	if err != nil {
 		// Check if it's a context cancellation (Ctrl+C)
 		if err == context.Canceled {
-			fmt.Println("\nSelection cancelled.")
+			printSelectionCancelled()
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to select node group: %w", err)
 	}
 
 	return selectedNodeGroup, nil
+}
+
+// launchTemplateClientAdapter adapts aws.Client to fuzzy.AWSLaunchTemplateClientInterface
+type launchTemplateClientAdapter struct {
+	client *aws.Client
+}
+
+// ListLaunchTemplateVersions implements fuzzy.AWSLaunchTemplateClientInterface
+func (a *launchTemplateClientAdapter) ListLaunchTemplateVersions(ctx context.Context, launchTemplateID string) ([]fuzzy.LaunchTemplateVersionDetail, error) {
+	versions, err := a.client.ListLaunchTemplateVersions(ctx, launchTemplateID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to interface slice
+	var details []fuzzy.LaunchTemplateVersionDetail
+	for i := range versions {
+		var detail fuzzy.LaunchTemplateVersionDetail = &versions[i]
+		details = append(details, detail)
+	}
+	return details, nil
+}
+
+// GetConfig implements fuzzy.AWSLaunchTemplateClientInterface
+func (a *launchTemplateClientAdapter) GetConfig() awsconfig.Config {
+	return a.client.GetConfig()
+}
+
+func runUpdateLT(_ *cobra.Command, args []string) error {
+	// Create a context that can be cancelled with Ctrl+C
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	// Create AWS client
+	client, err := aws.NewClient(ctx, region, profile)
+	if err != nil {
+		return fmt.Errorf("failed to create AWS client: %w", err)
+	}
+
+	// For CLI mode (non-interactive), run once without loop
+	if len(args) > 0 && launchTemplateVersion != "" {
+		_, err := runUpdateLTOnce(ctx, client, args)
+		return err
+	}
+
+	// For interactive mode, allow retry on cancel
+	for {
+		shouldRetry, err := runUpdateLTOnce(ctx, client, args)
+		if err != nil {
+			return err
+		}
+		if !shouldRetry {
+			// User completed the operation or cancelled at fuzzy finder
+			return nil
+		}
+		// User cancelled after selection, loop back to fuzzy finder
+		fmt.Println("\nReturning to nodegroup selection...")
+	}
+}
+
+// runUpdateLTOnce executes one iteration of the update-lt workflow
+// Returns (shouldRetry, error) where shouldRetry indicates if user wants to select a different nodegroup
+func runUpdateLTOnce(ctx context.Context, client *aws.Client, args []string) (bool, error) {
+	// Resolve cluster and node group
+	clusterName, resolvedNodeGroupName, err := resolveClusterAndNodeGroup(ctx, client, args)
+	if err != nil {
+		return false, err
+	}
+
+	// If no nodegroup was selected (user pressed ESC at fuzzy finder), exit
+	if resolvedNodeGroupName == "" {
+		return false, nil
+	}
+
+	// Get current node group details
+	ng, err := client.DescribeNodeGroupPublic(ctx, clusterName, resolvedNodeGroupName)
+	if err != nil {
+		return false, fmt.Errorf("failed to describe node group: %w", err)
+	}
+
+	// Check if node group has a launch template
+	if ng.LaunchTemplate.ID == "" {
+		return false, fmt.Errorf("node group %s does not use a launch template", resolvedNodeGroupName)
+	}
+
+	// Resolve launch template version with retry support
+	shouldRetry, version, err := resolveLaunchTemplateVersionWithRetry(ctx, client, ng)
+	if err != nil {
+		return false, err
+	}
+	if shouldRetry {
+		// User cancelled at version selection
+		return true, nil
+	}
+
+	// Display configuration
+	displayLTUpdateConfiguration(clusterName, resolvedNodeGroupName, ng, version)
+
+	// Confirm action with retry support
+	shouldRetry, confirmed := confirmLTUpdateActionWithRetry()
+	if !confirmed {
+		if shouldRetry {
+			// User wants to select a different nodegroup
+			return true, nil
+		}
+		// User cancelled
+		return false, nil
+	}
+
+	// Perform update
+	err = executeLTUpdate(ctx, client, clusterName, resolvedNodeGroupName, ng.LaunchTemplate.ID, version)
+	return false, err
+}
+
+//nolint:unused // Kept for backward compatibility
+func resolveLaunchTemplateVersion(ctx context.Context, client *aws.Client, ng *aws.NodeGroup) (string, error) {
+	if launchTemplateVersion != "" {
+		return launchTemplateVersion, nil
+	}
+
+	// Interactive selection
+	return selectLaunchTemplateVersionInteractive(ctx, client, ng)
+}
+
+// resolveLaunchTemplateVersionWithRetry resolves launch template version with retry support
+// Returns (shouldRetry, version, error) where shouldRetry indicates if user wants to select a different nodegroup
+func resolveLaunchTemplateVersionWithRetry(ctx context.Context, client *aws.Client, ng *aws.NodeGroup) (bool, string, error) {
+	if launchTemplateVersion != "" {
+		return false, launchTemplateVersion, nil
+	}
+
+	// Interactive selection with retry support
+	return selectLaunchTemplateVersionInteractiveWithRetry(ctx, client, ng)
+}
+
+//nolint:unused // Kept for backward compatibility
+func selectLaunchTemplateVersionInteractive(ctx context.Context, client *aws.Client, ng *aws.NodeGroup) (string, error) {
+	fmt.Println()
+
+	// Show loading message with spinner
+	s := createLoadingSpinner("Loading launch template versions...")
+	s.Start()
+
+	// Load versions first (this is the slow part)
+	versions, err := client.ListLaunchTemplateVersions(ctx, ng.LaunchTemplate.ID)
+	s.Stop()
+
+	if err != nil {
+		return "", fmt.Errorf("failed to list launch template versions: %w", err)
+	}
+
+	if len(versions) == 0 {
+		return "", fmt.Errorf("no launch template versions found")
+	}
+
+	// Now show the interactive prompt
+	printInteractivePrompt("launch template version selector")
+
+	// Display current version with color
+	if noColor {
+		fmt.Printf("\nCurrent version: %s\n", ng.LaunchTemplate.Version)
+	} else {
+		label := fuzzy.ColorDim + "Current version:" + fuzzy.ColorReset
+		version := fuzzy.ColorCyan + ng.LaunchTemplate.Version + fuzzy.ColorReset
+		fmt.Printf("\n%s %s\n", label, version)
+	}
+	fmt.Println()
+
+	// Create adapter
+	adapter := &launchTemplateClientAdapter{client: client}
+
+	// Create launch template version loader
+	loader := fuzzy.NewAWSLaunchTemplateLoader(adapter, ng.LaunchTemplate.ID, ng.LaunchTemplate.Name)
+
+	// Create color manager
+	colors := fuzzy.NewDefaultColorManager(noColor)
+
+	// Create launch template version finder
+	finder := fuzzy.NewLaunchTemplateVersionFinder(loader, colors)
+
+	// Select version
+	selectedVersion, err := finder.SelectVersionInteractive(ctx)
+	if err != nil {
+		// Check if it's a context cancellation (Ctrl+C)
+		if err == context.Canceled {
+			printSelectionCancelled()
+			return "", nil
+		}
+		return "", fmt.Errorf("failed to select launch template version: %w", err)
+	}
+
+	if selectedVersion == nil {
+		return "", fmt.Errorf("no version selected")
+	}
+
+	// Convert version to string
+	return fuzzy.GetVersionString(selectedVersion), nil
+}
+
+// selectLaunchTemplateVersionInteractiveWithRetry selects a launch template version with retry support
+// Returns (shouldRetry, version, error) where shouldRetry indicates if user wants to select a different nodegroup
+func selectLaunchTemplateVersionInteractiveWithRetry(ctx context.Context, client *aws.Client, ng *aws.NodeGroup) (bool, string, error) {
+	fmt.Println()
+
+	// Show loading message with spinner
+	s := createLoadingSpinner("Loading launch template versions...")
+	s.Start()
+
+	// Load versions first (this is the slow part)
+	versions, err := client.ListLaunchTemplateVersions(ctx, ng.LaunchTemplate.ID)
+	s.Stop()
+
+	if err != nil {
+		return false, "", fmt.Errorf("failed to list launch template versions: %w", err)
+	}
+
+	if len(versions) == 0 {
+		return false, "", fmt.Errorf("no launch template versions found")
+	}
+
+	// Now show the interactive prompt
+	printInteractivePrompt("launch template version selector")
+
+	// Display current version with color
+	if noColor {
+		fmt.Printf("\nCurrent version: %s\n", ng.LaunchTemplate.Version)
+	} else {
+		label := fuzzy.ColorDim + "Current version:" + fuzzy.ColorReset
+		version := fuzzy.ColorCyan + ng.LaunchTemplate.Version + fuzzy.ColorReset
+		fmt.Printf("\n%s %s\n", label, version)
+	}
+	fmt.Println()
+
+	// Create adapter
+	adapter := &launchTemplateClientAdapter{client: client}
+
+	// Create launch template version loader
+	loader := fuzzy.NewAWSLaunchTemplateLoader(adapter, ng.LaunchTemplate.ID, ng.LaunchTemplate.Name)
+
+	// Create color manager
+	colors := fuzzy.NewDefaultColorManager(noColor)
+
+	// Create launch template version finder
+	finder := fuzzy.NewLaunchTemplateVersionFinder(loader, colors)
+
+	// Select version
+	selectedVersion, err := finder.SelectVersionInteractive(ctx)
+	if err != nil {
+		// Check if it's a context cancellation (Ctrl+C)
+		if err == context.Canceled {
+			printSelectionCancelled()
+			return false, "", nil
+		}
+		return false, "", fmt.Errorf("failed to select launch template version: %w", err)
+	}
+
+	if selectedVersion == nil {
+		// User pressed ESC at the version selector - treat as retry
+		return true, "", nil
+	}
+
+	// Convert version to string
+	return false, fuzzy.GetVersionString(selectedVersion), nil
+}
+
+func displayLTUpdateConfiguration(clusterName, nodeGroupName string, ng *aws.NodeGroup, version string) {
+	fmt.Printf("\n")
+	fmt.Printf("Cluster:                  %s\n", clusterName)
+	fmt.Printf("Node Group:               %s\n", nodeGroupName)
+	fmt.Printf("\n")
+	fmt.Printf("Current Configuration:\n")
+	fmt.Printf("  Launch Template:        %s (%s)\n", ng.LaunchTemplate.Name, ng.LaunchTemplate.ID)
+	fmt.Printf("  Current Version:        %s\n", ng.LaunchTemplate.Version)
+	fmt.Printf("\n")
+	fmt.Printf("Target Configuration:\n")
+	fmt.Printf("  New Version:            %s\n", version)
+	fmt.Printf("\n")
+}
+
+//nolint:unused // Kept for backward compatibility
+func confirmLTUpdateAction() bool {
+	if skipConfirm {
+		return true
+	}
+
+	fmt.Printf("⚠️  Are you sure you want to update the launch template version? (yes/no): ")
+	var response string
+	_, err := fmt.Scanln(&response)
+	if err != nil {
+		fmt.Printf("Error reading input: %v\n", err)
+		return false
+	}
+
+	if response != "yes" && response != "y" {
+		fmt.Println("Operation cancelled.")
+		return false
+	}
+
+	fmt.Printf("\n")
+	return true
+}
+
+// confirmLTUpdateActionWithRetry prompts for user confirmation with retry support
+// Returns (shouldRetry, confirmed) where shouldRetry indicates if user wants to select a different nodegroup
+func confirmLTUpdateActionWithRetry() (bool, bool) {
+	if skipConfirm {
+		return false, true
+	}
+
+	fmt.Printf("⚠️  Are you sure you want to update the launch template version? (yes/no/back): ")
+	var response string
+	_, err := fmt.Scanln(&response)
+	if err != nil {
+		fmt.Printf("Error reading input: %v\n", err)
+		return false, false
+	}
+
+	// Check if user wants to go back
+	if response == "back" || response == "b" {
+		return true, false
+	}
+
+	if response != "yes" && response != "y" {
+		fmt.Println("Operation cancelled.")
+		return false, false
+	}
+
+	fmt.Printf("\n")
+	return false, true
+}
+
+func executeLTUpdate(ctx context.Context, client *aws.Client, clusterName, nodeGroupName, launchTemplateID, version string) error {
+	fmt.Printf("Updating launch template version for node group %s...\n", nodeGroupName)
+
+	err := client.UpdateNodeGroupLaunchTemplate(ctx, clusterName, nodeGroupName, launchTemplateID, version)
+	if err != nil {
+		return fmt.Errorf("failed to update launch template: %w", err)
+	}
+
+	fmt.Printf("✓ Successfully initiated launch template update for node group %s\n", nodeGroupName)
+	fmt.Printf("\n")
+	fmt.Printf("Note: The update operation may take several minutes to complete.\n")
+	fmt.Printf("      Nodes will be replaced with the new launch template version.\n")
+	fmt.Printf("You can check the status with: aws-ssm eks %s\n", clusterName)
+
+	return nil
 }

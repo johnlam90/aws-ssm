@@ -11,9 +11,11 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.264.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.74.7
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.0
+	github.com/briandowns/spinner v1.23.2
 	github.com/ktr0731/go-fuzzyfinder v0.9.0
 	github.com/mmmorris1975/ssm-session-client v0.402.0
 	github.com/spf13/cobra v1.10.1
+	golang.org/x/sync v0.17.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -41,6 +43,7 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203 // indirect
+	github.com/fatih/color v1.7.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gdamore/encoding v1.0.1 // indirect
 	github.com/gdamore/tcell/v2 v2.9.0 // indirect
@@ -50,6 +53,8 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/ktr0731/go-ansisgr v0.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
+	github.com/mattn/go-colorable v0.1.2 // indirect
+	github.com/mattn/go-isatty v0.0.8 // indirect
 	github.com/mattn/go-runewidth v0.0.19 // indirect
 	github.com/nsf/termbox-go v1.1.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -60,7 +65,6 @@ require (
 	github.com/xtaci/smux v1.5.35 // indirect
 	golang.org/x/crypto v0.43.0 // indirect
 	golang.org/x/net v0.46.0 // indirect
-	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.37.0 // indirect
 	golang.org/x/term v0.36.0 // indirect
 	golang.org/x/text v0.30.0 // indirect
