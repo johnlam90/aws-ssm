@@ -1,6 +1,6 @@
 # AWS SSM Manager CLI
 
-Fast, dependency-free Golang CLI to manage AWS EC2 instances and EKS clusters over AWS Systems Manager Session Manager. Single static binary: no session-manager-plugin, no SSH bastions, no external runtime.
+Fast, dependency-free CLI for managing AWS EC2 instances, EKS clusters, and Auto Scaling Groups via AWS Systems Manager. Single static binary—no session-manager-plugin, no SSH bastions, no external runtime.
 
 [![Go Version](https://img.shields.io/badge/Go-1.23%2B-blue.svg)](https://golang.org/dl/)
 [![CI Pipeline](https://github.com/johnlam90/aws-ssm/actions/workflows/ci.yml/badge.svg)](https://github.com/johnlam90/aws-ssm/actions/workflows/ci.yml)
@@ -9,37 +9,20 @@ Fast, dependency-free Golang CLI to manage AWS EC2 instances and EKS clusters ov
 [![release](https://img.shields.io/github/v/release/johnlam90/aws-ssm?label=release)](https://github.com/johnlam90/aws-ssm/releases)
 [![downloads](https://img.shields.io/github/downloads/johnlam90/aws-ssm/total?label=downloads)](https://github.com/johnlam90/aws-ssm/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Security](https://img.shields.io/badge/security-policy-important)](SECURITY.md)
 
 > Not affiliated with Amazon Web Services. Uses official AWS SDK v2.
 
 ## ✨ Key Features
 
-- 🎯 **Pure Go Implementation** - Single binary, zero external runtime deps
-- 🔍 **Enhanced Interactive Selection** - Fuzzy finder with multi-select and rich search
-- 🚀 **Remote Command Execution** - Run commands without interactive sessions  
-- 🌐 **Network Interface Inspection** - View all interfaces (Multus, EKS, etc.)
-- ☸️ **EKS Cluster Management** - Interactive cluster selection and detailed info
+- 🎯 **Pure Go** - Single binary, zero external dependencies
+- 🔍 **Interactive Fuzzy Finder** - Multi-select with rich search syntax
+- 🚀 **Remote Command Execution** - Run commands without interactive sessions
+- ☸️ **EKS Management** - Scale nodegroups, update launch templates, view cluster details
+- 📈 **ASG Scaling** - Interactive Auto Scaling Group management
+- 🌐 **Network Inspection** - View all interfaces (Multus, EKS, etc.)
 - 🔌 **Port Forwarding** - Forward local ports to remote services
 - 💾 **Smart Caching** - Configurable TTL & region-scoped caching
-- 🎨 **Rich Search Syntax** - `name:web state:running tag:Env=prod !tag:Env=dev`
-- 📊 **Flexible Display** - Customizable columns and color themes
-- 📈 **Embedded Metrics** - Internal performance & usage metrics (optional reporters)
-- 🔐 **Secure by Design** - SSM tunnels, no inbound ports required
-- 🧩 **Extensible** - Planned plugin & completion support
-
-### Why This Tool?
-
-| Problem | Traditional Approach | This CLI |
-|---------|---------------------|----------|
-| Bastion / SSH required | Maintain jump hosts | Direct SSM tunnels |
-| Need session-manager-plugin | Install extra binary | Pure Go implementation |
-| Slow/manual instance selection | CLI filters + manual copy | Rich fuzzy finder & tagging |
-| Multi-instance ops cumbersome | Loops / scripts | Native multi-select + batch exec |
-| Observability of operations | Ad-hoc timing | Embedded metrics framework |
-| Complex EKS discovery | kubectl + aws cli | One command interactive selection |
-
-See `docs/IMPROVEMENTS.md` and `ROADMAP.md` for planned enhancements.
+- 🔐 **Secure** - SSM tunnels, no inbound ports or bastions required
 
 ## 🚀 Quick Start
 
@@ -85,17 +68,30 @@ aws-ssm session 10.0.1.100
 aws-ssm session web-server "uptime"
 ```
 
-**EKS Cluster Management:**
+**EKS Management:**
 
 ```bash
 # Interactive cluster selection
 aws-ssm eks
 
+# Scale nodegroups
+aws-ssm eks nodegroup scale
+
+# Update launch template version
+aws-ssm eks nodegroup update-lt
+
 # Get specific cluster info
 aws-ssm eks production-cluster
 ```
 
-**List and inspect instances:**
+**Auto Scaling Groups:**
+
+```bash
+# Interactive ASG scaling
+aws-ssm asg scale
+```
+
+**List and inspect:**
 
 ```bash
 aws-ssm list --tag Environment=production
@@ -104,272 +100,175 @@ aws-ssm interfaces web-server  # Network interfaces
 
 ## 📖 Core Commands
 
-### `aws-ssm session` - EC2 Instance Sessions
-
-**Interactive mode (fuzzy finder):**
+### EC2 Sessions
 
 ```bash
-aws-ssm session                    # Opens interactive selector
-aws-ssm session --interactive      # Enhanced mode with multi-select
-aws-ssm session --columns name,state,az  # Custom columns
-aws-ssm session --favorites        # Show only bookmarked instances
-```
+# Interactive selection
+aws-ssm session
 
-**Rich search syntax:**
+# Direct connection
+aws-ssm session web-server
+aws-ssm session i-1234567890abcdef0
 
-```bash
-name:web state:running tag:Env=prod        # Filter by multiple criteria
-!state:stopped                             # Negative filters
-tag:Team=backend ip:10.0.1.*               # Complex queries
-```
-
-**Direct connection:**
-
-```bash
-aws-ssm session web-server                 # By name tag
-aws-ssm session i-1234567890abcdef0        # By instance ID
-aws-ssm session 10.0.1.100                 # By IP address
-aws-ssm session ec2-54-123-45-67.compute   # By DNS
-aws-ssm session Environment:production     # By tag
-```
-
-**Remote command execution:**
-
-```bash
+# Execute commands
 aws-ssm session web-server "docker ps"
-aws-ssm session i-123 "systemctl status nginx"
-aws-ssm session db "ps aux | grep postgres"
-```
 
-**Port forwarding:**
-
-```bash
+# Port forwarding
 aws-ssm port-forward db-server --remote-port 3306 --local-port 3306
-aws-ssm port-forward bastion --remote-port 5432 --local-port 5432
 ```
 
-### `aws-ssm eks` - EKS Cluster Management
+**Search syntax:** `name:web state:running tag:Env=prod !state:stopped`
 
-**Interactive cluster selection:**
+### EKS Management
 
 ```bash
-aws-ssm eks                    # Opens interactive cluster selector
-aws-ssm eks --region us-west-2 # Specific region
-aws-ssm eks --profile prod     # Specific profile
+# View clusters
+aws-ssm eks                          # Interactive selection
+aws-ssm eks production-cluster       # Specific cluster
+
+# Nodegroup operations
+aws-ssm eks nodegroup scale          # Interactive scaling with retry navigation
+aws-ssm eks nodegroup update-lt      # Update launch template version
+aws-ssm eks nodegroup scale my-cluster my-nodegroup --desired 5
 ```
 
-**Direct cluster access:**
+**New in v0.8.0:** Improved navigation flow—press ESC or type "back" to return to selection without restarting the command.
+
+### Auto Scaling Groups
 
 ```bash
-aws-ssm eks my-cluster         # By cluster name
-aws-ssm eks production --region eu-west-1
+# Interactive scaling
+aws-ssm asg scale                    # Select ASG and scale interactively
+
+# Direct scaling
+aws-ssm asg scale my-asg --desired 10 --min 5 --max 20
 ```
 
-Displays comprehensive cluster information including status, networking, node groups, and security configuration.
-
-### `aws-ssm list` - Instance Listing
+### Instance Management
 
 ```bash
-aws-ssm list                                    # All running instances
-aws-ssm list --tag Environment=production       # Filter by tags
-aws-ssm list --all                              # Include stopped instances
-aws-ssm list --region eu-west-1 --profile prod  # Specific region/profile
+# List instances
+aws-ssm list --tag Environment=production
+
+# Network interfaces
+aws-ssm interfaces web-server
 ```
-
-### `aws-ssm interfaces` - Network Interface Inspection
-
-```bash
-aws-ssm interfaces                      # Interactive selection
-aws-ssm interfaces web-server            # By instance name
-aws-ssm interfaces i-1234567890abcdef0   # By instance ID
-aws-ssm interfaces --tag Environment:prod # Filter by tags
-```
-
-Perfect for instances with multiple network interfaces (Multus, EKS, etc.).
 
 ## 🔧 Advanced Features
 
-### Enhanced Search Syntax
+### Search Syntax
 
-The fuzzy finder supports powerful filtering:
-
-- **Tag filters:** `tag:Environment=production`, `team:backend`
-- **State filters:** `state:running`, `state:stopped`
+- **Tag filters:** `tag:Environment=production`
+- **State filters:** `state:running`, `!state:stopped`
 - **Name/ID filters:** `name:web`, `id:i-123`
-- **IP/DNS filters:** `ip:10.0.1.*`, `dns:*.compute.amazonaws.com`
-- **Exclusion:** `!state:stopped`, `!tag:Env=dev`
-- **Existence:** `has:Environment`, `missing:Team`
-- **Fuzzy search:** `web prod backup` (space-separated terms)
+- **IP filters:** `ip:10.0.1.*`
+- **Fuzzy search:** `web prod backup`
 
-### Multi-Select and Batch Operations
+### Interactive Controls
 
-Interactive mode supports:
-
-- **Space:** Toggle selection for multiple instances
-- **Enter:** Connect to selected instances
+- **Space:** Toggle multi-select
+- **Enter:** Confirm selection
+- **ESC/back:** Return to previous selection (EKS/ASG commands)
 - **c:** Run commands on selected instances
-- **p:** Set up port forwarding
-
-### Performance Optimizations
-
-- **Intelligent Caching:** Reduces API calls with configurable TTL
-- **Smart Filtering:** Client-side filtering for large instance sets
-- **Rate Limiting:** Built-in AWS API rate limiting and retry logic
-- **Streaming:** Efficient handling of large instance lists
+- **p:** Port forwarding
 
 ## ⚡ Configuration
 
 ### Global Flags
 
-All commands support:
-
 - `--region, -r` - AWS region
 - `--profile, -p` - AWS profile
 - `--no-color` - Disable colored output
-- `--width` - Set display width
 
-### Configuration File
-
-Configuration precedence: CLI flags > Environment variables > Config file > Defaults.
-
-Environment variables recognized: `AWS_REGION`, `AWS_DEFAULT_REGION`, `AWS_PROFILE`.
-
-Default config directory: `~/.aws-ssm/` (XDG alternative supported if explicitly set via `--config`).
+### Config File
 
 Create `~/.aws-ssm/config.yaml`:
 
 ```yaml
-interactive:
-  max_instances: 1000
-  no_color: false
-  width: 120
-  
 cache:
   enabled: true
   ttl_minutes: 30
-  cache_dir: ~/.cache/aws-ssm
 ```
+
+Precedence: CLI flags > Environment variables > Config file > Defaults
 
 ## 🔐 Requirements
 
-### AWS Configuration
+### Prerequisites
 
-- AWS credentials configured (`~/.aws/credentials` or environment variables)
-- IAM permissions for EC2, SSM, and EKS (see below)
+- AWS credentials configured (`~/.aws/credentials` or environment)
+- SSM Agent 2.3.68.0+ on target EC2 instances
+- IAM permissions for EC2, SSM, EKS, and Auto Scaling
 
-### EC2 Instance Requirements
+### IAM Permissions
 
-- SSM Agent 2.3.68.0+ installed and running
-- IAM role with SSM permissions
-
-### IAM Permissions (Example – tighten for least privilege)
-
-**User/Role Permissions (baseline):**
+**User/Role (minimum required):**
 
 ```json
 {
   "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "ec2:DescribeInstances",
-        "ec2:DescribeNetworkInterfaces", 
-        "ssm:StartSession",
-        "ssm:TerminateSession",
-        "ssm:SendCommand",
-        "ssm:GetCommandInvocation",
-        "eks:DescribeCluster",
-        "eks:ListClusters"
-      ],
-      "Resource": "*"
-    }
-  ]
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": [
+      "ec2:DescribeInstances",
+      "ec2:DescribeNetworkInterfaces",
+      "ec2:DescribeLaunchTemplateVersions",
+      "ssm:StartSession",
+      "ssm:TerminateSession",
+      "ssm:SendCommand",
+      "eks:DescribeCluster",
+      "eks:ListClusters",
+      "eks:DescribeNodegroup",
+      "eks:ListNodegroups",
+      "eks:UpdateNodegroupVersion",
+      "autoscaling:DescribeAutoScalingGroups",
+      "autoscaling:UpdateAutoScalingGroup"
+    ],
+    "Resource": "*"
+  }]
 }
 ```
 
-**EC2 Instance Role (SSM agent baseline):**
+**EC2 Instance Role:**
 
 ```json
 {
-  "Version": "2012-10-17", 
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "ssm:UpdateInstanceInformation",
-        "ssmmessages:*"
-      ],
-      "Resource": "*"
-    }
-  ]
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": [
+      "ssm:UpdateInstanceInformation",
+      "ssmmessages:*"
+    ],
+    "Resource": "*"
+  }]
 }
 ```
 
 ## 🔍 Troubleshooting
 
-**No instances found:**
-
-- Verify AWS credentials and region
-- Check IAM permissions for EC2 DescribeInstances
-
-**Connection fails:**
-
-- Ensure SSM Agent is running on target instance
-- Verify instance is in "running" state
-- Check instance has SSM permissions
-
-**Permission denied:**
-
-- Review IAM permissions for your user/role
-- Ensure EC2 instance has SSM agent permissions
-
-**EKS cluster not found:**
-
-- Verify `eks:DescribeCluster` and `eks:ListClusters` permissions
-- Check cluster exists in specified region
+| Issue | Solution |
+|-------|----------|
+| No instances found | Verify AWS credentials, region, and IAM permissions |
+| Connection fails | Ensure SSM Agent is running and instance is in "running" state |
+| Permission denied | Review IAM permissions for user/role and instance |
+| EKS cluster not found | Check `eks:DescribeCluster` permissions and region |
 
 ## 🛠️ Development
 
 ```bash
-# Build from source
 git clone https://github.com/johnlam90/aws-ssm.git
 cd aws-ssm
 go build -o aws-ssm .
-
-# Run tests
 go test ./...
-
-# Install development version
-go install .
 ```
 
-## 📚 Documentation
+## 📄 License
 
-- [Installation Guide](docs/INSTALLATION.md) - Detailed setup for all platforms
-- [Quick Reference](docs/QUICK_REFERENCE.md) - Command cheat sheet
-- [Fuzzy Finder Guide](docs/FUZZY_FINDER.md) - Advanced search techniques
-- [EKS Management](docs/EKS_MANAGEMENT.md) - Cluster management details
-- [Architecture](docs/ARCHITECTURE.md) - Technical implementation details
+MIT License - see [LICENSE](LICENSE)
 
-## 🤝 Contributing
-
-Contributions welcome! Please see [Contributing Guide](docs/CONTRIBUTING.md) for details.
-
-## 📄 License & Security
-
-MIT License - see [LICENSE](LICENSE).
-
-Security policy & vulnerability reporting: see [SECURITY.md](SECURITY.md).
-
-Disclaimer: Not affiliated with AWS. AWS trademarks belong to their owners.
-
-MIT License - see [LICENSE](LICENSE) file for details.
+Not affiliated with AWS. AWS trademarks belong to their owners.
 
 ## 🙏 Acknowledgments
 
-- [AWS SDK for Go v2](https://github.com/aws/aws-sdk-go-v2) - AWS integration
-- [Cobra](https://github.com/spf13/cobra) - CLI framework  
-- [ssm-session-client](https://github.com/mmmorris1975/ssm-session-client) - SSM protocol
-- [go-fuzzyfinder](https://github.com/ktr0731/go-fuzzyfinder) - Interactive selection
-- [aws-gate](https://github.com/xen0l/aws-gate) - Original inspiration
+Built with [AWS SDK Go v2](https://github.com/aws/aws-sdk-go-v2), [Cobra](https://github.com/spf13/cobra), [ssm-session-client](https://github.com/mmmorris1975/ssm-session-client), and [go-fuzzyfinder](https://github.com/ktr0731/go-fuzzyfinder).
