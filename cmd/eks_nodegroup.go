@@ -271,6 +271,8 @@ type ScalingParameters struct {
 }
 
 // calculateFinalParameters calculates the final min, max, and desired values
+//
+//nolint:unused // Kept for backward compatibility
 func calculateFinalParameters(ng *aws.NodeGroup, minSize, maxSize, desiredSize int32, argCount int) ScalingParameters {
 	// Prompt for desired size in interactive mode if not provided
 	if argCount == 0 && desiredSize == -1 {
@@ -313,6 +315,8 @@ func calculateFinalParametersWithRetry(ng *aws.NodeGroup, minSize, maxSize, desi
 }
 
 // promptForDesiredSize prompts user for desired size in interactive mode
+//
+//nolint:unused // Kept for backward compatibility
 func promptForDesiredSize(ng *aws.NodeGroup) {
 	fmt.Printf("\nCurrent node group configuration:\n")
 	fmt.Printf("  Min Size:     %d\n", ng.MinSize)
@@ -419,6 +423,8 @@ func displayScalingConfiguration(clusterName, nodeGroupName string, ng *aws.Node
 }
 
 // confirmScalingAction prompts for user confirmation
+//
+//nolint:unused // Kept for backward compatibility
 func confirmScalingAction() bool {
 	if skipConfirm {
 		return true
@@ -673,6 +679,7 @@ func runUpdateLTOnce(ctx context.Context, client *aws.Client, args []string) (bo
 	return false, err
 }
 
+//nolint:unused // Kept for backward compatibility
 func resolveLaunchTemplateVersion(ctx context.Context, client *aws.Client, ng *aws.NodeGroup) (string, error) {
 	if launchTemplateVersion != "" {
 		return launchTemplateVersion, nil
@@ -693,6 +700,7 @@ func resolveLaunchTemplateVersionWithRetry(ctx context.Context, client *aws.Clie
 	return selectLaunchTemplateVersionInteractiveWithRetry(ctx, client, ng)
 }
 
+//nolint:unused // Kept for backward compatibility
 func selectLaunchTemplateVersionInteractive(ctx context.Context, client *aws.Client, ng *aws.NodeGroup) (string, error) {
 	fmt.Println()
 
@@ -836,6 +844,7 @@ func displayLTUpdateConfiguration(clusterName, nodeGroupName string, ng *aws.Nod
 	fmt.Printf("\n")
 }
 
+//nolint:unused // Kept for backward compatibility
 func confirmLTUpdateAction() bool {
 	if skipConfirm {
 		return true

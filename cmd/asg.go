@@ -224,6 +224,8 @@ func promptForDesiredCapacity(asgInfo *fuzzy.ASGInfo) {
 
 // promptForDesiredCapacityWithRetry prompts user for desired capacity with retry support
 // Returns true if user wants to retry (select different ASG), false otherwise
+//
+//nolint:unused // Kept for backward compatibility
 func promptForDesiredCapacityWithRetry(asgInfo *fuzzy.ASGInfo) bool {
 	fmt.Printf("\nCurrent ASG configuration:\n")
 	fmt.Printf("  Min Size:          %d\n", asgInfo.MinSize)
@@ -289,6 +291,8 @@ func calculateScalingParameters(asg *aws.AutoScalingGroup, _ *fuzzy.ASGInfo) ASG
 }
 
 // confirmASGScalingAction displays configuration and gets user confirmation
+//
+//nolint:unused // Kept for backward compatibility
 func confirmASGScalingAction(selectedASG string, asg *aws.AutoScalingGroup, params ASGScalingParameters) bool {
 	// Display current and new configuration
 	fmt.Printf("\nAuto Scaling Group: %s\n", selectedASG)
