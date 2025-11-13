@@ -293,19 +293,23 @@ func calculateFinalParameters(ng *aws.NodeGroup, minSize, maxSize, desiredSize i
 
 // calculateFinalParametersWithRetry calculates the final min, max, and desired values
 // Returns (shouldRetry, params, error) where shouldRetry indicates if user wants to select a different nodegroup
-func calculateFinalParametersWithRetry(ng *aws.NodeGroup, minSize, maxSize, desiredSize int32, argCount int) (bool, ScalingParameters, error) {
+func calculateFinalParametersWithRetry(ng *aws.NodeGroup, minSizeParam, maxSizeParam, desiredSizeParam int32, argCount int) (bool, ScalingParameters, error) {
+	// Use local variables to avoid shadowing package-level variables
+	finalDesired := desiredSizeParam
+
 	// Prompt for desired size in interactive mode if not provided
-	if argCount == 0 && desiredSize == -1 {
+	if argCount == 0 && desiredSizeParam == -1 {
 		shouldRetry := promptForDesiredSizeWithRetry(ng)
 		if shouldRetry {
 			return true, ScalingParameters{}, nil
 		}
+		// After prompting, use the package-level desiredSize variable that was updated
+		finalDesired = desiredSize
 	}
 
 	// Calculate final values
-	finalMin := resolveMinSize(ng, minSize, desiredSize)
-	finalMax := resolveMaxSize(ng, maxSize, desiredSize)
-	finalDesired := desiredSize
+	finalMin := resolveMinSize(ng, minSizeParam, finalDesired)
+	finalMax := resolveMaxSize(ng, maxSizeParam, finalDesired)
 
 	return false, ScalingParameters{
 		Min:     finalMin,
