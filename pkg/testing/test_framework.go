@@ -377,6 +377,11 @@ func isGreater(a, b interface{}) bool {
 			return av > bStr
 		}
 		return false
+	case time.Duration:
+		if bv, ok := b.(time.Duration); ok {
+			return av > bv
+		}
+		return false
 	}
 	return false
 }
@@ -392,6 +397,11 @@ func isLess(a, b interface{}) bool {
 	case string:
 		if bStr, ok := b.(string); ok {
 			return av < bStr
+		}
+		return false
+	case time.Duration:
+		if bv, ok := b.(time.Duration); ok {
+			return av < bv
 		}
 		return false
 	}

@@ -384,8 +384,8 @@ func TestSessionCommand_Integration_CommandExecution(t *testing.T) {
 			mockOutput: "total 8\ndrwxr-xr-x  2 root root 4096 Jan  1 00:00 .\ndrwxr-xr-x  3 root root 4096 Jan  1 00:00 ..",
 			expectErr:  false,
 			verify: func(output string) error {
-				assertion.Contains("total 8", output, "Output should contain directory listing")
-				assertion.Contains("drwxr-xr-x", output, "Output should contain permissions")
+				assertion.Contains(output, "total 8", "Output should contain directory listing")
+				assertion.Contains(output, "drwxr-xr-x", "Output should contain permissions")
 				return nil
 			},
 		},
@@ -396,8 +396,8 @@ func TestSessionCommand_Integration_CommandExecution(t *testing.T) {
 			mockOutput: " 12:34:56 up 5 days,  3:21,  1 user,  load average: 0.15, 0.25, 0.18",
 			expectErr:  false,
 			verify: func(output string) error {
-				assertion.Contains("up", output, "Output should contain uptime information")
-				assertion.Contains("load average", output, "Output should contain load average")
+				assertion.Contains(output, "up", "Output should contain uptime information")
+				assertion.Contains(output, "load average", "Output should contain load average")
 				return nil
 			},
 		},
@@ -408,8 +408,8 @@ func TestSessionCommand_Integration_CommandExecution(t *testing.T) {
 			mockOutput: "root      1234  0.0  0.1  12345  5678 ?        S    10:00   0:00 nginx: master process",
 			expectErr:  false,
 			verify: func(output string) error {
-				assertion.Contains("nginx", output, "Output should contain nginx process")
-				assertion.Contains("master process", output, "Output should contain process details")
+				assertion.Contains(output, "nginx", "Output should contain nginx process")
+				assertion.Contains(output, "master process", "Output should contain process details")
 				return nil
 			},
 		},
@@ -721,19 +721,32 @@ func TestSessionCommand_Integration_ConfigurationValidation(t *testing.T) {
 
 func simulateConfigurationValidation(_ context.Context, configData map[string]interface{}) error {
 	// Simulate configuration validation logic
-	if region, ok := configData["region"].(string); ok {
-		if region == "" {
-			return fmt.Errorf("region is required")
-		}
-		if region == "invalid-region" {
-			return fmt.Errorf("invalid region")
-		}
-	} else {
-		// Check if both region and profile are missing
-		if profile, profileOk := configData["profile"].(string); !profileOk || profile == "" {
-			return fmt.Errorf("either region or profile is required")
+	var region string
+	if value, ok := configData["region"].(string); ok {
+		region = value
+	}
+
+	if region == "" {
+		if envRegion := os.Getenv("AWS_REGION"); envRegion != "" {
+			region = envRegion
+		} else if envDefault := os.Getenv("AWS_DEFAULT_REGION"); envDefault != "" {
+			region = envDefault
 		}
 	}
+
+	if region == "invalid-region" {
+		return fmt.Errorf("invalid region")
+	}
+
+	profile, _ := configData["profile"].(string)
+	if profile == "" {
+		profile = os.Getenv("AWS_PROFILE")
+	}
+
+	if region == "" && profile == "" {
+		return fmt.Errorf("either region or profile is required")
+	}
+
 	return nil
 }
 

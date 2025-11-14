@@ -756,33 +756,61 @@ func TestASGCommand_Integration_EdgeCases(t *testing.T) {
 // Helper functions for ASG simulation (these would be replaced with actual integration logic)
 
 func simulateASGScaling(_ context.Context, asgs []aws.AutoScalingGroup, args []string, minSize, maxSize, desiredCap int32, _ bool) (*aws.AutoScalingGroup, ASGScalingParameters, error) {
-	if len(args) > 0 {
-		// Direct ASG name selection
-		asgName := args[0]
-		for _, asg := range asgs {
-			if asg.Name == asgName {
-				params := ASGScalingParameters{
-					Min:     minSize,
-					Max:     maxSize,
-					Desired: desiredCap,
-				}
-				return &asg, params, nil
-			}
-		}
-		return nil, ASGScalingParameters{}, fmt.Errorf("ASG not found: %s", asgName)
-	}
-
-	// Interactive selection
 	if len(asgs) == 0 {
 		return nil, ASGScalingParameters{}, context.Canceled
 	}
 
-	// Simulate selecting first ASG
-	selectedASG := &asgs[0]
+	var selectedASG *aws.AutoScalingGroup
+
+	if len(args) > 0 {
+		asgName := args[0]
+		for i := range asgs {
+			if asgs[i].Name == asgName {
+				selectedASG = &asgs[i]
+				break
+			}
+		}
+		if selectedASG == nil {
+			return nil, ASGScalingParameters{}, fmt.Errorf("ASG not found: %s", asgName)
+		}
+	} else {
+		selectedASG = &asgs[0]
+	}
+
 	params := ASGScalingParameters{
 		Min:     minSize,
 		Max:     maxSize,
 		Desired: desiredCap,
+	}
+
+	if params.Min <= 0 {
+		params.Min = selectedASG.MinSize
+	}
+	if params.Max <= 0 {
+		params.Max = selectedASG.MaxSize
+	}
+
+	if params.Desired <= 0 {
+		switch {
+		case selectedASG.MinSize == 0:
+			params.Desired = 0
+			params.Min = 0
+			params.Max = 0
+		case selectedASG.DesiredCapacity < selectedASG.MaxSize:
+			params.Desired = selectedASG.DesiredCapacity + 1
+		default:
+			params.Desired = selectedASG.MaxSize
+		}
+	}
+
+	if params.Min > params.Max {
+		params.Max = params.Min
+	}
+	if params.Desired < params.Min {
+		params.Min = params.Desired
+	}
+	if params.Desired > params.Max {
+		params.Max = params.Desired
 	}
 
 	return selectedASG, params, nil
@@ -793,18 +821,33 @@ func simulateDirectASGScaling(_ context.Context, mockASG aws.AutoScalingGroup, a
 		return nil, ASGScalingParameters{}, fmt.Errorf("ASG name required")
 	}
 
-	if desiredCap == -1 {
-		return nil, ASGScalingParameters{}, fmt.Errorf("--desired flag is required when ASG name is provided")
-	}
-
 	if mockASG.Name != args[0] {
 		return nil, ASGScalingParameters{}, fmt.Errorf("ASG not found")
+	}
+
+	if desiredCap <= 0 {
+		return nil, ASGScalingParameters{}, fmt.Errorf("--desired flag is required when ASG name is provided")
 	}
 
 	params := ASGScalingParameters{
 		Min:     minSize,
 		Max:     maxSize,
 		Desired: desiredCap,
+	}
+
+	var validationErr error
+
+	switch {
+	case minSize > 0 && maxSize > 0 && minSize > maxSize:
+		validationErr = fmt.Errorf("invalid scaling parameters")
+	case minSize > 0 && desiredCap < minSize:
+		validationErr = fmt.Errorf("desired capacity below min size")
+	case maxSize > 0 && desiredCap > maxSize:
+		validationErr = fmt.Errorf("desired capacity above max size")
+	}
+
+	if validationErr != nil {
+		return &mockASG, params, validationErr
 	}
 
 	return &mockASG, params, nil

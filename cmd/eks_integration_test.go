@@ -134,7 +134,7 @@ func TestEKSCommand_Integration_ClusterSelection(t *testing.T) {
 			},
 			verify: func(_ *testframework.TestFramework, cluster *aws.Cluster) error {
 				assertion.NotNil(cluster, "Cluster should not be nil")
-				assertion.Contains("eks", cluster.Name, "Cluster name should contain eks")
+				assertion.Contains(cluster.Name, "eks", "Cluster name should contain eks")
 				return nil
 			},
 			expectErr: false,
@@ -460,12 +460,12 @@ func TestEKSCommand_Integration_ClusterDescription(t *testing.T) {
 			},
 			expectErr: false,
 			verifyOutput: func(output string) error {
-				assertion.Contains("production-eks", output, "Output should contain cluster name")
-				assertion.Contains("ACTIVE", output, "Output should contain cluster status")
-				assertion.Contains("1.24", output, "Output should contain cluster version")
-				assertion.Contains("VPC ID:", output, "Output should contain VPC information")
-				assertion.Contains("Node Groups:", output, "Output should contain node group information")
-				assertion.Contains("Tags:", output, "Output should contain tags")
+				assertion.Contains(output, "production-eks", "Output should contain cluster name")
+				assertion.Contains(output, "ACTIVE", "Output should contain cluster status")
+				assertion.Contains(output, "1.24", "Output should contain cluster version")
+				assertion.Contains(output, "VPC ID:", "Output should contain VPC information")
+				assertion.Contains(output, "Node Groups:", "Output should contain node group information")
+				assertion.Contains(output, "Tags:", "Output should contain tags")
 				return nil
 			},
 		},
@@ -484,8 +484,8 @@ func TestEKSCommand_Integration_ClusterDescription(t *testing.T) {
 			},
 			expectErr: false,
 			verifyOutput: func(output string) error {
-				assertion.Contains("creating-eks", output, "Output should contain cluster name")
-				assertion.Contains("CREATING", output, "Output should contain cluster status")
+				assertion.Contains(output, "creating-eks", "Output should contain cluster name")
+				assertion.Contains(output, "CREATING", "Output should contain cluster status")
 				return nil
 			},
 		},
@@ -504,8 +504,8 @@ func TestEKSCommand_Integration_ClusterDescription(t *testing.T) {
 			},
 			expectErr: false,
 			verifyOutput: func(output string) error {
-				assertion.Contains("failed-eks", output, "Output should contain cluster name")
-				assertion.Contains("FAILED", output, "Output should contain cluster status")
+				assertion.Contains(output, "failed-eks", "Output should contain cluster name")
+				assertion.Contains(output, "FAILED", "Output should contain cluster status")
 				return nil
 			},
 		},
