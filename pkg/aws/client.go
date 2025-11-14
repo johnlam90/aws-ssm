@@ -52,7 +52,7 @@ func (c *Client) GetEC2Client() *ec2.Client {
 }
 
 // NewClient creates a new AWS client with EC2 and SSM services
-func NewClient(ctx context.Context, region, profile string) (*Client, error) {
+func NewClient(ctx context.Context, region, profile, configPath string) (*Client, error) {
 	var opts []func(*config.LoadOptions) error
 
 	// Set region if provided
@@ -77,7 +77,7 @@ func NewClient(ctx context.Context, region, profile string) (*Client, error) {
 	}
 
 	// Load application config once for performance (cached in client)
-	appCfg, err := appconfig.LoadConfig("")
+	appCfg, err := appconfig.LoadConfig(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load application config: %w", err)
 	}
@@ -99,8 +99,8 @@ func NewClient(ctx context.Context, region, profile string) (*Client, error) {
 }
 
 // NewClientWithFlags creates a new AWS client with interactive UI flags
-func NewClientWithFlags(ctx context.Context, region, profile string, interactiveMode bool, interactiveCols []string, noColor bool, width int, favorites bool) (*Client, error) {
-	client, err := NewClient(ctx, region, profile)
+func NewClientWithFlags(ctx context.Context, region, profile, configPath string, interactiveMode bool, interactiveCols []string, noColor bool, width int, favorites bool) (*Client, error) {
+	client, err := NewClient(ctx, region, profile, configPath)
 	if err != nil {
 		return nil, err
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	awsSdk "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/mmmorris1975/ssm-session-client/ssmclient"
 )
@@ -16,7 +17,7 @@ func (c *Client) StartNativeSession(ctx context.Context, instanceID string) erro
 
 	// Check circuit breaker before making API call
 	if err := c.CircuitBreaker.Allow(); err != nil {
-		return fmt.Errorf("circuit breaker open: %w", err)
+		return fmt.Errorf("circuit breaker open (too many recent failures), please retry in a few moments: %w", err)
 	}
 
 	// First, call StartSession API to get session credentials
@@ -68,14 +69,14 @@ func (c *Client) StartPortForwardingSession(ctx context.Context, instanceID stri
 
 	// Check circuit breaker before making API call
 	if err := c.CircuitBreaker.Allow(); err != nil {
-		return fmt.Errorf("circuit breaker open: %w", err)
+		return fmt.Errorf("circuit breaker open (too many recent failures), please retry in a few moments: %w", err)
 	}
 
 	// First, call StartSession API to get session credentials
-	// DocumentName: nil uses the default AWS-StartPortForwardingSession document for port forwarding
+	// Use AWS-StartPortForwardingSession document explicitly for port forwarding
 	input := &ssm.StartSessionInput{
 		Target:       &instanceID,
-		DocumentName: nil,
+		DocumentName: awsSdk.String("AWS-StartPortForwardingSession"),
 	}
 
 	result, err := c.SSMClient.StartSession(ctx, input)

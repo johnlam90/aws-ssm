@@ -266,8 +266,8 @@ func ExampleAWSClient() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Initialize production-grade AWS client
-	awsClient, err := aws.NewClient(ctx, "us-east-1", "production")
+	// Initialize production-grade AWS client (using default aws-ssm config path)
+	awsClient, err := aws.NewClient(ctx, "us-east-1", "production", "")
 	if err != nil {
 		logging.Error("Failed to create AWS client", logging.String("error", err.Error()))
 		return
