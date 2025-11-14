@@ -1,3 +1,4 @@
+// Package config loads and persists CLI configuration files and defaults.
 package config
 
 import (

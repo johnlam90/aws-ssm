@@ -1,3 +1,4 @@
+// Package testing provides an opinionated test harness for aws-ssm features.
 package testing
 
 import (

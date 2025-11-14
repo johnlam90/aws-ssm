@@ -1,3 +1,4 @@
+// Package version exposes build-time metadata for the aws-ssm binary.
 package version
 
 import (

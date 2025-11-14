@@ -1,3 +1,4 @@
+// Package main is the entry point for the aws-ssm CLI application.
 package main
 
 import (

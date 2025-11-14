@@ -30,8 +30,13 @@ func TestCacheSetAndGet(t *testing.T) {
 
 func TestCacheExpiration(t *testing.T) {
 	dir := t.TempDir()
-	svc, _ := NewCacheService(dir, 0)
-	_ = svc.Set("k", "value", "us-east-1", "q")
+	svc, err := NewCacheService(dir, 0)
+	if err != nil {
+		t.Fatalf("new cache service: %v", err)
+	}
+	if err := svc.Set("k", "value", "us-east-1", "q"); err != nil {
+		t.Fatalf("set cache entry: %v", err)
+	}
 	if _, ok := svc.Get("k"); ok {
 		t.Fatalf("expected expired entry")
 	}
@@ -39,26 +44,50 @@ func TestCacheExpiration(t *testing.T) {
 
 func TestCacheStatsAndCleanup(t *testing.T) {
 	dir := t.TempDir()
-	svc, _ := NewCacheService(dir, 1)
-	_ = svc.Set("k1", "v1", "r", "q1")
-	_ = svc.Set("k2", "v2", "r", "q2")
+	svc, err := NewCacheService(dir, 1)
+	if err != nil {
+		t.Fatalf("new cache service: %v", err)
+	}
+	if err := svc.Set("k1", "v1", "r", "q1"); err != nil {
+		t.Fatalf("set first cache entry: %v", err)
+	}
+	if err := svc.Set("k2", "v2", "r", "q2"); err != nil {
+		t.Fatalf("set second cache entry: %v", err)
+	}
 	total, expired, size, err := svc.GetCacheStats()
 	if err != nil || total != 2 || expired != 0 || size <= 0 {
 		t.Fatalf("unexpected stats initial: %d %d %d %v", total, expired, size, err)
 	}
 	path := filepath.Join(dir, "k1.json")
-	b, _ := os.ReadFile(path)
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read cache file: %v", err)
+	}
 	var e Entry
-	_ = json.Unmarshal(b, &e)
+	if err := json.Unmarshal(b, &e); err != nil {
+		t.Fatalf("unmarshal cache entry: %v", err)
+	}
 	e.Timestamp = time.Now().Add(-2 * time.Hour)
-	nb, _ := json.Marshal(e)
-	os.WriteFile(path, nb, 0600)
-	_ = svc.Cleanup()
-	totalAfter, expiredAfter, _, _ := svc.GetCacheStats()
+	nb, err := json.Marshal(e)
+	if err != nil {
+		t.Fatalf("marshal cache entry: %v", err)
+	}
+	if err := os.WriteFile(path, nb, 0600); err != nil {
+		t.Fatalf("write cache file: %v", err)
+	}
+	if err := svc.Cleanup(); err != nil {
+		t.Fatalf("cleanup cache: %v", err)
+	}
+	totalAfter, expiredAfter, _, err := svc.GetCacheStats()
+	if err != nil {
+		t.Fatalf("post-cleanup stats: %v", err)
+	}
 	if totalAfter == 0 || expiredAfter != 0 {
 		t.Fatalf("unexpected post-cleanup stats: total=%d expired=%d", totalAfter, expiredAfter)
 	}
-	_ = svc.Cleanup()
+	if err := svc.Cleanup(); err != nil {
+		t.Fatalf("second cleanup: %v", err)
+	}
 }
 
 func TestGenerateCacheKey(t *testing.T) {

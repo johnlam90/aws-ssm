@@ -1,3 +1,4 @@
+// Package aws contains AWS service helpers used by the CLI.
 package aws
 
 import (
