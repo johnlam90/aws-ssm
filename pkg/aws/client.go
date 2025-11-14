@@ -51,6 +51,20 @@ func (c *Client) GetEC2Client() *ec2.Client {
 	return c.EC2Client
 }
 
+// GetRegion returns the configured AWS region
+func (c *Client) GetRegion() string {
+	return c.Config.Region
+}
+
+// GetProfile returns the configured AWS profile (if available)
+// Note: The AWS SDK doesn't expose the profile name directly from the config,
+// so this returns an empty string. The profile is only used during client creation.
+func (c *Client) GetProfile() string {
+	// The AWS SDK v2 doesn't expose the profile name after loading
+	// We could store it during NewClient if needed
+	return ""
+}
+
 // NewClient creates a new AWS client with EC2 and SSM services
 func NewClient(ctx context.Context, region, profile, configPath string) (*Client, error) {
 	var opts []func(*config.LoadOptions) error
