@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2025-11-14
+
+### Added
+
+- **End-to-end integration coverage** for `session`, `asg`, `cache`, and `eks` commands. The new suites exercise happy paths, validation failures, and operational edge cases so regressions surface during `make verify`.
+- **Enhanced caching and performance tooling**, including the query-aware cache backend (`pkg/cache/cache_enhanced.go`), cache statistics helpers, and `docs/PERFORMANCE.md` with repeatable benchmarks.
+- **AWS client pool, streaming, and metrics modules** that reduce API fan-out while exposing richer telemetry for autoscaling, session management, and cache refreshes.
+
+### Changed
+
+- **Session/ASG/EKS command UX** now shares stricter configuration validation (region/profile fallbacks), scaling parameter calculations, and interactive confirmation flows for more predictable CLI behaviour.
+- **Documentation** gained a dedicated performance guide plus expanded testing instructions so contributors understand the required verification steps before releasing.
+
+### Fixed
+
+- Resolved multiple edge cases uncovered by the new integration harness—ASG scaling validation, EKS cluster rendering, cache cleanup latency checks, and session configuration handling all behave consistently across interactive and direct modes.
+
 ## [0.1.0] - 2025-01-07
 
 ### Added
@@ -93,5 +110,5 @@ This is the initial release of aws-ssm, a modern AWS Systems Manager CLI tool bu
 
 The tool is inspired by [aws-gate](https://github.com/xen0l/aws-gate) but reimplemented in Go with additional features like fuzzy finding, remote command execution, and network interface inspection.
 
+[0.9.0]: https://github.com/johnlam90/aws-ssm/releases/tag/v0.9.0
 [0.1.0]: https://github.com/johnlam90/aws-ssm/releases/tag/v0.1.0
-

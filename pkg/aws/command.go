@@ -100,9 +100,15 @@ func (c *Client) pollCommandCompletion(ctx context.Context, instanceID, commandI
 		default:
 		}
 
+		// Each GetCommandInvocation call participates in circuit breaker accounting
+		if err := c.CircuitBreaker.Allow(); err != nil {
+			return "", fmt.Errorf("circuit breaker open: %w", err)
+		}
+
 		// Get command invocation status
 		invocationResult, err := c.getCommandInvocation(ctx, instanceID, commandID)
 		if err != nil {
+			c.CircuitBreaker.RecordFailure()
 			// Command might not be ready yet, continue polling with backoff
 			time.Sleep(backoff)
 			// Exponential backoff with max cap

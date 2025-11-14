@@ -259,7 +259,7 @@ func (c *Client) buildInstanceQuery(ctx context.Context, opts InterfacesOptions)
 
 	// Handle single identifier
 	if opts.Identifier != "" {
-		return c.resolveSingleIdentifier(ctx, opts.Identifier)
+		return c.resolveSingleIdentifier(ctx, opts.Identifier, opts.ShowAll)
 	}
 
 	return input, nil
@@ -323,8 +323,13 @@ func addTagFilters(filters []types.Filter, tagFilters []string) []types.Filter {
 }
 
 // resolveSingleIdentifier resolves a single identifier to instance IDs
-func (c *Client) resolveSingleIdentifier(ctx context.Context, identifier string) (*ec2.DescribeInstancesInput, error) {
-	instances, err := c.FindInstances(ctx, identifier)
+func (c *Client) resolveSingleIdentifier(ctx context.Context, identifier string, includeStopped bool) (*ec2.DescribeInstancesInput, error) {
+	states := []string{"running"}
+	if includeStopped {
+		states = []string{"running", "stopped", "stopping", "pending"}
+	}
+
+	instances, err := c.FindInstancesWithStates(ctx, identifier, states)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find instance: %w", err)
 	}

@@ -24,8 +24,14 @@ type Instance struct {
 	Tags             map[string]string
 }
 
-// FindInstances queries EC2 instances based on various identifiers
+// FindInstances queries EC2 instances based on various identifiers and only returns running instances.
 func (c *Client) FindInstances(ctx context.Context, identifier string) ([]Instance, error) {
+	return c.FindInstancesWithStates(ctx, identifier, []string{"running"})
+}
+
+// FindInstancesWithStates queries EC2 instances with a customizable state filter.
+// Passing an empty states slice disables the state filter entirely.
+func (c *Client) FindInstancesWithStates(ctx context.Context, identifier string, states []string) ([]Instance, error) {
 	var filters []types.Filter
 
 	// Parse the identifier to determine its type
@@ -52,12 +58,8 @@ func (c *Client) FindInstances(ctx context.Context, identifier string) ([]Instan
 			Name:   aws.String("private-ip-address"),
 			Values: []string{idInfo.Value},
 		})
-		// Add running state filter
-		filters = append(filters, types.Filter{
-			Name:   aws.String("instance-state-name"),
-			Values: []string{"running"},
-		})
-		instances, err := c.describeInstances(ctx, filters)
+		privateFilters := appendStateFilter(filters, states)
+		instances, err := c.describeInstances(ctx, privateFilters)
 		if err == nil && len(instances) > 0 {
 			return instances, nil
 		}
@@ -67,11 +69,8 @@ func (c *Client) FindInstances(ctx context.Context, identifier string) ([]Instan
 				Name:   aws.String("ip-address"),
 				Values: []string{idInfo.Value},
 			},
-			{
-				Name:   aws.String("instance-state-name"),
-				Values: []string{"running"},
-			},
 		}
+		publicFilters = appendStateFilter(publicFilters, states)
 		return c.describeInstances(ctx, publicFilters)
 	case IdentifierTypeDNSName:
 		// Try private DNS first
@@ -79,12 +78,8 @@ func (c *Client) FindInstances(ctx context.Context, identifier string) ([]Instan
 			Name:   aws.String("private-dns-name"),
 			Values: []string{idInfo.Value},
 		})
-		// Add running state filter
-		filters = append(filters, types.Filter{
-			Name:   aws.String("instance-state-name"),
-			Values: []string{"running"},
-		})
-		instances, err := c.describeInstances(ctx, filters)
+		privateFilters := appendStateFilter(filters, states)
+		instances, err := c.describeInstances(ctx, privateFilters)
 		if err == nil && len(instances) > 0 {
 			return instances, nil
 		}
@@ -94,11 +89,8 @@ func (c *Client) FindInstances(ctx context.Context, identifier string) ([]Instan
 				Name:   aws.String("dns-name"),
 				Values: []string{idInfo.Value},
 			},
-			{
-				Name:   aws.String("instance-state-name"),
-				Values: []string{"running"},
-			},
 		}
+		publicFilters = appendStateFilter(publicFilters, states)
 		return c.describeInstances(ctx, publicFilters)
 	case IdentifierTypeName:
 		filters = append(filters, types.Filter{
@@ -107,13 +99,20 @@ func (c *Client) FindInstances(ctx context.Context, identifier string) ([]Instan
 		})
 	}
 
-	// Filter by running state by default
-	filters = append(filters, types.Filter{
-		Name:   aws.String("instance-state-name"),
-		Values: []string{"running"},
-	})
+	filters = appendStateFilter(filters, states)
 
 	return c.describeInstances(ctx, filters)
+}
+
+func appendStateFilter(filters []types.Filter, states []string) []types.Filter {
+	if len(states) == 0 {
+		return filters
+	}
+
+	return append(filters, types.Filter{
+		Name:   aws.String("instance-state-name"),
+		Values: states,
+	})
 }
 
 // ListInstances lists all EC2 instances with optional tag filters

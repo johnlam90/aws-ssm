@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/johnlam90/aws-ssm/pkg/aws"
+	"github.com/johnlam90/aws-ssm/pkg/security"
 	"github.com/spf13/cobra"
 )
 
@@ -219,6 +220,11 @@ func selectInstanceInteractive(ctx context.Context, client *aws.Client) (*aws.In
 
 // executeRemoteCommand executes a command on a remote instance
 func executeRemoteCommand(ctx context.Context, client *aws.Client, instance *aws.Instance, command string) error {
+	securityManager := security.InitializeSecurity()
+	if err := securityManager.ValidateCommand(command); err != nil {
+		return fmt.Errorf("command blocked by security policy: %w", err)
+	}
+
 	name := getInstanceDisplayName(instance)
 
 	fmt.Printf("Executing command on instance:\n")

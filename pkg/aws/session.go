@@ -39,9 +39,23 @@ func (c *Client) StartSession(ctx context.Context, instanceID string) error {
 	// Record success
 	c.CircuitBreaker.RecordSuccess()
 
+	sessionID := aws.ToString(result.SessionId)
+	defer func() {
+		if sessionID == "" {
+			return
+		}
+		terminateInput := &ssm.TerminateSessionInput{
+			SessionId: aws.String(sessionID),
+		}
+		if _, terminateErr := c.SSMClient.TerminateSession(ctx, terminateInput); terminateErr != nil {
+			// Log but don't fail - session might already be terminated
+			fmt.Printf("Warning: failed to terminate session: %v\n", terminateErr)
+		}
+	}()
+
 	// Prepare session data for the plugin
 	sessionData := map[string]interface{}{
-		"SessionId":  aws.ToString(result.SessionId),
+		"SessionId":  sessionID,
 		"TokenValue": aws.ToString(result.TokenValue),
 		"StreamUrl":  aws.ToString(result.StreamUrl),
 		"Target":     instanceID,
@@ -101,15 +115,6 @@ func (c *Client) StartSession(ctx context.Context, instanceID string) error {
 	fmt.Printf("Starting session with instance %s...\n", instanceID)
 	if runErr := cmd.Run(); runErr != nil {
 		return fmt.Errorf("session-manager-plugin failed: %w", runErr)
-	}
-
-	// Terminate the session
-	terminateInput := &ssm.TerminateSessionInput{
-		SessionId: result.SessionId,
-	}
-	if _, terminateErr := c.SSMClient.TerminateSession(ctx, terminateInput); terminateErr != nil {
-		// Log but don't fail - session might already be terminated
-		fmt.Printf("Warning: failed to terminate session: %v\n", terminateErr)
 	}
 
 	return nil
