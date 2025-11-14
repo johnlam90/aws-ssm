@@ -1,3 +1,4 @@
+// Package security provides safeguards and auditing for aws-ssm sessions.
 package security
 
 import (

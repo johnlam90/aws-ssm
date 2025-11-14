@@ -139,7 +139,7 @@ func isValidAWSRegion(region string) bool {
 
 	// Check that region only contains lowercase letters, hyphens, and digits
 	for _, ch := range region {
-		if !((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-') {
+		if (ch < 'a' || ch > 'z') && (ch < '0' || ch > '9') && ch != '-' {
 			return false
 		}
 	}

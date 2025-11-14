@@ -1,3 +1,4 @@
+// Package cmd wires Cobra commands for aws-ssm.
 package cmd
 
 import (

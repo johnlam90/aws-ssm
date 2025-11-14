@@ -1,3 +1,4 @@
+// Package features manages runtime feature gate configuration.
 package features
 
 import (

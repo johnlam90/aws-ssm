@@ -376,8 +376,7 @@ func DefaultCircuitBreakerConfig() *CircuitBreakerConfig {
 	}
 }
 
-// NewCircuitBreaker creates a new circuit breaker
-// Clock abstraction for deterministic testing
+// Clock abstracts access to the current time for deterministic testing.
 type Clock interface {
 	Now() time.Time
 }
@@ -386,11 +385,12 @@ type realClock struct{}
 
 func (realClock) Now() time.Time { return time.Now() }
 
+// NewCircuitBreaker creates a new circuit breaker that uses the real clock.
 func NewCircuitBreaker(cfg *CircuitBreakerConfig) *CircuitBreaker {
 	return NewCircuitBreakerWithClock(cfg, realClock{})
 }
 
-// NewCircuitBreakerWithClock creates a new circuit breaker with injected clock (test use)
+// NewCircuitBreakerWithClock creates a new circuit breaker with an injected clock.
 func NewCircuitBreakerWithClock(cfg *CircuitBreakerConfig, clk Clock) *CircuitBreaker {
 	return &CircuitBreaker{
 		state:            CircuitClosed,

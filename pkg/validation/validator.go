@@ -1,3 +1,4 @@
+// Package validation provides reusable validators for AWS SSM CLI inputs.
 package validation
 
 import (

@@ -1,3 +1,4 @@
+// Package metrics exercises helpers that build metric labels.
 package metrics
 
 import "testing"

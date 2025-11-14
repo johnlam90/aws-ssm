@@ -1,3 +1,4 @@
+// Package cache provides a filesystem-backed cache for AWS SSM resources.
 package cache
 
 import (
