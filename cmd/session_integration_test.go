@@ -11,6 +11,8 @@ import (
 )
 
 // mockAWSClient provides a mock implementation for integration testing
+//
+//nolint:unused // Used for integration testing
 type mockAWSClient struct {
 	instances  []aws.Instance
 	profile    string
@@ -18,7 +20,8 @@ type mockAWSClient struct {
 	configPath string
 }
 
-func (m *mockAWSClient) ResolveSingleInstance(ctx context.Context, identifier string) (*aws.Instance, error) {
+//nolint:unused // Mock method for integration testing
+func (m *mockAWSClient) ResolveSingleInstance(_ context.Context, identifier string) (*aws.Instance, error) {
 	// Simulate instance resolution logic
 	for _, instance := range m.instances {
 		if instance.InstanceID == identifier ||
@@ -35,7 +38,8 @@ func (m *mockAWSClient) ResolveSingleInstance(ctx context.Context, identifier st
 	}
 }
 
-func (m *mockAWSClient) SelectInstanceFromProvided(ctx context.Context, instances []aws.Instance) (*aws.Instance, error) {
+//nolint:unused // Mock method for integration testing
+func (m *mockAWSClient) SelectInstanceFromProvided(_ context.Context, instances []aws.Instance) (*aws.Instance, error) {
 	// Simulate user selecting the first instance
 	if len(instances) > 0 {
 		return &instances[0], nil
@@ -43,7 +47,8 @@ func (m *mockAWSClient) SelectInstanceFromProvided(ctx context.Context, instance
 	return nil, context.Canceled
 }
 
-func (m *mockAWSClient) SelectInstanceInteractive(ctx context.Context) (*aws.Instance, error) {
+//nolint:unused // Mock method for integration testing
+func (m *mockAWSClient) SelectInstanceInteractive(_ context.Context) (*aws.Instance, error) {
 	// Simulate interactive selection from available instances
 	if len(m.instances) > 0 {
 		return &m.instances[0], nil
@@ -51,33 +56,40 @@ func (m *mockAWSClient) SelectInstanceInteractive(ctx context.Context) (*aws.Ins
 	return nil, context.Canceled
 }
 
-func (m *mockAWSClient) StartSession(ctx context.Context, instanceID string) error {
+//nolint:unused // Mock method for integration testing
+func (m *mockAWSClient) StartSession(_ context.Context, _ string) error {
 	// Simulate successful session start
 	return nil
 }
 
-func (m *mockAWSClient) StartNativeSession(ctx context.Context, instanceID string) error {
+//nolint:unused // Mock method for integration testing
+func (m *mockAWSClient) StartNativeSession(_ context.Context, _ string) error {
 	// Simulate successful native session start
 	return nil
 }
 
-func (m *mockAWSClient) ExecuteCommand(ctx context.Context, instanceID, command string) (string, error) {
+//nolint:unused // Mock method for integration testing
+func (m *mockAWSClient) ExecuteCommand(_ context.Context, _, _ string) (string, error) {
 	// Simulate command execution
 	return "Command executed successfully", nil
 }
 
+//nolint:unused // Mock method for integration testing
 func (m *mockAWSClient) GetConfig() (string, string, string) {
 	return m.profile, m.region, m.configPath
 }
 
+//nolint:unused // Mock method for integration testing
 func (m *mockAWSClient) GetRegion() string {
 	return m.region
 }
 
+//nolint:unused // Mock method for integration testing
 func (m *mockAWSClient) GetProfile() string {
 	return m.profile
 }
 
+//nolint:unused // Mock method for integration testing
 func (m *mockAWSClient) GetConfigPath() string {
 	return m.configPath
 }
@@ -97,11 +109,11 @@ func TestSessionCommand_Integration_FuzzyFinderSelection(t *testing.T) {
 		{
 			name: "Interactive Selection - Single Instance",
 			args: []string{},
-			setup: func(tf *testframework.TestFramework) error {
+			setup: func(_ *testframework.TestFramework) error {
 				// Setup test environment
 				return nil
 			},
-			verify: func(tf *testframework.TestFramework, instance *aws.Instance) error {
+			verify: func(_ *testframework.TestFramework, instance *aws.Instance) error {
 				assertion.NotNil(instance, "Instance should not be nil")
 				assertion.Equal("i-1234567890abcdef0", instance.InstanceID, "Instance ID should match")
 				assertion.Equal("test-instance-1", instance.Name, "Instance name should match")
@@ -112,11 +124,11 @@ func TestSessionCommand_Integration_FuzzyFinderSelection(t *testing.T) {
 		{
 			name: "Interactive Selection - Multiple Instances",
 			args: []string{},
-			setup: func(tf *testframework.TestFramework) error {
+			setup: func(_ *testframework.TestFramework) error {
 				// Setup test environment
 				return nil
 			},
-			verify: func(tf *testframework.TestFramework, instance *aws.Instance) error {
+			verify: func(_ *testframework.TestFramework, instance *aws.Instance) error {
 				assertion.NotNil(instance, "Instance should not be nil")
 				assertion.Contains("i-", instance.InstanceID, "Instance ID should be valid")
 				return nil
@@ -126,11 +138,11 @@ func TestSessionCommand_Integration_FuzzyFinderSelection(t *testing.T) {
 		{
 			name: "Interactive Selection - No Instances",
 			args: []string{},
-			setup: func(tf *testframework.TestFramework) error {
+			setup: func(_ *testframework.TestFramework) error {
 				// Setup test environment
 				return nil
 			},
-			verify: func(tf *testframework.TestFramework, instance *aws.Instance) error {
+			verify: func(_ *testframework.TestFramework, instance *aws.Instance) error {
 				assertion.Nil(instance, "Instance should be nil when no instances available")
 				return nil
 			},
@@ -139,11 +151,11 @@ func TestSessionCommand_Integration_FuzzyFinderSelection(t *testing.T) {
 		{
 			name: "Interactive Selection - User Cancels",
 			args: []string{},
-			setup: func(tf *testframework.TestFramework) error {
+			setup: func(_ *testframework.TestFramework) error {
 				// Setup test environment
 				return nil
 			},
-			verify: func(tf *testframework.TestFramework, instance *aws.Instance) error {
+			verify: func(_ *testframework.TestFramework, instance *aws.Instance) error {
 				assertion.Nil(instance, "Instance should be nil when user cancels")
 				return nil
 			},
@@ -547,7 +559,7 @@ func TestSessionCommand_Integration_EdgeCases(t *testing.T) {
 
 // Helper functions for simulation (these would be replaced with actual integration logic)
 
-func simulateInteractiveSelection(ctx context.Context, instances []aws.Instance) (*aws.Instance, error) {
+func simulateInteractiveSelection(_ context.Context, instances []aws.Instance) (*aws.Instance, error) {
 	if len(instances) == 0 {
 		return nil, context.Canceled
 	}
@@ -556,7 +568,7 @@ func simulateInteractiveSelection(ctx context.Context, instances []aws.Instance)
 	return &instances[0], nil
 }
 
-func simulateDirectInstanceResolution(ctx context.Context, args []string, instance aws.Instance) (*aws.Instance, error) {
+func simulateDirectInstanceResolution(_ context.Context, args []string, instance aws.Instance) (*aws.Instance, error) {
 	if len(args) == 0 {
 		return nil, nil
 	}
@@ -569,7 +581,7 @@ func simulateDirectInstanceResolution(ctx context.Context, args []string, instan
 	return nil, context.Canceled
 }
 
-func simulateCommandExecution(ctx context.Context, instance aws.Instance, command, mockOutput string) (string, error) {
+func simulateCommandExecution(_ context.Context, _ aws.Instance, command, mockOutput string) (string, error) {
 	if command == "nonexistent-command" {
 		return "", context.Canceled
 	}
@@ -577,11 +589,11 @@ func simulateCommandExecution(ctx context.Context, instance aws.Instance, comman
 	return mockOutput, nil
 }
 
-func simulateUserCancellation(ctx context.Context) error {
+func simulateUserCancellation(_ context.Context) error {
 	return context.Canceled
 }
 
-func simulateRateLimiting(ctx context.Context) error {
+func simulateRateLimiting(_ context.Context) error {
 	// Simulate AWS rate limiting
 	return context.Canceled
 }
@@ -596,7 +608,7 @@ func simulateNetworkTimeout(ctx context.Context) error {
 	}
 }
 
-func simulateInvalidConfiguration(ctx context.Context) error {
+func simulateInvalidConfiguration(_ context.Context) error {
 	// Simulate invalid configuration
 	return context.Canceled
 }
@@ -696,7 +708,7 @@ func TestSessionCommand_Integration_ConfigurationValidation(t *testing.T) {
 	}
 }
 
-func simulateConfigurationValidation(ctx context.Context, configData map[string]interface{}) error {
+func simulateConfigurationValidation(_ context.Context, configData map[string]interface{}) error {
 	// Simulate configuration validation logic
 	if region, ok := configData["region"].(string); ok {
 		if region == "" {
@@ -770,7 +782,7 @@ func TestSessionCommand_Integration_NativeVsPluginMode(t *testing.T) {
 				AvailabilityZone: "eu-west-1a",
 			},
 			expectErr: false, // Should fallback gracefully
-			verify: func(useNative bool, instance *aws.Instance) error {
+			verify: func(_ bool, instance *aws.Instance) error {
 				// Should handle fallback appropriately
 				assertion.NotNil(instance, "Instance should be available")
 				return nil
@@ -801,13 +813,12 @@ func TestSessionCommand_Integration_NativeVsPluginMode(t *testing.T) {
 	}
 }
 
-func simulateSessionStart(ctx context.Context, useNative bool, instance aws.Instance) error {
+func simulateSessionStart(_ context.Context, useNative bool, _ aws.Instance) error {
 	// Simulate session start logic
 	if useNative {
 		// Simulate native session start
 		return nil
-	} else {
-		// Simulate plugin session start
-		return nil
 	}
+	// Simulate plugin session start
+	return nil
 }

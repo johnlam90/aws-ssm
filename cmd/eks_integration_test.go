@@ -12,6 +12,8 @@ import (
 )
 
 // mockEKSClient provides a mock implementation for EKS integration testing
+//
+//nolint:unused // Used for integration testing
 type mockEKSClient struct {
 	clusters   []aws.Cluster
 	profile    string
@@ -19,48 +21,60 @@ type mockEKSClient struct {
 	configPath string
 }
 
-func (m *mockEKSClient) ResolveSingleInstance(ctx context.Context, identifier string) (*aws.Instance, error) {
+//nolint:unused // Mock method for integration testing
+func (m *mockEKSClient) ResolveSingleInstance(_ context.Context, _ string) (*aws.Instance, error) {
 	return nil, fmt.Errorf("not implemented for EKS client")
 }
 
-func (m *mockEKSClient) SelectInstanceFromProvided(ctx context.Context, instances []aws.Instance) (*aws.Instance, error) {
+//nolint:unused // Mock method for integration testing
+func (m *mockEKSClient) SelectInstanceFromProvided(_ context.Context, _ []aws.Instance) (*aws.Instance, error) {
 	return nil, fmt.Errorf("not implemented for EKS client")
 }
 
-func (m *mockEKSClient) SelectInstanceInteractive(ctx context.Context) (*aws.Instance, error) {
+//nolint:unused // Mock method for integration testing
+func (m *mockEKSClient) SelectInstanceInteractive(_ context.Context) (*aws.Instance, error) {
 	return nil, fmt.Errorf("not implemented for EKS client")
 }
 
-func (m *mockEKSClient) StartSession(ctx context.Context, instanceID string) error {
+//nolint:unused // Mock method for integration testing
+func (m *mockEKSClient) StartSession(_ context.Context, _ string) error {
 	return fmt.Errorf("not implemented for EKS client")
 }
 
-func (m *mockEKSClient) StartNativeSession(ctx context.Context, instanceID string) error {
+//nolint:unused // Mock method for integration testing
+func (m *mockEKSClient) StartNativeSession(_ context.Context, _ string) error {
 	return fmt.Errorf("not implemented for EKS client")
 }
 
-func (m *mockEKSClient) ExecuteCommand(ctx context.Context, instanceID, command string) (string, error) {
+//nolint:unused // Mock method for integration testing
+func (m *mockEKSClient) ExecuteCommand(_ context.Context, _, _ string) (string, error) {
 	return "", fmt.Errorf("not implemented for EKS client")
 }
 
+//nolint:unused // Mock method for integration testing
 func (m *mockEKSClient) GetConfig() (string, string, string) {
 	return m.profile, m.region, m.configPath
 }
 
+//nolint:unused // Mock method for integration testing
 func (m *mockEKSClient) GetRegion() string {
 	return m.region
 }
 
+//nolint:unused // Mock method for integration testing
 func (m *mockEKSClient) GetProfile() string {
 	return m.profile
 }
 
+//nolint:unused // Mock method for integration testing
 func (m *mockEKSClient) GetConfigPath() string {
 	return m.configPath
 }
 
 // EKS-specific methods
-func (m *mockEKSClient) SelectEKSClusterInteractive(ctx context.Context) (*aws.Cluster, error) {
+//
+//nolint:unused // Mock method for integration testing
+func (m *mockEKSClient) SelectEKSClusterInteractive(_ context.Context) (*aws.Cluster, error) {
 	// Simulate interactive selection from available clusters
 	if len(m.clusters) > 0 {
 		return &m.clusters[0], nil
@@ -68,7 +82,8 @@ func (m *mockEKSClient) SelectEKSClusterInteractive(ctx context.Context) (*aws.C
 	return nil, context.Canceled
 }
 
-func (m *mockEKSClient) DescribeCluster(ctx context.Context, clusterName string) (*aws.Cluster, error) {
+//nolint:unused // Mock method for integration testing
+func (m *mockEKSClient) DescribeCluster(_ context.Context, clusterName string) (*aws.Cluster, error) {
 	// Find cluster by name
 	for _, cluster := range m.clusters {
 		if cluster.Name == clusterName {
@@ -78,7 +93,8 @@ func (m *mockEKSClient) DescribeCluster(ctx context.Context, clusterName string)
 	return nil, fmt.Errorf("cluster not found")
 }
 
-func (m *mockEKSClient) ListClusters(ctx context.Context) ([]aws.Cluster, error) {
+//nolint:unused // Mock method for integration testing
+func (m *mockEKSClient) ListClusters(_ context.Context) ([]aws.Cluster, error) {
 	return m.clusters, nil
 }
 
@@ -97,11 +113,11 @@ func TestEKSCommand_Integration_ClusterSelection(t *testing.T) {
 		{
 			name: "Interactive Selection - Single Cluster",
 			args: []string{},
-			setup: func(tf *testframework.TestFramework) error {
+			setup: func(_ *testframework.TestFramework) error {
 				// Setup test environment with single cluster
 				return nil
 			},
-			verify: func(tf *testframework.TestFramework, cluster *aws.Cluster) error {
+			verify: func(_ *testframework.TestFramework, cluster *aws.Cluster) error {
 				assertion.NotNil(cluster, "Cluster should not be nil")
 				assertion.Equal("test-eks-cluster-1", cluster.Name, "Cluster name should match")
 				assertion.Equal("ACTIVE", cluster.Status, "Cluster should be active")
@@ -112,11 +128,11 @@ func TestEKSCommand_Integration_ClusterSelection(t *testing.T) {
 		{
 			name: "Interactive Selection - Multiple Clusters",
 			args: []string{},
-			setup: func(tf *testframework.TestFramework) error {
+			setup: func(_ *testframework.TestFramework) error {
 				// Setup test environment with multiple clusters
 				return nil
 			},
-			verify: func(tf *testframework.TestFramework, cluster *aws.Cluster) error {
+			verify: func(_ *testframework.TestFramework, cluster *aws.Cluster) error {
 				assertion.NotNil(cluster, "Cluster should not be nil")
 				assertion.Contains("eks", cluster.Name, "Cluster name should contain eks")
 				return nil
@@ -126,11 +142,11 @@ func TestEKSCommand_Integration_ClusterSelection(t *testing.T) {
 		{
 			name: "Interactive Selection - No Clusters",
 			args: []string{},
-			setup: func(tf *testframework.TestFramework) error {
+			setup: func(_ *testframework.TestFramework) error {
 				// Setup test environment with no clusters
 				return nil
 			},
-			verify: func(tf *testframework.TestFramework, cluster *aws.Cluster) error {
+			verify: func(_ *testframework.TestFramework, cluster *aws.Cluster) error {
 				assertion.Nil(cluster, "Cluster should be nil when no clusters available")
 				return nil
 			},
@@ -139,11 +155,11 @@ func TestEKSCommand_Integration_ClusterSelection(t *testing.T) {
 		{
 			name: "Interactive Selection - User Cancels",
 			args: []string{},
-			setup: func(tf *testframework.TestFramework) error {
+			setup: func(_ *testframework.TestFramework) error {
 				// Setup cancelled selection scenario
 				return nil
 			},
-			verify: func(tf *testframework.TestFramework, cluster *aws.Cluster) error {
+			verify: func(_ *testframework.TestFramework, cluster *aws.Cluster) error {
 				assertion.Nil(cluster, "Cluster should be nil when user cancels")
 				return nil
 			},
@@ -152,11 +168,11 @@ func TestEKSCommand_Integration_ClusterSelection(t *testing.T) {
 		{
 			name: "Direct Cluster Name - Existing",
 			args: []string{"production-eks"},
-			setup: func(tf *testframework.TestFramework) error {
+			setup: func(_ *testframework.TestFramework) error {
 				// Setup existing cluster scenario
 				return nil
 			},
-			verify: func(tf *testframework.TestFramework, cluster *aws.Cluster) error {
+			verify: func(_ *testframework.TestFramework, cluster *aws.Cluster) error {
 				assertion.NotNil(cluster, "Cluster should not be nil")
 				assertion.Equal("production-eks", cluster.Name, "Cluster name should match")
 				return nil
@@ -166,11 +182,11 @@ func TestEKSCommand_Integration_ClusterSelection(t *testing.T) {
 		{
 			name: "Direct Cluster Name - Non-existent",
 			args: []string{"non-existent-cluster"},
-			setup: func(tf *testframework.TestFramework) error {
+			setup: func(_ *testframework.TestFramework) error {
 				// Setup non-existent cluster scenario
 				return nil
 			},
-			verify: func(tf *testframework.TestFramework, cluster *aws.Cluster) error {
+			verify: func(_ *testframework.TestFramework, cluster *aws.Cluster) error {
 				assertion.Nil(cluster, "Cluster should be nil for non-existent cluster")
 				return nil
 			},
@@ -753,7 +769,7 @@ func TestEKSCommand_Integration_ConfigurationValidation(t *testing.T) {
 
 // Helper functions for EKS simulation (these would be replaced with actual integration logic)
 
-func simulateEKSClusterSelection(ctx context.Context, clusters []aws.Cluster, args []string) (*aws.Cluster, error) {
+func simulateEKSClusterSelection(_ context.Context, clusters []aws.Cluster, args []string) (*aws.Cluster, error) {
 	if len(args) > 0 {
 		// Direct cluster name selection
 		clusterName := args[0]
@@ -774,7 +790,7 @@ func simulateEKSClusterSelection(ctx context.Context, clusters []aws.Cluster, ar
 	return &clusters[0], nil
 }
 
-func simulateClusterDescription(ctx context.Context, clusterName string, mockCluster aws.Cluster) (*aws.Cluster, string, error) {
+func simulateClusterDescription(_ context.Context, clusterName string, mockCluster aws.Cluster) (*aws.Cluster, string, error) {
 	if mockCluster.Name == "" {
 		return nil, "", fmt.Errorf("cluster not found: %s", clusterName)
 	}
@@ -821,7 +837,7 @@ EKS Cluster: %s
 	return &mockCluster, output, nil
 }
 
-func simulateEKSConfigurationValidation(ctx context.Context, configData map[string]interface{}) error {
+func simulateEKSConfigurationValidation(_ context.Context, configData map[string]interface{}) error {
 	// Simulate EKS-specific configuration validation logic
 	if region, ok := configData["region"].(string); ok {
 		if region == "" {
@@ -837,7 +853,7 @@ func simulateEKSConfigurationValidation(ctx context.Context, configData map[stri
 	return nil
 }
 
-func simulateInsufficientPermissions(ctx context.Context) error {
+func simulateInsufficientPermissions(_ context.Context) error {
 	// Simulate insufficient permissions for EKS API calls
 	return context.Canceled
 }

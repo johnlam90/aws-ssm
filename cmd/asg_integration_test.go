@@ -12,6 +12,8 @@ import (
 )
 
 // mockASGClient provides a mock implementation for ASG integration testing
+//
+//nolint:unused // Used for integration testing
 type mockASGClient struct {
 	asgs       []aws.AutoScalingGroup
 	profile    string
@@ -19,48 +21,60 @@ type mockASGClient struct {
 	configPath string
 }
 
-func (m *mockASGClient) ResolveSingleInstance(ctx context.Context, identifier string) (*aws.Instance, error) {
+//nolint:unused // Mock method for integration testing
+func (m *mockASGClient) ResolveSingleInstance(_ context.Context, _ string) (*aws.Instance, error) {
 	return nil, fmt.Errorf("not implemented for ASG client")
 }
 
-func (m *mockASGClient) SelectInstanceFromProvided(ctx context.Context, instances []aws.Instance) (*aws.Instance, error) {
+//nolint:unused // Mock method for integration testing
+func (m *mockASGClient) SelectInstanceFromProvided(_ context.Context, _ []aws.Instance) (*aws.Instance, error) {
 	return nil, fmt.Errorf("not implemented for ASG client")
 }
 
-func (m *mockASGClient) SelectInstanceInteractive(ctx context.Context) (*aws.Instance, error) {
+//nolint:unused // Mock method for integration testing
+func (m *mockASGClient) SelectInstanceInteractive(_ context.Context) (*aws.Instance, error) {
 	return nil, fmt.Errorf("not implemented for ASG client")
 }
 
-func (m *mockASGClient) StartSession(ctx context.Context, instanceID string) error {
+//nolint:unused // Mock method for integration testing
+func (m *mockASGClient) StartSession(_ context.Context, _ string) error {
 	return fmt.Errorf("not implemented for ASG client")
 }
 
-func (m *mockASGClient) StartNativeSession(ctx context.Context, instanceID string) error {
+//nolint:unused // Mock method for integration testing
+func (m *mockASGClient) StartNativeSession(_ context.Context, _ string) error {
 	return fmt.Errorf("not implemented for ASG client")
 }
 
-func (m *mockASGClient) ExecuteCommand(ctx context.Context, instanceID, command string) (string, error) {
+//nolint:unused // Mock method for integration testing
+func (m *mockASGClient) ExecuteCommand(_ context.Context, _, _ string) (string, error) {
 	return "", fmt.Errorf("not implemented for ASG client")
 }
 
+//nolint:unused // Mock method for integration testing
 func (m *mockASGClient) GetConfig() (string, string, string) {
 	return m.profile, m.region, m.configPath
 }
 
+//nolint:unused // Mock method for integration testing
 func (m *mockASGClient) GetRegion() string {
 	return m.region
 }
 
+//nolint:unused // Mock method for integration testing
 func (m *mockASGClient) GetProfile() string {
 	return m.profile
 }
 
+//nolint:unused // Mock method for integration testing
 func (m *mockASGClient) GetConfigPath() string {
 	return m.configPath
 }
 
 // ASG-specific methods
-func (m *mockASGClient) SelectASGInteractive(ctx context.Context) (*aws.AutoScalingGroup, error) {
+//
+//nolint:unused // Mock method for integration testing
+func (m *mockASGClient) SelectASGInteractive(_ context.Context) (*aws.AutoScalingGroup, error) {
 	// Simulate interactive selection from available ASGs
 	if len(m.asgs) > 0 {
 		return &m.asgs[0], nil
@@ -68,7 +82,8 @@ func (m *mockASGClient) SelectASGInteractive(ctx context.Context) (*aws.AutoScal
 	return nil, context.Canceled
 }
 
-func (m *mockASGClient) DescribeAutoScalingGroup(ctx context.Context, asgName string) (*aws.AutoScalingGroup, error) {
+//nolint:unused // Mock method for integration testing
+func (m *mockASGClient) DescribeAutoScalingGroup(_ context.Context, asgName string) (*aws.AutoScalingGroup, error) {
 	// Find ASG by name
 	for _, asg := range m.asgs {
 		if asg.Name == asgName {
@@ -78,7 +93,8 @@ func (m *mockASGClient) DescribeAutoScalingGroup(ctx context.Context, asgName st
 	return nil, fmt.Errorf("ASG not found")
 }
 
-func (m *mockASGClient) ListAutoScalingGroups(ctx context.Context) ([]string, error) {
+//nolint:unused // Mock method for integration testing
+func (m *mockASGClient) ListAutoScalingGroups(_ context.Context) ([]string, error) {
 	var asgNames []string
 	for _, asg := range m.asgs {
 		asgNames = append(asgNames, asg.Name)
@@ -86,7 +102,8 @@ func (m *mockASGClient) ListAutoScalingGroups(ctx context.Context) ([]string, er
 	return asgNames, nil
 }
 
-func (m *mockASGClient) UpdateAutoScalingGroupCapacity(ctx context.Context, asgName string, min, max, desired int32) error {
+//nolint:unused // Mock method for integration testing
+func (m *mockASGClient) UpdateAutoScalingGroupCapacity(_ context.Context, _ string, _, _, _ int32) error {
 	// Simulate successful capacity update
 	return nil
 }
@@ -110,11 +127,11 @@ func TestASGCommand_Integration_ScalingWorkflows(t *testing.T) {
 		{
 			name: "Interactive Selection - Scale Up",
 			args: []string{},
-			setup: func(tf *testframework.TestFramework) error {
+			setup: func(_ *testframework.TestFramework) error {
 				// Setup test environment with ASG
 				return nil
 			},
-			verify: func(tf *testframework.TestFramework, asg *aws.AutoScalingGroup, params ASGScalingParameters) error {
+			verify: func(_ *testframework.TestFramework, asg *aws.AutoScalingGroup, params ASGScalingParameters) error {
 				assertion.NotNil(asg, "ASG should not be nil")
 				assertion.Equal("production-asg", asg.Name, "ASG name should match")
 				assertion.Equal(int32(3), params.Desired, "Desired capacity should be 3")
@@ -125,11 +142,11 @@ func TestASGCommand_Integration_ScalingWorkflows(t *testing.T) {
 		{
 			name: "Interactive Selection - Scale Down to Zero",
 			args: []string{},
-			setup: func(tf *testframework.TestFramework) error {
+			setup: func(_ *testframework.TestFramework) error {
 				// Setup test environment with ASG
 				return nil
 			},
-			verify: func(tf *testframework.TestFramework, asg *aws.AutoScalingGroup, params ASGScalingParameters) error {
+			verify: func(_ *testframework.TestFramework, asg *aws.AutoScalingGroup, params ASGScalingParameters) error {
 				assertion.NotNil(asg, "ASG should not be nil")
 				assertion.Equal("web-servers-asg", asg.Name, "ASG name should match")
 				assertion.Equal(int32(0), params.Desired, "Desired capacity should be 0")
@@ -145,11 +162,11 @@ func TestASGCommand_Integration_ScalingWorkflows(t *testing.T) {
 			asgMinSize:    2,
 			asgMaxSize:    10,
 			asgDesiredCap: 5,
-			setup: func(tf *testframework.TestFramework) error {
+			setup: func(_ *testframework.TestFramework) error {
 				// Setup test environment with ASG
 				return nil
 			},
-			verify: func(tf *testframework.TestFramework, asg *aws.AutoScalingGroup, params ASGScalingParameters) error {
+			verify: func(_ *testframework.TestFramework, asg *aws.AutoScalingGroup, params ASGScalingParameters) error {
 				assertion.NotNil(asg, "ASG should not be nil")
 				assertion.Equal("workers-asg", asg.Name, "ASG name should match")
 				assertion.Equal(int32(2), params.Min, "Min size should be 2")
@@ -162,11 +179,11 @@ func TestASGCommand_Integration_ScalingWorkflows(t *testing.T) {
 		{
 			name: "Interactive Selection - No ASGs Available",
 			args: []string{},
-			setup: func(tf *testframework.TestFramework) error {
+			setup: func(_ *testframework.TestFramework) error {
 				// Setup test environment with no ASGs
 				return nil
 			},
-			verify: func(tf *testframework.TestFramework, asg *aws.AutoScalingGroup, params ASGScalingParameters) error {
+			verify: func(_ *testframework.TestFramework, asg *aws.AutoScalingGroup, _ ASGScalingParameters) error {
 				assertion.Nil(asg, "ASG should be nil when no ASGs available")
 				return nil
 			},
@@ -175,11 +192,11 @@ func TestASGCommand_Integration_ScalingWorkflows(t *testing.T) {
 		{
 			name: "Interactive Selection - User Cancels",
 			args: []string{},
-			setup: func(tf *testframework.TestFramework) error {
+			setup: func(_ *testframework.TestFramework) error {
 				// Setup cancelled selection scenario
 				return nil
 			},
-			verify: func(tf *testframework.TestFramework, asg *aws.AutoScalingGroup, params ASGScalingParameters) error {
+			verify: func(_ *testframework.TestFramework, asg *aws.AutoScalingGroup, _ ASGScalingParameters) error {
 				assertion.Nil(asg, "ASG should be nil when user cancels")
 				return nil
 			},
@@ -401,7 +418,7 @@ func TestASGCommand_Integration_DirectScaling(t *testing.T) {
 				CurrentSize:     1,
 			},
 			expectErr: true,
-			verify: func(asg *aws.AutoScalingGroup, params ASGScalingParameters) error {
+			verify: func(asg *aws.AutoScalingGroup, _ ASGScalingParameters) error {
 				assertion.Nil(asg, "ASG should be nil when desired capacity not provided")
 				return nil
 			},
@@ -418,7 +435,7 @@ func TestASGCommand_Integration_DirectScaling(t *testing.T) {
 				CurrentSize:     2,
 			},
 			expectErr: true,
-			verify: func(asg *aws.AutoScalingGroup, params ASGScalingParameters) error {
+			verify: func(asg *aws.AutoScalingGroup, _ ASGScalingParameters) error {
 				assertion.Nil(asg, "ASG should be nil for non-existent ASG")
 				return nil
 			},
@@ -437,7 +454,7 @@ func TestASGCommand_Integration_DirectScaling(t *testing.T) {
 				CurrentSize:     2,
 			},
 			expectErr: true,
-			verify: func(asg *aws.AutoScalingGroup, params ASGScalingParameters) error {
+			verify: func(asg *aws.AutoScalingGroup, _ ASGScalingParameters) error {
 				assertion.NotNil(asg, "ASG should not be nil")
 				// Should detect invalid parameters
 				return nil
@@ -738,7 +755,7 @@ func TestASGCommand_Integration_EdgeCases(t *testing.T) {
 
 // Helper functions for ASG simulation (these would be replaced with actual integration logic)
 
-func simulateASGScaling(ctx context.Context, asgs []aws.AutoScalingGroup, args []string, minSize, maxSize, desiredCap int32, skipConfirm bool) (*aws.AutoScalingGroup, ASGScalingParameters, error) {
+func simulateASGScaling(_ context.Context, asgs []aws.AutoScalingGroup, args []string, minSize, maxSize, desiredCap int32, _ bool) (*aws.AutoScalingGroup, ASGScalingParameters, error) {
 	if len(args) > 0 {
 		// Direct ASG name selection
 		asgName := args[0]
@@ -771,7 +788,7 @@ func simulateASGScaling(ctx context.Context, asgs []aws.AutoScalingGroup, args [
 	return selectedASG, params, nil
 }
 
-func simulateDirectASGScaling(ctx context.Context, mockASG aws.AutoScalingGroup, args []string, minSize, maxSize, desiredCap int32) (*aws.AutoScalingGroup, ASGScalingParameters, error) {
+func simulateDirectASGScaling(_ context.Context, mockASG aws.AutoScalingGroup, args []string, minSize, maxSize, desiredCap int32) (*aws.AutoScalingGroup, ASGScalingParameters, error) {
 	if len(args) == 0 {
 		return nil, ASGScalingParameters{}, fmt.Errorf("ASG name required")
 	}
@@ -793,7 +810,7 @@ func simulateDirectASGScaling(ctx context.Context, mockASG aws.AutoScalingGroup,
 	return &mockASG, params, nil
 }
 
-func simulateConfirmationFlow(ctx context.Context, asg aws.AutoScalingGroup, params ASGScalingParameters, skipConfirm bool, userInput string) (bool, bool, error) {
+func simulateConfirmationFlow(_ context.Context, _ aws.AutoScalingGroup, _ ASGScalingParameters, skipConfirm bool, userInput string) (bool, bool, error) {
 	if skipConfirm {
 		return false, true, nil
 	}
@@ -811,7 +828,7 @@ func simulateConfirmationFlow(ctx context.Context, asg aws.AutoScalingGroup, par
 	}
 }
 
-func simulateASGInsufficientPermissions(ctx context.Context) error {
+func simulateASGInsufficientPermissions(_ context.Context) error {
 	// Simulate insufficient permissions for ASG API calls
 	return context.Canceled
 }

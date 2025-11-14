@@ -27,7 +27,7 @@ func TestEnhancedService_StaleWhileRevalidate(t *testing.T) {
 
 	var mu sync.Mutex
 	refreshCalled := false
-	refreshFn := func(_ context.Context, _, _, _ string) (interface{}, error) {
+	refreshFn := func(context.Context, string, string, string) (interface{}, error) {
 		mu.Lock()
 		refreshCalled = true
 		mu.Unlock()
@@ -96,7 +96,7 @@ func TestEnhancedService_BackgroundRefresh(t *testing.T) {
 
 	var mu sync.Mutex
 	refreshCallCount := 0
-	refreshFn := func(_ context.Context, _, _, _ string) (interface{}, error) {
+	refreshFn := func(context.Context, string, string, string) (interface{}, error) {
 		mu.Lock()
 		refreshCallCount++
 		count := refreshCallCount
@@ -158,7 +158,7 @@ func TestEnhancedCache_Metrics(t *testing.T) {
 	}
 	defer cache.Close()
 
-	refreshFn := func(_ context.Context, _, _, _ string) (interface{}, error) {
+	refreshFn := func(context.Context, string, string, string) (interface{}, error) {
 		return map[string]string{"test": "data"}, nil
 	}
 
