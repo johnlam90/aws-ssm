@@ -6,7 +6,21 @@ import (
 	"time"
 )
 
+// skipIfNoAWSCredentials skips the test if AWS credentials are not available
+func skipIfNoAWSCredentials(t *testing.T) {
+	t.Helper()
+
+	// Try to create a client to see if credentials are available
+	// If this fails, skip the test
+	ctx := context.Background()
+	_, err := NewClient(ctx, "us-east-1", "default", "")
+	if err != nil {
+		t.Skipf("Skipping test: AWS credentials not available: %v", err)
+	}
+}
+
 func TestClientPool_GetOrCreateClient(t *testing.T) {
+	skipIfNoAWSCredentials(t)
 	cfg := &ClientPoolConfig{
 		MaxPoolSize:     5,
 		ClientTTL:       1 * time.Minute,
@@ -61,6 +75,7 @@ func TestClientPool_GetOrCreateClient(t *testing.T) {
 }
 
 func TestClientPool_EvictionOnFullPool(t *testing.T) {
+	skipIfNoAWSCredentials(t)
 	cfg := &ClientPoolConfig{
 		MaxPoolSize:     3, // Small pool for testing
 		ClientTTL:       1 * time.Minute,
@@ -96,6 +111,7 @@ func TestClientPool_EvictionOnFullPool(t *testing.T) {
 }
 
 func TestClientPool_HitRate(t *testing.T) {
+	skipIfNoAWSCredentials(t)
 	cfg := DefaultClientPoolConfig()
 	pool := NewClientPool(cfg)
 	defer pool.Close()
@@ -125,6 +141,7 @@ func TestClientPool_HitRate(t *testing.T) {
 }
 
 func TestClientPool_Cleanup(t *testing.T) {
+	skipIfNoAWSCredentials(t)
 	cfg := &ClientPoolConfig{
 		MaxPoolSize:     10,
 		ClientTTL:       100 * time.Millisecond, // Very short TTL for testing
