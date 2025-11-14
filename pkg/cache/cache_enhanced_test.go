@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"os"
+	"sync"
 	"testing"
 	"time"
 )
@@ -24,9 +25,12 @@ func TestEnhancedService_StaleWhileRevalidate(t *testing.T) {
 	}
 	defer cache.Close()
 
+	var mu sync.Mutex
 	refreshCalled := false
 	refreshFn := func(_ context.Context, _, _, _ string) (interface{}, error) {
+		mu.Lock()
 		refreshCalled = true
+		mu.Unlock()
 		time.Sleep(50 * time.Millisecond) // Simulate some work
 		return map[string]string{"refreshed": "data"}, nil
 	}
@@ -62,7 +66,10 @@ func TestEnhancedService_StaleWhileRevalidate(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Refresh should have been triggered
-	if !refreshCalled {
+	mu.Lock()
+	called := refreshCalled
+	mu.Unlock()
+	if !called {
 		t.Error("refresh function should have been called for stale data")
 	}
 
@@ -87,10 +94,14 @@ func TestEnhancedService_BackgroundRefresh(t *testing.T) {
 	}
 	defer cache.Close()
 
+	var mu sync.Mutex
 	refreshCallCount := 0
 	refreshFn := func(_ context.Context, _, _, _ string) (interface{}, error) {
+		mu.Lock()
 		refreshCallCount++
-		return map[string]string{"refreshed": "data", "count": string(rune(refreshCallCount))}, nil
+		count := refreshCallCount
+		mu.Unlock()
+		return map[string]string{"refreshed": "data", "count": string(rune(count))}, nil
 	}
 
 	// First access - populate cache
@@ -118,8 +129,11 @@ func TestEnhancedService_BackgroundRefresh(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Check that refresh was called (initial + background)
-	if refreshCallCount < 2 {
-		t.Errorf("refresh should have been called at least 2 times, got %d", refreshCallCount)
+	mu.Lock()
+	count := refreshCallCount
+	mu.Unlock()
+	if count < 2 {
+		t.Errorf("refresh should have been called at least 2 times, got %d", count)
 	}
 
 	// Check metrics
