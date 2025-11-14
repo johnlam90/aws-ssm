@@ -44,20 +44,43 @@ func TestCacheExpiration(t *testing.T) {
 
 func TestCacheStatsAndCleanup(t *testing.T) {
 	dir := t.TempDir()
+	svc := setupTestCacheService(t, dir)
+
+	setupTestCacheEntries(t, svc)
+
+	verifyInitialStats(t, svc)
+
+	expireCacheEntry(t, dir)
+
+	verifyCleanup(t, svc)
+	verifySecondCleanup(t, svc)
+}
+
+func setupTestCacheService(t *testing.T, dir string) *Service {
 	svc, err := NewCacheService(dir, 1)
 	if err != nil {
 		t.Fatalf("new cache service: %v", err)
 	}
+	return svc
+}
+
+func setupTestCacheEntries(t *testing.T, svc *Service) {
 	if err := svc.Set("k1", "v1", "r", "q1"); err != nil {
 		t.Fatalf("set first cache entry: %v", err)
 	}
 	if err := svc.Set("k2", "v2", "r", "q2"); err != nil {
 		t.Fatalf("set second cache entry: %v", err)
 	}
+}
+
+func verifyInitialStats(t *testing.T, svc *Service) {
 	total, expired, size, err := svc.GetCacheStats()
 	if err != nil || total != 2 || expired != 0 || size <= 0 {
 		t.Fatalf("unexpected stats initial: %d %d %d %v", total, expired, size, err)
 	}
+}
+
+func expireCacheEntry(t *testing.T, dir string) {
 	path := filepath.Join(dir, "k1.json")
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -75,6 +98,9 @@ func TestCacheStatsAndCleanup(t *testing.T) {
 	if err := os.WriteFile(path, nb, 0600); err != nil {
 		t.Fatalf("write cache file: %v", err)
 	}
+}
+
+func verifyCleanup(t *testing.T, svc *Service) {
 	if err := svc.Cleanup(); err != nil {
 		t.Fatalf("cleanup cache: %v", err)
 	}
@@ -85,6 +111,9 @@ func TestCacheStatsAndCleanup(t *testing.T) {
 	if totalAfter == 0 || expiredAfter != 0 {
 		t.Fatalf("unexpected post-cleanup stats: total=%d expired=%d", totalAfter, expiredAfter)
 	}
+}
+
+func verifySecondCleanup(t *testing.T, svc *Service) {
 	if err := svc.Cleanup(); err != nil {
 		t.Fatalf("second cleanup: %v", err)
 	}
