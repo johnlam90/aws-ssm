@@ -841,15 +841,21 @@ func simulateEKSConfigurationValidation(_ context.Context, configData map[string
 	// Simulate EKS-specific configuration validation logic
 	if region, ok := configData["region"].(string); ok {
 		if region == "" {
-			return context.Canceled
+			return fmt.Errorf("region is required")
 		}
 		if region == "us-gov-west-1" {
-			return context.Canceled
+			return fmt.Errorf("EKS not available in region: %s", region)
 		}
 		if region == "invalid-region" {
-			return context.Canceled
+			return fmt.Errorf("invalid region")
 		}
 	}
+
+	// Check for limited permissions profile
+	if profile, ok := configData["profile"].(string); ok && profile == "limited-permissions" {
+		return fmt.Errorf("insufficient permissions for EKS operations")
+	}
+
 	return nil
 }
 

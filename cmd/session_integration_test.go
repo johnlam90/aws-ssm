@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -130,7 +131,7 @@ func TestSessionCommand_Integration_FuzzyFinderSelection(t *testing.T) {
 			},
 			verify: func(_ *testframework.TestFramework, instance *aws.Instance) error {
 				assertion.NotNil(instance, "Instance should not be nil")
-				assertion.Contains("i-", instance.InstanceID, "Instance ID should be valid")
+				assertion.Contains(instance.InstanceID, "i-", "Instance ID should be valid")
 				return nil
 			},
 			expectErr: false,
@@ -317,14 +318,24 @@ func TestSessionCommand_Integration_DirectInstanceSelection(t *testing.T) {
 			},
 		},
 		{
-			name:      "Direct Selection - Multiple Instances with Name",
-			args:      []string{"app-server"},
-			instance:  aws.Instance{},
+			name: "Direct Selection - Multiple Instances with Name",
+			args: []string{"app-server"},
+			instance: aws.Instance{
+				InstanceID:       "i-multipletest1234",
+				Name:             "app-server-01",
+				State:            "running",
+				InstanceType:     "t3.micro",
+				PrivateIP:        "10.0.5.100",
+				PublicIP:         "54.123.456.792",
+				AvailabilityZone: "us-east-1a",
+			},
 			expectErr: false, // Should trigger interactive selection
 			verify: func(instance *aws.Instance) error {
 				// Should return one of the multiple instances
 				assertion.NotNil(instance, "Should select one instance from multiple")
-				assertion.Contains("app-server", instance.Name, "Should contain app-server in name")
+				if instance != nil {
+					assertion.Contains(instance.Name, "app-server", "Should contain app-server in name")
+				}
 				return nil
 			},
 		},
@@ -570,7 +581,7 @@ func simulateInteractiveSelection(_ context.Context, instances []aws.Instance) (
 
 func simulateDirectInstanceResolution(_ context.Context, args []string, instance aws.Instance) (*aws.Instance, error) {
 	if len(args) == 0 {
-		return nil, nil
+		return nil, fmt.Errorf("no arguments provided")
 	}
 
 	// Simulate resolution based on args
@@ -578,7 +589,7 @@ func simulateDirectInstanceResolution(_ context.Context, args []string, instance
 		return &instance, nil
 	}
 
-	return nil, context.Canceled
+	return nil, fmt.Errorf("instance not found")
 }
 
 func simulateCommandExecution(_ context.Context, _ aws.Instance, command, mockOutput string) (string, error) {
@@ -712,10 +723,15 @@ func simulateConfigurationValidation(_ context.Context, configData map[string]in
 	// Simulate configuration validation logic
 	if region, ok := configData["region"].(string); ok {
 		if region == "" {
-			return context.Canceled
+			return fmt.Errorf("region is required")
 		}
 		if region == "invalid-region" {
-			return context.Canceled
+			return fmt.Errorf("invalid region")
+		}
+	} else {
+		// Check if both region and profile are missing
+		if profile, profileOk := configData["profile"].(string); !profileOk || profile == "" {
+			return fmt.Errorf("either region or profile is required")
 		}
 	}
 	return nil
