@@ -61,6 +61,58 @@ func TestFindInstancesWithStatesAllowsCustomStates(t *testing.T) {
 	}
 }
 
+func TestFindInstancesWithStatesFallsBackForIPLookups(t *testing.T) {
+	t.Parallel()
+
+	var (
+		calls       int
+		privateSeen bool
+		publicSeen  bool
+	)
+
+	client := &Client{
+		describeInstancesHook: func(_ context.Context, filters []types.Filter) ([]Instance, error) {
+			calls++
+			stateFilter := findFilterByName(t, filters, "instance-state-name")
+			if len(stateFilter.Values) != 1 || stateFilter.Values[0] != "running" {
+				t.Fatalf("expected running state filter for IP lookup, got %#v", stateFilter.Values)
+			}
+
+			if containsFilter(filters, "private-ip-address") {
+				privateSeen = true
+				return nil, nil
+			}
+			if containsFilter(filters, "ip-address") {
+				publicSeen = true
+				return []Instance{{InstanceID: "i-abcdef", State: "running"}}, nil
+			}
+
+			t.Fatalf("unexpected filters: %#v", filters)
+			return nil, nil
+		},
+	}
+
+	result, err := client.FindInstancesWithStates(context.Background(), "10.0.0.1", []string{"running"})
+	if err != nil {
+		t.Fatalf("FindInstancesWithStates returned error: %v", err)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected result from public IP fallback, got %v", result)
+	}
+	if calls != 2 || !privateSeen || !publicSeen {
+		t.Fatalf("expected private and public lookups (calls=%d private=%v public=%v)", calls, privateSeen, publicSeen)
+	}
+}
+
+func containsFilter(filters []types.Filter, name string) bool {
+	for _, f := range filters {
+		if f.Name != nil && *f.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 func findFilterByName(t *testing.T, filters []types.Filter, name string) types.Filter {
 	t.Helper()
 
