@@ -1,3 +1,4 @@
+// Package main demonstrates production-grade integrations of aws-ssm components.
 package main
 
 import (
@@ -44,11 +45,17 @@ func main() {
 	healthChecker := health.NewDefaultChecker(
 		// AWS connectivity test
 		func(ctx context.Context) error {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			// Simulate AWS API call
 			return nil
 		},
 		// Cache test
 		func(ctx context.Context) error {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			// Simulate cache check
 			return nil
 		},
@@ -143,7 +150,7 @@ func runExampleSession(
 		Tests: []testframework.TestCase{
 			{
 				Name: "Test Security Validation",
-				Function: func(tf *testframework.TestFramework) error {
+				Function: func(_ *testframework.TestFramework) error {
 					// Create a mock testing.T for the assertion
 					t := &testing.T{}
 					assertion := testframework.NewAssertion(t)
@@ -266,8 +273,8 @@ func ExampleAWSClient() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Initialize production-grade AWS client
-	awsClient, err := aws.NewClient(ctx, "us-east-1", "production")
+	// Initialize production-grade AWS client (using default aws-ssm config path)
+	awsClient, err := aws.NewClient(ctx, "us-east-1", "production", "")
 	if err != nil {
 		logging.Error("Failed to create AWS client", logging.String("error", err.Error()))
 		return

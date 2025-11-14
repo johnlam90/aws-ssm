@@ -1,3 +1,4 @@
+// Package cmd wires Cobra commands for aws-ssm.
 package cmd
 
 import (
@@ -94,7 +95,7 @@ func runASGScale(_ *cobra.Command, args []string) error {
 	defer cancel()
 
 	// Create AWS client
-	client, err := aws.NewClient(ctx, region, profile)
+	client, err := aws.NewClient(ctx, region, profile, configPath)
 	if err != nil {
 		return fmt.Errorf("failed to create AWS client: %w", err)
 	}

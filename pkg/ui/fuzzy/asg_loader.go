@@ -1,3 +1,4 @@
+// Package fuzzy renders AWS resources using a fuzzy finder user interface.
 package fuzzy
 
 import (

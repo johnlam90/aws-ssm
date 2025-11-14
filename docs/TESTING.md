@@ -105,7 +105,7 @@ aws-ssm port-forward i-1234567890abcdef0 --dry-run
 
 ### Mocked AWS Services
 
-For integration testing, use mocked AWS services:
+For integration testing, use mocked AWS services. The `configPath` argument lets you point the client at a fixture file; pass an empty string to rely on the default location:
 
 ```go
 import (
@@ -115,7 +115,7 @@ import (
 
 // Create a client with mocked services
 ctx := context.Background()
-client, err := aws.NewClient(ctx, "us-east-1", "test")
+client, err := aws.NewClient(ctx, "us-east-1", "test", "")
 if err != nil {
     t.Fatalf("failed to create client: %v", err)
 }
@@ -191,7 +191,7 @@ func TestInstanceResolution(t *testing.T) {
 ```go
 func TestSessionCreation(t *testing.T) {
     ctx := context.Background()
-    client, err := aws.NewClient(ctx, "us-east-1", "test")
+    client, err := aws.NewClient(ctx, "us-east-1", "test", "")
     if err != nil {
         t.Fatalf("failed to create client: %v", err)
     }

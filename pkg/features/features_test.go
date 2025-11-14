@@ -1,9 +1,6 @@
 package features
 
-import (
-	"os"
-	"testing"
-)
+import "testing"
 
 func TestDefaultGates(t *testing.T) {
 	gates := DefaultGates()
@@ -55,41 +52,10 @@ func TestNilGateIsEnabled(t *testing.T) {
 }
 
 func TestLoadFromEnvironment(t *testing.T) {
-	// Save original environment
-	originalMetrics := os.Getenv("AWS_SSM_FEATURE_METRICS")
-	originalHealthChecks := os.Getenv("AWS_SSM_FEATURE_HEALTH_CHECKS")
-	originalSecurity := os.Getenv("AWS_SSM_FEATURE_SECURITY")
-	originalValidation := os.Getenv("AWS_SSM_FEATURE_VALIDATION")
-
-	defer func() {
-		// Restore original environment
-		if originalMetrics != "" {
-			os.Setenv("AWS_SSM_FEATURE_METRICS", originalMetrics)
-		} else {
-			os.Unsetenv("AWS_SSM_FEATURE_METRICS")
-		}
-		if originalHealthChecks != "" {
-			os.Setenv("AWS_SSM_FEATURE_HEALTH_CHECKS", originalHealthChecks)
-		} else {
-			os.Unsetenv("AWS_SSM_FEATURE_HEALTH_CHECKS")
-		}
-		if originalSecurity != "" {
-			os.Setenv("AWS_SSM_FEATURE_SECURITY", originalSecurity)
-		} else {
-			os.Unsetenv("AWS_SSM_FEATURE_SECURITY")
-		}
-		if originalValidation != "" {
-			os.Setenv("AWS_SSM_FEATURE_VALIDATION", originalValidation)
-		} else {
-			os.Unsetenv("AWS_SSM_FEATURE_VALIDATION")
-		}
-	}()
-
-	// Test disabling metrics
-	os.Setenv("AWS_SSM_FEATURE_METRICS", "false")
-	os.Setenv("AWS_SSM_FEATURE_HEALTH_CHECKS", "false")
-	os.Setenv("AWS_SSM_FEATURE_SECURITY", "true")
-	os.Setenv("AWS_SSM_FEATURE_VALIDATION", "true")
+	t.Setenv("AWS_SSM_FEATURE_METRICS", "false")
+	t.Setenv("AWS_SSM_FEATURE_HEALTH_CHECKS", "false")
+	t.Setenv("AWS_SSM_FEATURE_SECURITY", "true")
+	t.Setenv("AWS_SSM_FEATURE_VALIDATION", "true")
 
 	gates := DefaultGates()
 	gates.LoadFromEnvironment()

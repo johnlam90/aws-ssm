@@ -1,3 +1,4 @@
+// Package health aggregates service health checks for AWS SSM operations.
 package health
 
 import (

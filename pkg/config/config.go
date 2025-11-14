@@ -1,3 +1,4 @@
+// Package config loads and persists CLI configuration files and defaults.
 package config
 
 import (
@@ -27,10 +28,22 @@ type Config struct {
 	} `yaml:"interactive"`
 	Keybindings map[string]string `yaml:"keybindings"`
 	Cache       struct {
-		Enabled    bool   `yaml:"enabled"`
-		TTLMinutes int    `yaml:"ttl_minutes"`
-		CacheDir   string `yaml:"cache_dir"`
+		Enabled           bool   `yaml:"enabled"`
+		TTLMinutes        int    `yaml:"ttl_minutes"`
+		CacheDir          string `yaml:"cache_dir"`
+		BackgroundRefresh bool   `yaml:"background_refresh"`
+		RefreshWorkers    int    `yaml:"refresh_workers"`
+		StaleThreshold    int    `yaml:"stale_threshold_minutes"`
 	} `yaml:"cache"`
+	Performance struct {
+		EnableMetrics     bool `yaml:"enable_metrics"`
+		MetricsInterval   int  `yaml:"metrics_interval_seconds"`
+		ClientPoolSize    int  `yaml:"client_pool_size"`
+		ClientPoolTTL     int  `yaml:"client_pool_ttl_minutes"`
+		StreamingPageSize int  `yaml:"streaming_page_size"`
+		StreamingMaxItems int  `yaml:"streaming_max_items"`
+		MemoryLimitMB     int  `yaml:"memory_limit_mb"`
+	} `yaml:"performance"`
 	Bookmarks struct {
 		File string `yaml:"file"`
 	} `yaml:"bookmarks"`
@@ -148,13 +161,36 @@ func createDefaultConfig() *Config {
 			":":      "palette",
 		},
 		Cache: struct {
-			Enabled    bool   `yaml:"enabled"`
-			TTLMinutes int    `yaml:"ttl_minutes"`
-			CacheDir   string `yaml:"cache_dir"`
+			Enabled           bool   `yaml:"enabled"`
+			TTLMinutes        int    `yaml:"ttl_minutes"`
+			CacheDir          string `yaml:"cache_dir"`
+			BackgroundRefresh bool   `yaml:"background_refresh"`
+			RefreshWorkers    int    `yaml:"refresh_workers"`
+			StaleThreshold    int    `yaml:"stale_threshold_minutes"`
 		}{
-			Enabled:    true,
-			TTLMinutes: 5,
-			CacheDir:   "",
+			Enabled:           true,
+			TTLMinutes:        5,
+			CacheDir:          "",
+			BackgroundRefresh: true,
+			RefreshWorkers:    3,
+			StaleThreshold:    6,
+		},
+		Performance: struct {
+			EnableMetrics     bool `yaml:"enable_metrics"`
+			MetricsInterval   int  `yaml:"metrics_interval_seconds"`
+			ClientPoolSize    int  `yaml:"client_pool_size"`
+			ClientPoolTTL     int  `yaml:"client_pool_ttl_minutes"`
+			StreamingPageSize int  `yaml:"streaming_page_size"`
+			StreamingMaxItems int  `yaml:"streaming_max_items"`
+			MemoryLimitMB     int  `yaml:"memory_limit_mb"`
+		}{
+			EnableMetrics:     true,
+			MetricsInterval:   300, // 5 minutes
+			ClientPoolSize:    50,
+			ClientPoolTTL:     30,
+			StreamingPageSize: 100,
+			StreamingMaxItems: 10000,
+			MemoryLimitMB:     50,
 		},
 		Bookmarks: struct {
 			File string `yaml:"file"`

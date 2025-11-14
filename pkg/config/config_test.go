@@ -1,7 +1,6 @@
 package config
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 )
@@ -9,7 +8,7 @@ import (
 func TestLoadConfigDefaults(t *testing.T) {
 	// Use temp dir as fake home
 	tmp := t.TempDir()
-	os.Setenv("HOME", tmp)
+	t.Setenv("HOME", tmp)
 	cfg, err := LoadConfig("")
 	if err != nil {
 		t.Fatalf("load config failed: %v", err)
@@ -24,8 +23,11 @@ func TestLoadConfigDefaults(t *testing.T) {
 
 func TestSaveAndReloadConfig(t *testing.T) {
 	tmp := t.TempDir()
-	os.Setenv("HOME", tmp)
-	cfg, _ := LoadConfig("")
+	t.Setenv("HOME", tmp)
+	cfg, err := LoadConfig("")
+	if err != nil {
+		t.Fatalf("load config failed: %v", err)
+	}
 	cfg.Default.Region = "us-west-2"
 	path := filepath.Join(tmp, ".aws-ssm", "config.yaml")
 	if err := SaveConfig(cfg, ""); err != nil {
@@ -42,7 +44,7 @@ func TestSaveAndReloadConfig(t *testing.T) {
 
 func TestInvalidPathOutsideHome(t *testing.T) {
 	tmp := t.TempDir()
-	os.Setenv("HOME", tmp)
+	t.Setenv("HOME", tmp)
 	// Create path under different root (/tmp outside HOME) should fail
 	invalidPath := filepath.Join("/tmp", "evil", "config.yaml")
 	if _, err := LoadConfig(invalidPath); err == nil {

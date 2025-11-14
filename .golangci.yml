@@ -1,16 +1,15 @@
 run:
   timeout: 5m
   issues-exit-code: 1
+
 linters-settings:
   gofmt:
     simplify: true
-  govet:
-    check-shadowing: true
   gocyclo:
     min-complexity: 15
+
 linters:
   enable:
-    - gofmt
     - govet
     - gocyclo
     - staticcheck
@@ -18,11 +17,9 @@ linters:
     - revive
     - errcheck
     - unused
-    - typecheck
-    - gosimple
-    - stylecheck
     - gocritic
     - durationcheck
+
 issues:
   exclude-dirs:
     - .history

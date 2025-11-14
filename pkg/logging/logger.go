@@ -1,3 +1,4 @@
+// Package logging centralizes structured logging utilities for aws-ssm.
 package logging
 
 import (

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -12,7 +13,8 @@ import (
 )
 
 var (
-	useNative bool
+	useNative                     bool
+	errInstanceSelectionCancelled = errors.New("instance selection cancelled")
 )
 
 var sessionCmd = &cobra.Command{
@@ -77,7 +79,7 @@ func runSession(_ *cobra.Command, args []string) error {
 	defer cancel()
 
 	// Create AWS client with interactive flags
-	client, err := aws.NewClientWithFlags(ctx, region, profile, interactive, interactiveCols, noColor, width, favorites)
+	client, err := aws.NewClientWithFlags(ctx, region, profile, configPath, interactive, interactiveCols, noColor, width, favorites)
 	if err != nil {
 		return fmt.Errorf("failed to create AWS client: %w", err)
 	}
@@ -85,6 +87,9 @@ func runSession(_ *cobra.Command, args []string) error {
 	// Parse and resolve arguments
 	instance, command, err := parseAndResolveArgs(ctx, client, args)
 	if err != nil {
+		if errors.Is(err, errInstanceSelectionCancelled) {
+			return nil
+		}
 		return err
 	}
 
@@ -116,16 +121,28 @@ func parseAndResolveArgs(ctx context.Context, client *aws.Client, args []string)
 		// One argument - instance identifier only
 		instance, err := resolveInstance(ctx, client, args[0])
 		if err != nil {
-			err = handleInstanceResolutionError(ctx, client, err)
-			return nil, "", err
+			instance, err = handleInstanceResolutionError(ctx, client, err)
+			if err != nil {
+				return nil, "", err
+			}
+		}
+		if instance == nil {
+			// User cancelled selection from multiple instances
+			return nil, "", errInstanceSelectionCancelled
 		}
 		return instance, "", nil
 	default:
 		// Two or more arguments - instance identifier and command
 		instance, err := resolveInstance(ctx, client, args[0])
 		if err != nil {
-			err = handleInstanceResolutionError(ctx, client, err)
-			return nil, "", err
+			instance, err = handleInstanceResolutionError(ctx, client, err)
+			if err != nil {
+				return nil, "", err
+			}
+		}
+		if instance == nil {
+			// User cancelled selection from multiple instances
+			return nil, "", errInstanceSelectionCancelled
 		}
 		return instance, args[1], nil
 	}
@@ -138,32 +155,37 @@ func resolveInstance(ctx context.Context, client *aws.Client, identifier string)
 }
 
 // handleInstanceResolutionError handles errors from instance resolution
-func handleInstanceResolutionError(ctx context.Context, client *aws.Client, err error) error {
+func handleInstanceResolutionError(ctx context.Context, client *aws.Client, err error) (*aws.Instance, error) {
 	if multiErr, ok := err.(*aws.MultipleInstancesError); ok && multiErr.AllowInteractive {
 		return selectFromMultipleInstances(ctx, client, multiErr.Instances)
 	}
-	return err
+	return nil, err
 }
 
 // selectFromMultipleInstances handles interactive selection from multiple matching instances
-func selectFromMultipleInstances(ctx context.Context, client *aws.Client, instances []aws.Instance) error {
+func selectFromMultipleInstances(ctx context.Context, client *aws.Client, instances []aws.Instance) (*aws.Instance, error) {
 	fmt.Print("Multiple instances found:\n\n")
 
 	selected, selErr := client.SelectInstanceFromProvided(ctx, instances)
 	if selErr != nil {
 		if selErr == context.Canceled {
 			fmt.Println("\nSelection cancelled.")
-			return nil
+			return nil, errInstanceSelectionCancelled
 		}
-		return fmt.Errorf("instance selection cancelled or failed: %w", selErr)
+		return nil, fmt.Errorf("instance selection cancelled or failed: %w", selErr)
 	}
 
 	if selected == nil {
 		fmt.Println("\nNo instance selected.")
-		return nil
+		return nil, errInstanceSelectionCancelled
 	}
 
-	return nil
+	name := getInstanceDisplayName(selected)
+	fmt.Printf("\nSelected instance:\n")
+	fmt.Printf("  ID:   %s\n", selected.InstanceID)
+	fmt.Printf("  Name: %s\n\n", name)
+
+	return selected, nil
 }
 
 // selectInstanceInteractive handles interactive instance selection
