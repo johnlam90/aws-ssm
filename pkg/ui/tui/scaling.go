@@ -183,42 +183,58 @@ func (m Model) renderScalingPrompt(view ViewMode) string {
 	}
 
 	s := m.scaling
-	var title string
+	var title, subtitle string
 	switch view {
 	case ViewASGs:
-		title = fmt.Sprintf("Scale Auto Scaling Group • %s", s.ASGName)
+		title = "Scale Auto Scaling Group"
+		subtitle = fmt.Sprintf("%s", s.ASGName)
 	case ViewNodeGroups:
-		title = fmt.Sprintf("Scale Node Group • %s / %s", s.ClusterName, s.NodeGroupName)
+		title = "Scale Node Group"
+		subtitle = fmt.Sprintf("%s / %s", s.ClusterName, s.NodeGroupName)
 	default:
 		title = "Scale Resource"
+		subtitle = s.displayName()
 	}
-
-	var b strings.Builder
-	b.WriteString(TitleStyle.Render(title))
-	b.WriteString("\n")
-	b.WriteString(fmt.Sprintf("Current: desired %d, min %d, max %d, actual %d\n",
-		s.CurrentDesired, s.CurrentMin, s.CurrentMax, s.CurrentSize))
 
 	input := strings.TrimSpace(s.Input)
 	if input == "" {
 		input = fmt.Sprintf("%d", s.CurrentDesired)
 	}
 
+	var b strings.Builder
+	b.WriteString(ModalTitleStyle.Render(title))
+	b.WriteString("\n")
+	b.WriteString(SubtitleStyle.Render(subtitle))
+	b.WriteString("\n\n")
+
+	b.WriteString(ModalLabelStyle.Render("Current capacity"))
+	b.WriteString("\n")
+	b.WriteString(fmt.Sprintf("  Desired %d  |  Min %d  |  Max %d  |  Actual %d\n\n",
+		s.CurrentDesired, s.CurrentMin, s.CurrentMax, s.CurrentSize))
+
+	b.WriteString(ModalLabelStyle.Render("New desired capacity"))
+	b.WriteString("\n")
+
 	if s.Submitting {
-		b.WriteString(LoadingStyle.Render(fmt.Sprintf("Scaling to %s ...", input)))
+		b.WriteString(LoadingStyle.Render(fmt.Sprintf("  Scaling to %s ...", input)))
 		b.WriteString("\n")
 	} else {
-		b.WriteString(fmt.Sprintf("New desired capacity: %s\n", StatusBarValueStyle.Render(input)))
-		b.WriteString(HelpStyle.Render("enter:apply  esc:cancel  digits:edit  ctrl+u:clear"))
+		b.WriteString("  ")
+		b.WriteString(ModalInputStyle.Render(input))
+		b.WriteString("\n")
+		b.WriteString(ModalHelpStyle.Render("enter:apply   esc:cancel   digits:edit   ctrl+u:clear"))
 		b.WriteString("\n")
 	}
 
 	if s.Error != nil {
+		b.WriteString("\n")
 		b.WriteString(ErrorStyle.Render(fmt.Sprintf("Error: %v", s.Error)))
 		b.WriteString("\n")
 	}
 
-	return PanelStyle.Width(m.width).Render(b.String())
+	modalWidth := calculateModalWidth(m.width)
+	modal := ModalStyle.Width(modalWidth).Render(b.String())
+	return centerModal(modal, m.width)
 }
 
 // renderStatusMessage renders the transient status message, if present
@@ -227,4 +243,55 @@ func (m Model) renderStatusMessage() string {
 		return ""
 	}
 	return SuccessStyle.Render(m.statusMessage)
+}
+
+func calculateModalWidth(totalWidth int) int {
+	switch {
+	case totalWidth >= 100:
+		return 80
+	case totalWidth >= 80:
+		return 70
+	case totalWidth >= 60:
+		return 55
+	default:
+		if w := totalWidth - 4; w > 30 {
+			return w
+		}
+		return totalWidth
+	}
+}
+
+func centerModal(modal string, totalWidth int) string {
+	if totalWidth <= 0 {
+		return modal
+	}
+	lines := strings.Split(modal, "\n")
+	modalWidth := 0
+	for _, line := range lines {
+		if len(line) > modalWidth {
+			modalWidth = len(line)
+		}
+	}
+
+	padding := 0
+	if totalWidth > modalWidth {
+		padding = (totalWidth - modalWidth) / 2
+		if padding < 0 {
+			padding = 0
+		}
+	}
+
+	if padding == 0 {
+		return modal
+	}
+
+	pad := strings.Repeat(" ", padding)
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			lines[i] = line
+			continue
+		}
+		lines[i] = pad + line
+	}
+	return "\n" + strings.Join(lines, "\n") + "\n"
 }

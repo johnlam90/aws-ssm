@@ -146,6 +146,31 @@ var (
 	PanelStyle = lipgloss.NewStyle().
 			BorderStyle(lipgloss.NormalBorder()).
 			BorderForeground(ColorBorder)
+
+	// Modal styles - used for focused interactions like scaling prompts
+	ModalStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(ColorAccentBlue).
+			Foreground(ColorPrimary).
+			Background(ColorSelected).
+			Padding(1, 2)
+
+	ModalTitleStyle = lipgloss.NewStyle().
+			Foreground(ColorPrimary).
+			Bold(true)
+
+	ModalLabelStyle = lipgloss.NewStyle().
+			Foreground(ColorSecondary).
+			Bold(true)
+
+	ModalInputStyle = lipgloss.NewStyle().
+			Foreground(ColorPrimary).
+			Background(ColorFocused).
+			Padding(0, 1).
+			Bold(true)
+
+	ModalHelpStyle = lipgloss.NewStyle().
+			Foreground(ColorAccentIndigo)
 )
 
 // GetStateColor returns the appropriate color for an instance state
