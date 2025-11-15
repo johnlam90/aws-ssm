@@ -83,11 +83,11 @@ func (m Model) renderEC2Instances() string {
 			name = name[:29] + "..."
 		}
 
-		state := StateStyle(inst.State)
-		row := fmt.Sprintf("  %-32s %-20s %-15s %-12s %-15s",
+		state := RenderStateCell(inst.State, 12)
+		row := fmt.Sprintf("  %-32s %-20s %-15s %s %-15s",
 			name, inst.InstanceID, inst.PrivateIP, state, inst.InstanceType)
 
-		b.WriteString(RenderSelectableRow("  "+row, i == m.cursor))
+		b.WriteString(RenderSelectableRow(row, i == m.cursor))
 		b.WriteString("\n")
 	}
 

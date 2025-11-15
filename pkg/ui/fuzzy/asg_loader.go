@@ -5,10 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/aws"
-	fuzzyfinder "github.com/ktr0731/go-fuzzyfinder"
+	"github.com/charmbracelet/bubbles/list"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -209,27 +210,42 @@ func NewASGFuzzyFinder(asgs []ASGInfo, colors ColorManager) *ASGFuzzyFinder {
 
 // Select displays the fuzzy finder and returns the selected ASG index
 func (f *ASGFuzzyFinder) Select(ctx context.Context) (int, error) {
+	fmt.Println("DEBUG: Using NEW bubbles-based fuzzy finder") // DEBUG
+
 	// Create preview renderer
 	renderer := NewASGPreviewRenderer(f.colors)
 
-	// Use fuzzyfinder to select with context support for Ctrl+C handling
-	selectedIndex, err := fuzzyfinder.Find(
-		f.asgs,
-		func(i int) string {
-			return f.formatASGRow(f.asgs[i])
-		},
-		fuzzyfinder.WithPreviewWindow(func(i, width, height int) string {
+	// Convert ASGs to bubbles list items
+	items := make([]list.Item, len(f.asgs))
+	for i, asg := range f.asgs {
+		items[i] = bubbleItem{
+			title:       f.formatASGRow(asg),
+			description: "",
+			index:       i,
+		}
+	}
+
+	fmt.Printf("DEBUG: Created %d list items\n", len(items)) // DEBUG
+
+	// Create bubbles finder
+	finder := NewBubblesFinder(
+		items,
+		func(i, width, height int) string {
 			if i < 0 || i >= len(f.asgs) {
 				return "Select an Auto Scaling Group to view details"
 			}
 			return renderer.Render(&f.asgs[i], width, height)
-		}),
-		fuzzyfinder.WithPromptString("Auto Scaling Group > "),
-		fuzzyfinder.WithContext(ctx),
+		},
+		"Auto Scaling Groups",
+		f.colors,
 	)
 
+	fmt.Println("DEBUG: About to call finder.Select()") // DEBUG
+	selectedIndex, err := finder.Select(ctx)
+	fmt.Printf("DEBUG: finder.Select() returned: index=%d, err=%v\n", selectedIndex, err) // DEBUG
+
 	if err != nil {
-		if err == fuzzyfinder.ErrAbort {
+		if strings.Contains(err.Error(), "cancelled") {
 			return -1, nil // User cancelled
 		}
 		return -1, err

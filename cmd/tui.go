@@ -82,10 +82,11 @@ func runTUI(_ *cobra.Command, _ []string) error {
 	model := tui.NewModel(ctx, client, config)
 
 	// Create Bubble Tea program with alt screen
+	// Note: Mouse support is disabled to allow native terminal text selection
+	// Users can select text with mouse and copy with Cmd+C (macOS) or Ctrl+Shift+C (Linux)
 	p := tea.NewProgram(
 		model,
-		tea.WithAltScreen(),       // Use alternate screen buffer
-		tea.WithMouseCellMotion(), // Enable mouse support
+		tea.WithAltScreen(), // Use alternate screen buffer
 	)
 
 	// Run the program

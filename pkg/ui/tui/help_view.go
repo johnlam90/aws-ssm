@@ -52,6 +52,16 @@ func (m Model) renderHelp() string {
 	}))
 	b.WriteString("\n")
 
+	// Clipboard - minimal
+	b.WriteString(TitleStyle.Render("Clipboard"))
+	b.WriteString("\n\n")
+	b.WriteString(m.renderHelpSection([]helpItem{
+		{"mouse select", "Select any visible text with mouse"},
+		{"cmd+c", "Copy selected text (macOS)"},
+		{"ctrl+shift+c", "Copy selected text (Linux/Windows)"},
+	}))
+	b.WriteString("\n")
+
 	// About - minimal
 	b.WriteString(TitleStyle.Render("About"))
 	b.WriteString("\n\n")

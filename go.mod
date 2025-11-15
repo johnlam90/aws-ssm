@@ -12,6 +12,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/eks v1.74.7
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.0
 	github.com/briandowns/spinner v1.23.2
+	github.com/charmbracelet/bubbles v0.21.0
+	github.com/charmbracelet/bubbletea v1.3.10
+	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/ktr0731/go-fuzzyfinder v0.9.0
 	github.com/mmmorris1975/ssm-session-client v0.402.0
 	github.com/spf13/cobra v1.10.1
@@ -25,6 +28,7 @@ replace github.com/twinj/uuid => github.com/twinj/uuid v0.0.0-20151029044442-891
 require github.com/twinj/uuid v0.0.0-20151029044442-89173bcdda19 // indirect; legacy uuid required by plugin
 
 require (
+	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.21 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.13 // indirect
@@ -39,10 +43,7 @@ require (
 	github.com/aws/session-manager-plugin v0.0.0-20250205214155-b2b0bcd769d1 // indirect
 	github.com/aws/smithy-go v1.23.2 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/charmbracelet/bubbles v0.21.0 // indirect
-	github.com/charmbracelet/bubbletea v1.3.10 // indirect
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
-	github.com/charmbracelet/lipgloss v1.1.0 // indirect
 	github.com/charmbracelet/x/ansi v0.10.1 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13-0.20250311204145-2c3ea96c31dd // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
@@ -73,6 +74,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/sahilm/fuzzy v0.1.1 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
