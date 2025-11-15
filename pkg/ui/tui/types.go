@@ -2,9 +2,11 @@ package tui
 
 import (
 	"context"
+	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/johnlam90/aws-ssm/pkg/aws"
+	"golang.org/x/sync/errgroup"
 )
 
 // ViewMode represents the current view in the TUI
@@ -153,6 +155,11 @@ type Config struct {
 	NoColor    bool
 }
 
+const (
+	asgDescribeWorkerLimit       = 6
+	nodeGroupDescribeWorkerLimit = 8
+)
+
 // LoadEC2InstancesCmd loads EC2 instances asynchronously
 func LoadEC2InstancesCmd(ctx context.Context, client *aws.Client) tea.Cmd {
 	return func() tea.Msg {
@@ -233,31 +240,57 @@ func LoadASGsCmd(ctx context.Context, client *aws.Client) tea.Cmd {
 			}
 		}
 
-		// Fetch details for each ASG
-		tuiASGs := make([]ASG, 0, len(asgNames))
+		if len(asgNames) == 0 {
+			return DataLoadedMsg{
+				View: ViewASGs,
+				ASGs: []ASG{},
+			}
+		}
+
+		var (
+			mu      sync.Mutex
+			tuiASGs = make([]ASG, 0, len(asgNames))
+		)
+		g, gCtx := errgroup.WithContext(ctx)
+		concurrency := asgDescribeWorkerLimit
+		if len(asgNames) < concurrency {
+			concurrency = len(asgNames)
+		}
+		if concurrency == 0 {
+			concurrency = 1
+		}
+		sem := make(chan struct{}, concurrency)
+
 		for _, name := range asgNames {
-			asg, err := client.DescribeAutoScalingGroup(ctx, name)
-			if err != nil {
-				// Skip ASGs that fail to describe
-				continue
-			}
+			name := name
+			g.Go(func() error {
+				select {
+				case <-gCtx.Done():
+					return gCtx.Err()
+				default:
+				}
 
-			// Derive status from current vs desired capacity
-			status := "Healthy"
-			if asg.CurrentSize < asg.DesiredCapacity {
-				status = "Scaling Up"
-			} else if asg.CurrentSize > asg.DesiredCapacity {
-				status = "Scaling Down"
-			}
+				sem <- struct{}{}
+				defer func() { <-sem }()
 
-			tuiASGs = append(tuiASGs, ASG{
-				Name:            asg.Name,
-				DesiredCapacity: asg.DesiredCapacity,
-				MinSize:         asg.MinSize,
-				MaxSize:         asg.MaxSize,
-				CurrentSize:     asg.CurrentSize,
-				Status:          status,
+				asg, err := client.DescribeAutoScalingGroup(gCtx, name)
+				if err != nil {
+					// Skip ASGs that fail to describe but keep loading others
+					return nil
+				}
+
+				mu.Lock()
+				tuiASGs = append(tuiASGs, convertToTUIASG(asg))
+				mu.Unlock()
+				return nil
 			})
+		}
+
+		if err := g.Wait(); err != nil {
+			return DataLoadedMsg{
+				View:  ViewASGs,
+				Error: err,
+			}
 		}
 
 		return DataLoadedMsg{
@@ -278,7 +311,12 @@ func LoadNodeGroupsCmd(ctx context.Context, client *aws.Client) tea.Cmd {
 			}
 		}
 
-		nodeGroups := make([]NodeGroup, 0)
+		type nodeGroupTarget struct {
+			clusterName   string
+			nodeGroupName string
+		}
+
+		var targets []nodeGroupTarget
 		for _, clusterName := range clusterNames {
 			ngNames, err := client.ListNodeGroupsForCluster(ctx, clusterName)
 			if err != nil {
@@ -287,26 +325,63 @@ func LoadNodeGroupsCmd(ctx context.Context, client *aws.Client) tea.Cmd {
 			}
 
 			for _, ngName := range ngNames {
-				ng, err := client.DescribeNodeGroupPublic(ctx, clusterName, ngName)
-				if err != nil {
-					continue
+				targets = append(targets, nodeGroupTarget{
+					clusterName:   clusterName,
+					nodeGroupName: ngName,
+				})
+			}
+		}
+
+		if len(targets) == 0 {
+			return DataLoadedMsg{
+				View:       ViewNodeGroups,
+				NodeGroups: []NodeGroup{},
+			}
+		}
+
+		var (
+			nodeGroups = make([]NodeGroup, 0, len(targets))
+			mu         sync.Mutex
+		)
+
+		g, gCtx := errgroup.WithContext(ctx)
+		concurrency := nodeGroupDescribeWorkerLimit
+		if len(targets) < concurrency {
+			concurrency = len(targets)
+		}
+		if concurrency == 0 {
+			concurrency = 1
+		}
+		sem := make(chan struct{}, concurrency)
+
+		for _, target := range targets {
+			target := target
+			g.Go(func() error {
+				select {
+				case <-gCtx.Done():
+					return gCtx.Err()
+				default:
 				}
 
-				nodeGroups = append(nodeGroups, NodeGroup{
-					ClusterName:           clusterName,
-					Name:                  ng.Name,
-					Status:                ng.Status,
-					Version:               ng.Version,
-					InstanceTypes:         ng.InstanceTypes,
-					DesiredSize:           ng.DesiredSize,
-					MinSize:               ng.MinSize,
-					MaxSize:               ng.MaxSize,
-					CurrentSize:           ng.CurrentSize,
-					CreatedAt:             ng.CreatedAt.Format("2006-01-02 15:04:05"),
-					LaunchTemplateID:      ng.LaunchTemplate.ID,
-					LaunchTemplateName:    ng.LaunchTemplate.Name,
-					LaunchTemplateVersion: ng.LaunchTemplate.Version,
-				})
+				sem <- struct{}{}
+				defer func() { <-sem }()
+
+				ng, err := client.DescribeNodeGroupPublic(gCtx, target.clusterName, target.nodeGroupName)
+				if err != nil {
+					return nil
+				}
+
+				mu.Lock()
+				nodeGroups = append(nodeGroups, convertToTUINodeGroup(target.clusterName, ng))
+				mu.Unlock()
+				return nil
+			})
+		}
+
+		if err := g.Wait(); err != nil {
+			return DataLoadedMsg{
+				View:  ViewNodeGroups,
+				Error: err,
 			}
 		}
 
@@ -332,6 +407,50 @@ func LoadNetworkInterfacesCmd(ctx context.Context, client *aws.Client) tea.Cmd {
 			View:             ViewNetworkInterfaces,
 			NetworkInstances: interfaces,
 		}
+	}
+}
+
+func convertToTUIASG(asg *aws.AutoScalingGroup) ASG {
+	if asg == nil {
+		return ASG{}
+	}
+
+	status := "Healthy"
+	if asg.CurrentSize < asg.DesiredCapacity {
+		status = "Scaling Up"
+	} else if asg.CurrentSize > asg.DesiredCapacity {
+		status = "Scaling Down"
+	}
+
+	return ASG{
+		Name:            asg.Name,
+		DesiredCapacity: asg.DesiredCapacity,
+		MinSize:         asg.MinSize,
+		MaxSize:         asg.MaxSize,
+		CurrentSize:     asg.CurrentSize,
+		Status:          status,
+	}
+}
+
+func convertToTUINodeGroup(clusterName string, ng *aws.NodeGroup) NodeGroup {
+	if ng == nil {
+		return NodeGroup{ClusterName: clusterName}
+	}
+
+	return NodeGroup{
+		ClusterName:           clusterName,
+		Name:                  ng.Name,
+		Status:                ng.Status,
+		Version:               ng.Version,
+		InstanceTypes:         ng.InstanceTypes,
+		DesiredSize:           ng.DesiredSize,
+		MinSize:               ng.MinSize,
+		MaxSize:               ng.MaxSize,
+		CurrentSize:           ng.CurrentSize,
+		CreatedAt:             ng.CreatedAt.Format("2006-01-02 15:04:05"),
+		LaunchTemplateID:      ng.LaunchTemplate.ID,
+		LaunchTemplateName:    ng.LaunchTemplate.Name,
+		LaunchTemplateVersion: ng.LaunchTemplate.Version,
 	}
 }
 
