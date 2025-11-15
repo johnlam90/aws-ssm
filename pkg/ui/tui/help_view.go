@@ -47,8 +47,8 @@ func (m Model) renderHelp() string {
 	b.WriteString(m.renderHelpSection([]helpItem{
 		{"r", "Refresh current view"},
 		{"enter", "Connect to instance / View details"},
-		{"/", "Search (future)"},
-		{"f", "Filter (future)"},
+		{"/", "Search/filter current view"},
+		{"ctrl+u", "Clear search input"},
 	}))
 	b.WriteString("\n")
 

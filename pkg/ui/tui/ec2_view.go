@@ -11,8 +11,10 @@ import (
 func (m Model) renderEC2Instances() string {
 	var b strings.Builder
 
+	instances := m.getEC2Instances()
+
 	// Header
-	header := m.renderHeader("EC2 Instances", fmt.Sprintf("%d instances", len(m.ec2Instances)))
+	header := m.renderHeader("EC2 Instances", fmt.Sprintf("%d instances", len(instances)))
 	b.WriteString(header)
 	b.WriteString("\n\n")
 
@@ -34,7 +36,7 @@ func (m Model) renderEC2Instances() string {
 	}
 
 	// No instances
-	if len(m.ec2Instances) == 0 {
+	if len(instances) == 0 {
 		b.WriteString(SubtitleStyle.Render("No EC2 instances found"))
 		b.WriteString("\n\n")
 		b.WriteString(HelpStyle.Render("esc:back"))
@@ -43,8 +45,8 @@ func (m Model) renderEC2Instances() string {
 		return b.String()
 	}
 
-	// Table header
-	headerRow := fmt.Sprintf("%-30s %-20s %-15s %-15s %-12s",
+	// Table header - clean and aligned
+	headerRow := fmt.Sprintf("  %-32s %-20s %-15s %-12s %-15s",
 		"NAME", "INSTANCE ID", "PRIVATE IP", "STATE", "TYPE")
 	b.WriteString(TableHeaderStyle.Render(headerRow))
 	b.WriteString("\n")
@@ -52,17 +54,17 @@ func (m Model) renderEC2Instances() string {
 	// Calculate visible range for pagination
 	visibleHeight := m.height - 10 // Reserve space for header, footer, status
 	startIdx := 0
-	endIdx := len(m.ec2Instances)
+	endIdx := len(instances)
 
-	if len(m.ec2Instances) > visibleHeight {
+	if len(instances) > visibleHeight {
 		// Center the cursor in the visible area
 		startIdx = m.cursor - visibleHeight/2
 		if startIdx < 0 {
 			startIdx = 0
 		}
 		endIdx = startIdx + visibleHeight
-		if endIdx > len(m.ec2Instances) {
-			endIdx = len(m.ec2Instances)
+		if endIdx > len(instances) {
+			endIdx = len(instances)
 			startIdx = endIdx - visibleHeight
 			if startIdx < 0 {
 				startIdx = 0
@@ -70,34 +72,36 @@ func (m Model) renderEC2Instances() string {
 		}
 	}
 
-	// Render instances
+	// Render instances with proper alignment
 	for i := startIdx; i < endIdx; i++ {
-		inst := m.ec2Instances[i]
+		inst := instances[i]
 		name := inst.Name
 		if name == "" {
 			name = "(no name)"
 		}
-		if len(name) > 28 {
-			name = name[:25] + "..."
+		if len(name) > 32 {
+			name = name[:29] + "..."
 		}
 
 		state := StateStyle(inst.State)
-		row := fmt.Sprintf("%-30s %-20s %-15s %-15s %-12s",
+		row := fmt.Sprintf("  %-32s %-20s %-15s %-12s %-15s",
 			name, inst.InstanceID, inst.PrivateIP, state, inst.InstanceType)
 
-		if i == m.cursor {
-			b.WriteString(ListItemSelectedStyle.Render("▶ " + row))
-		} else {
-			b.WriteString(ListItemStyle.Render("  " + row))
-		}
+		b.WriteString(RenderSelectableRow("  "+row, i == m.cursor))
 		b.WriteString("\n")
 	}
 
 	// Pagination indicator
-	if len(m.ec2Instances) > visibleHeight {
-		pageInfo := fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(m.ec2Instances))
+	if len(instances) > visibleHeight {
+		pageInfo := fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(instances))
 		b.WriteString("\n")
 		b.WriteString(SubtitleStyle.Render(pageInfo))
+	}
+
+	if searchBar := m.renderSearchBar(ViewEC2Instances); searchBar != "" {
+		b.WriteString("\n")
+		b.WriteString(searchBar)
+		b.WriteString("\n")
 	}
 
 	// Footer
@@ -113,6 +117,8 @@ func (m Model) renderEC2Instances() string {
 
 // handleEC2Keys handles keyboard input for EC2 instances view
 func (m Model) handleEC2Keys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	instances := m.getEC2Instances()
+
 	switch msg.String() {
 	case "up", "k":
 		if m.cursor > 0 {
@@ -120,7 +126,7 @@ func (m Model) handleEC2Keys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "down", "j":
-		if m.cursor < len(m.ec2Instances)-1 {
+		if m.cursor < len(instances)-1 {
 			m.cursor++
 		}
 
@@ -130,12 +136,14 @@ func (m Model) handleEC2Keys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "G":
 		// Go to bottom
-		m.cursor = len(m.ec2Instances) - 1
+		if len(instances) > 0 {
+			m.cursor = len(instances) - 1
+		}
 
 	case "enter", " ":
 		// Connect to selected instance via SSM
-		if m.cursor < len(m.ec2Instances) {
-			inst := m.ec2Instances[m.cursor]
+		if m.cursor < len(instances) {
+			inst := instances[m.cursor]
 
 			// Check if instance is running
 			if inst.State != "running" {
@@ -172,6 +180,7 @@ func (m Model) renderEC2Footer() string {
 		{"g/G", "top/bottom"},
 		{"enter", "connect"},
 		{"r", "refresh"},
+		{"/", "search"},
 		{"esc", "back"},
 	}
 

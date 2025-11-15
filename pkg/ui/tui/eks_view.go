@@ -11,8 +11,10 @@ import (
 func (m Model) renderEKSClusters() string {
 	var b strings.Builder
 
+	clusters := m.getEKSClusters()
+
 	// Header - simple
-	header := m.renderHeader("EKS Clusters", fmt.Sprintf("%d clusters", len(m.eksClusters)))
+	header := m.renderHeader("EKS Clusters", fmt.Sprintf("%d clusters", len(clusters)))
 	b.WriteString(header)
 	b.WriteString("\n\n")
 
@@ -34,7 +36,7 @@ func (m Model) renderEKSClusters() string {
 	}
 
 	// No clusters
-	if len(m.eksClusters) == 0 {
+	if len(clusters) == 0 {
 		b.WriteString(SubtitleStyle.Render("No EKS clusters found"))
 		b.WriteString("\n\n")
 		b.WriteString(HelpStyle.Render("esc:back"))
@@ -43,26 +45,32 @@ func (m Model) renderEKSClusters() string {
 		return b.String()
 	}
 
-	// Table header
-	headerRow := fmt.Sprintf("%-40s %-15s %-10s", "NAME", "STATUS", "VERSION")
+	// Table header - clean and aligned
+	headerRow := fmt.Sprintf("  %-45s %-15s %-10s", "NAME", "STATUS", "VERSION")
 	b.WriteString(TableHeaderStyle.Render(headerRow))
 	b.WriteString("\n")
 
-	// Render clusters
-	for i, cluster := range m.eksClusters {
-		status := StateStyle(cluster.Status)
-		row := fmt.Sprintf("%-40s %-15s %-10s", cluster.Name, status, cluster.Version)
-
-		if i == m.cursor {
-			b.WriteString(ListItemSelectedStyle.Render("▶ " + row))
-		} else {
-			b.WriteString(ListItemStyle.Render("  " + row))
+	// Render clusters with proper alignment
+	for i, cluster := range clusters {
+		// Truncate name if too long
+		name := cluster.Name
+		if len(name) > 45 {
+			name = name[:42] + "..."
 		}
+
+		status := StateStyle(cluster.Status)
+		row := fmt.Sprintf("  %-45s %-15s %-10s", name, status, cluster.Version)
+
+		b.WriteString(RenderSelectableRow(row, i == m.cursor))
 		b.WriteString("\n")
 	}
 
 	// Footer
 	b.WriteString("\n")
+	if searchBar := m.renderSearchBar(ViewEKSClusters); searchBar != "" {
+		b.WriteString(searchBar)
+		b.WriteString("\n")
+	}
 	b.WriteString(m.renderEKSFooter())
 
 	// Status bar
@@ -74,6 +82,8 @@ func (m Model) renderEKSClusters() string {
 
 // handleEKSKeys handles keyboard input for EKS clusters view
 func (m Model) handleEKSKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	clusters := m.getEKSClusters()
+
 	switch msg.String() {
 	case "up", "k":
 		if m.cursor > 0 {
@@ -81,20 +91,24 @@ func (m Model) handleEKSKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "down", "j":
-		if m.cursor < len(m.eksClusters)-1 {
+		if m.cursor < len(clusters)-1 {
 			m.cursor++
 		}
 
 	case "g":
-		m.cursor = 0
+		if len(clusters) > 0 {
+			m.cursor = 0
+		}
 
 	case "G":
-		m.cursor = len(m.eksClusters) - 1
+		if len(clusters) > 0 {
+			m.cursor = len(clusters) - 1
+		}
 
 	case "enter", " ":
 		// Show cluster details (exit TUI and display cluster info)
-		if m.cursor < len(m.eksClusters) {
-			cluster := m.eksClusters[m.cursor]
+		if m.cursor < len(clusters) {
+			cluster := clusters[m.cursor]
 
 			// Schedule cluster details display after TUI exits
 			return m, m.scheduleClusterDetails(cluster.Name)
@@ -125,6 +139,7 @@ func (m Model) renderEKSFooter() string {
 		{"g/G", "top/bottom"},
 		{"enter", "details"},
 		{"r", "refresh"},
+		{"/", "search"},
 		{"esc", "back"},
 	}
 

@@ -1,6 +1,9 @@
 package tui
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -122,6 +125,31 @@ func GetStateColor(state string) lipgloss.Color {
 
 // StateStyle returns a styled state string - minimal styling
 func StateStyle(state string) string {
-	color := GetStateColor(state)
-	return lipgloss.NewStyle().Foreground(color).Render(state)
+	trimmed := strings.TrimSpace(state)
+	color := GetStateColor(strings.ToLower(trimmed))
+	return lipgloss.NewStyle().Foreground(color).Render(trimmed)
+}
+
+// RenderStateCell renders a padded state string so table columns stay aligned
+func RenderStateCell(state string, width int) string {
+	normalized := strings.ToLower(strings.TrimSpace(state))
+	color := GetStateColor(normalized)
+	text := fmt.Sprintf("%-*s", width, normalized)
+	return lipgloss.NewStyle().Foreground(color).Render(text)
+}
+
+// RenderSelectableRow safely renders a row with/without selection indicator
+func RenderSelectableRow(row string, selected bool) string {
+	if !selected {
+		return ListItemStyle.Render(row)
+	}
+
+	trimmed := row
+	if len([]rune(row)) > 1 {
+		trimmed = string([]rune(row)[1:])
+	} else {
+		trimmed = ""
+	}
+
+	return ListItemSelectedStyle.Render("▶" + trimmed)
 }

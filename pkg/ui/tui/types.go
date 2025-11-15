@@ -15,6 +15,7 @@ const (
 	ViewEC2Instances
 	ViewEKSClusters
 	ViewASGs
+	ViewNodeGroups
 	ViewNetworkInterfaces
 	ViewHelp
 )
@@ -30,6 +31,8 @@ func (v ViewMode) String() string {
 		return "EKS Clusters"
 	case ViewASGs:
 		return "Auto Scaling Groups"
+	case ViewNodeGroups:
+		return "EKS Node Groups"
 	case ViewNetworkInterfaces:
 		return "Network Interfaces"
 	case ViewHelp:
@@ -77,6 +80,23 @@ type ASG struct {
 	Status          string
 }
 
+// NodeGroup represents an EKS node group in the TUI
+type NodeGroup struct {
+	ClusterName           string
+	Name                  string
+	Status                string
+	Version               string
+	InstanceTypes         []string
+	DesiredSize           int32
+	MinSize               int32
+	MaxSize               int32
+	CurrentSize           int32
+	CreatedAt             string
+	LaunchTemplateID      string
+	LaunchTemplateName    string
+	LaunchTemplateVersion string
+}
+
 // LoadingMsg is sent when data is being loaded
 type LoadingMsg struct {
 	View ViewMode
@@ -84,11 +104,35 @@ type LoadingMsg struct {
 
 // DataLoadedMsg is sent when data has been loaded
 type DataLoadedMsg struct {
-	View      ViewMode
-	Instances []EC2Instance
-	Clusters  []EKSCluster
-	ASGs      []ASG
-	Error     error
+	View             ViewMode
+	Instances        []EC2Instance
+	Clusters         []EKSCluster
+	ASGs             []ASG
+	NodeGroups       []NodeGroup
+	NetworkInstances []aws.InstanceInterfaces
+	Error            error
+}
+
+// ScalingResultMsg is emitted when a scaling operation finishes
+type ScalingResultMsg struct {
+	View  ViewMode
+	Error error
+}
+
+// LaunchTemplateVersionsMsg is sent when launch template versions are loaded
+type LaunchTemplateVersionsMsg struct {
+	ClusterName   string
+	NodeGroupName string
+	Versions      []aws.LaunchTemplateVersion
+	Error         error
+}
+
+// LaunchTemplateUpdateResultMsg is emitted when a launch template update completes
+type LaunchTemplateUpdateResultMsg struct {
+	ClusterName   string
+	NodeGroupName string
+	Version       string
+	Error         error
 }
 
 // ErrorMsg represents an error message
@@ -219,6 +263,151 @@ func LoadASGsCmd(ctx context.Context, client *aws.Client) tea.Cmd {
 		return DataLoadedMsg{
 			View: ViewASGs,
 			ASGs: tuiASGs,
+		}
+	}
+}
+
+// LoadNodeGroupsCmd loads EKS node groups asynchronously
+func LoadNodeGroupsCmd(ctx context.Context, client *aws.Client) tea.Cmd {
+	return func() tea.Msg {
+		clusterNames, err := client.ListClusters(ctx)
+		if err != nil {
+			return DataLoadedMsg{
+				View:  ViewNodeGroups,
+				Error: err,
+			}
+		}
+
+		nodeGroups := make([]NodeGroup, 0)
+		for _, clusterName := range clusterNames {
+			ngNames, err := client.ListNodeGroupsForCluster(ctx, clusterName)
+			if err != nil {
+				// Skip problematic clusters but continue loading others
+				continue
+			}
+
+			for _, ngName := range ngNames {
+				ng, err := client.DescribeNodeGroupPublic(ctx, clusterName, ngName)
+				if err != nil {
+					continue
+				}
+
+				nodeGroups = append(nodeGroups, NodeGroup{
+					ClusterName:           clusterName,
+					Name:                  ng.Name,
+					Status:                ng.Status,
+					Version:               ng.Version,
+					InstanceTypes:         ng.InstanceTypes,
+					DesiredSize:           ng.DesiredSize,
+					MinSize:               ng.MinSize,
+					MaxSize:               ng.MaxSize,
+					CurrentSize:           ng.CurrentSize,
+					CreatedAt:             ng.CreatedAt.Format("2006-01-02 15:04:05"),
+					LaunchTemplateID:      ng.LaunchTemplate.ID,
+					LaunchTemplateName:    ng.LaunchTemplate.Name,
+					LaunchTemplateVersion: ng.LaunchTemplate.Version,
+				})
+			}
+		}
+
+		return DataLoadedMsg{
+			View:       ViewNodeGroups,
+			NodeGroups: nodeGroups,
+		}
+	}
+}
+
+// LoadNetworkInterfacesCmd loads network interfaces asynchronously
+func LoadNetworkInterfacesCmd(ctx context.Context, client *aws.Client) tea.Cmd {
+	return func() tea.Msg {
+		interfaces, err := client.FetchNetworkInterfaces(ctx, aws.InterfacesOptions{})
+		if err != nil {
+			return DataLoadedMsg{
+				View:  ViewNetworkInterfaces,
+				Error: err,
+			}
+		}
+
+		return DataLoadedMsg{
+			View:             ViewNetworkInterfaces,
+			NetworkInstances: interfaces,
+		}
+	}
+}
+
+// ScaleASGCmd scales an Auto Scaling Group without leaving the TUI
+func ScaleASGCmd(ctx context.Context, client *aws.Client, asgName string, desired, currentMin, currentMax int32) tea.Cmd {
+	return func() tea.Msg {
+		min := currentMin
+		max := currentMax
+
+		if desired < min {
+			min = desired
+		}
+		if desired > max {
+			max = desired
+		}
+
+		err := client.UpdateAutoScalingGroupCapacity(ctx, asgName, min, max, desired)
+		if err != nil {
+			return ScalingResultMsg{View: ViewASGs, Error: err}
+		}
+
+		return ScalingResultMsg{View: ViewASGs}
+	}
+}
+
+// ScaleNodeGroupCmd scales an EKS node group inline
+func ScaleNodeGroupCmd(ctx context.Context, client *aws.Client, clusterName, nodeGroupName string, desired, currentMin, currentMax int32) tea.Cmd {
+	return func() tea.Msg {
+		min := currentMin
+		max := currentMax
+
+		if desired < min {
+			min = desired
+		}
+		if desired > max {
+			max = desired
+		}
+
+		err := client.UpdateNodeGroupScaling(ctx, clusterName, nodeGroupName, min, max, desired)
+		if err != nil {
+			return ScalingResultMsg{View: ViewNodeGroups, Error: err}
+		}
+
+		return ScalingResultMsg{View: ViewNodeGroups}
+	}
+}
+
+// LoadLaunchTemplateVersionsCmd retrieves launch template versions for a node group
+func LoadLaunchTemplateVersionsCmd(ctx context.Context, client *aws.Client, launchTemplateID, clusterName, nodeGroupName string) tea.Cmd {
+	return func() tea.Msg {
+		versions, err := client.ListLaunchTemplateVersions(ctx, launchTemplateID)
+		if err != nil {
+			return LaunchTemplateVersionsMsg{
+				ClusterName:   clusterName,
+				NodeGroupName: nodeGroupName,
+				Error:         err,
+			}
+		}
+
+		return LaunchTemplateVersionsMsg{
+			ClusterName:   clusterName,
+			NodeGroupName: nodeGroupName,
+			Versions:      versions,
+		}
+	}
+}
+
+// UpdateNodeGroupLaunchTemplateCmd updates the launch template version for a node group
+func UpdateNodeGroupLaunchTemplateCmd(ctx context.Context, client *aws.Client, clusterName, nodeGroupName, launchTemplateID, version string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.UpdateNodeGroupLaunchTemplate(ctx, clusterName, nodeGroupName, launchTemplateID, version)
+		return LaunchTemplateUpdateResultMsg{
+			ClusterName:   clusterName,
+			NodeGroupName: nodeGroupName,
+			Version:       version,
+			Error:         err,
 		}
 	}
 }

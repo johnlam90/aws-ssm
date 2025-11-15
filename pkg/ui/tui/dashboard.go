@@ -78,6 +78,14 @@ func (m Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.loading = true
 			m.loadingMsg = "Loading Auto Scaling Groups..."
 			cmd = LoadASGsCmd(m.ctx, m.client)
+		case ViewNodeGroups:
+			m.loading = true
+			m.loadingMsg = "Loading EKS node groups..."
+			cmd = LoadNodeGroupsCmd(m.ctx, m.client)
+		case ViewNetworkInterfaces:
+			m.loading = true
+			m.loadingMsg = "Loading network interfaces..."
+			cmd = LoadNetworkInterfacesCmd(m.ctx, m.client)
 		}
 
 		return m, cmd

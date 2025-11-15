@@ -26,9 +26,16 @@ type Model struct {
 	spinner     spinner.Model
 
 	// Data
-	ec2Instances []EC2Instance
-	eksClusters  []EKSCluster
-	asgs         []ASG
+	ec2Instances       []EC2Instance
+	filteredEC2        []EC2Instance
+	eksClusters        []EKSCluster
+	filteredEKS        []EKSCluster
+	asgs               []ASG
+	filteredASGs       []ASG
+	nodeGroups         []NodeGroup
+	filteredNodeGroups []NodeGroup
+	netInterfaces      []aws.InstanceInterfaces
+	filteredNetworks   []aws.InstanceInterfaces
 
 	// Dashboard menu items
 	menuItems []MenuItem
@@ -36,8 +43,14 @@ type Model struct {
 	// Post-exit actions
 	pendingSSMSession *string // Instance ID to connect to after TUI exits
 	pendingEKSCluster *string // Cluster name to show details for after TUI exits
-	pendingASGScale   *string // ASG name to scale after TUI exits
-	shouldQuit        bool    // Flag to indicate we should quit
+
+	// Transient UI state
+	searchActive  bool
+	searchBuffer  string
+	searchQueries map[ViewMode]string
+	scaling       *ScalingState
+	ltUpdate      *LaunchTemplateUpdateState
+	statusMessage string
 }
 
 // NewModel creates a new TUI model
@@ -62,6 +75,12 @@ func NewModel(ctx context.Context, client *aws.Client, config Config) Model {
 			Icon:        "",
 		},
 		{
+			Title:       "EKS Node Groups",
+			Description: "Inspect managed node groups",
+			View:        ViewNodeGroups,
+			Icon:        "",
+		},
+		{
 			Title:       "Network Interfaces",
 			Description: "View EC2 network interfaces and ENIs",
 			View:        ViewNetworkInterfaces,
@@ -81,14 +100,15 @@ func NewModel(ctx context.Context, client *aws.Client, config Config) Model {
 	s.Style = LoadingStyle
 
 	return Model{
-		ctx:         ctx,
-		client:      client,
-		config:      config,
-		currentView: ViewDashboard,
-		viewStack:   []ViewMode{},
-		cursor:      0,
-		menuItems:   menuItems,
-		spinner:     s,
+		ctx:           ctx,
+		client:        client,
+		config:        config,
+		currentView:   ViewDashboard,
+		viewStack:     []ViewMode{},
+		cursor:        0,
+		menuItems:     menuItems,
+		spinner:       s,
+		searchQueries: map[ViewMode]string{},
 	}
 }
 
@@ -109,6 +129,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		if m.scaling != nil {
+			return m.handleScalingKeys(msg)
+		}
+		if m.ltUpdate != nil {
+			return m.handleLaunchTemplateKeys(msg)
+		}
+		if m.searchActive {
+			var handled bool
+			m, handled = m.handleSearchInput(msg)
+			if handled {
+				return m, nil
+			}
+		}
 		return m.handleKeyPress(msg)
 
 	case DataLoadedMsg:
@@ -118,6 +151,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.Err
 		m.loading = false
 		return m, nil
+
+	case ScalingResultMsg:
+		return m.handleScalingResult(msg)
+
+	case LaunchTemplateVersionsMsg:
+		return m.handleLaunchTemplateVersions(msg)
+
+	case LaunchTemplateUpdateResultMsg:
+		return m.handleLaunchTemplateUpdateResult(msg)
 
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -148,6 +190,10 @@ func (m Model) View() string {
 		return m.renderEKSClusters()
 	case ViewASGs:
 		return m.renderASGs()
+	case ViewNodeGroups:
+		return m.renderNodeGroups()
+	case ViewNetworkInterfaces:
+		return m.renderNetworkInterfaces()
 	case ViewHelp:
 		return m.renderHelp()
 	default:
@@ -173,6 +219,12 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.pushView(ViewHelp)
 		return m, nil
+
+	case "/":
+		if !m.searchActive {
+			m = m.beginSearch()
+			return m, nil
+		}
 	}
 
 	// View-specific keybindings
@@ -185,6 +237,10 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleEKSKeys(msg)
 	case ViewASGs:
 		return m.handleASGKeys(msg)
+	case ViewNodeGroups:
+		return m.handleNodeGroupKeys(msg)
+	case ViewNetworkInterfaces:
+		return m.handleNetworkInterfaceKeys(msg)
 	case ViewHelp:
 		return m.handleHelpKeys(msg)
 	}
@@ -197,6 +253,8 @@ func (m *Model) pushView(view ViewMode) {
 	m.viewStack = append(m.viewStack, m.currentView)
 	m.currentView = view
 	m.cursor = 0 // Reset cursor when changing views
+	m.scaling = nil
+	m.statusMessage = ""
 }
 
 // navigateBack pops the previous view from the stack
@@ -205,6 +263,8 @@ func (m Model) navigateBack() Model {
 		m.currentView = m.viewStack[len(m.viewStack)-1]
 		m.viewStack = m.viewStack[:len(m.viewStack)-1]
 		m.cursor = 0
+		m.scaling = nil
+		m.statusMessage = ""
 	}
 	return m
 }
@@ -225,7 +285,13 @@ func (m Model) handleDataLoaded(msg DataLoadedMsg) (tea.Model, tea.Cmd) {
 		m.eksClusters = msg.Clusters
 	case ViewASGs:
 		m.asgs = msg.ASGs
+	case ViewNodeGroups:
+		m.nodeGroups = msg.NodeGroups
+	case ViewNetworkInterfaces:
+		m.netInterfaces = msg.NetworkInstances
 	}
+
+	m = m.applyFiltersForView(msg.View)
 
 	return m, nil
 }
@@ -271,28 +337,14 @@ func (m Model) GetPendingEKSCluster() *string {
 	return m.pendingEKSCluster
 }
 
-// GetPendingASGScale returns the ASG name to scale after TUI exits
-func (m Model) GetPendingASGScale() *string {
-	return m.pendingASGScale
-}
-
 // scheduleSSMSession schedules an SSM session to start after the TUI exits
 func (m *Model) scheduleSSMSession(instanceID string) tea.Cmd {
 	m.pendingSSMSession = &instanceID
-	m.shouldQuit = true
 	return tea.Quit
 }
 
 // scheduleClusterDetails schedules cluster details display after the TUI exits
 func (m *Model) scheduleClusterDetails(clusterName string) tea.Cmd {
 	m.pendingEKSCluster = &clusterName
-	m.shouldQuit = true
-	return tea.Quit
-}
-
-// scheduleASGScale schedules ASG scaling after the TUI exits
-func (m *Model) scheduleASGScale(asgName string) tea.Cmd {
-	m.pendingASGScale = &asgName
-	m.shouldQuit = true
 	return tea.Quit
 }

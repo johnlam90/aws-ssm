@@ -230,6 +230,29 @@ func (c *Client) ListNetworkInterfaces(ctx context.Context, opts InterfacesOptio
 	return nil
 }
 
+// FetchNetworkInterfaces returns network interface data for EC2 instances without printing
+func (c *Client) FetchNetworkInterfaces(ctx context.Context, opts InterfacesOptions) ([]InstanceInterfaces, error) {
+	// Build and resolve instance query
+	input, err := c.buildInstanceQuery(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Describe instances
+	result, err := c.EC2Client.DescribeInstances(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to describe instances: %w", err)
+	}
+
+	// Collect network interface data
+	instances, err := c.collectInstanceInterfaces(ctx, result)
+	if err != nil {
+		return nil, err
+	}
+
+	return instances, nil
+}
+
 // buildInstanceQuery builds the EC2 query based on options
 func (c *Client) buildInstanceQuery(ctx context.Context, opts InterfacesOptions) (*ec2.DescribeInstancesInput, error) {
 	var filters []types.Filter
@@ -263,6 +286,28 @@ func (c *Client) buildInstanceQuery(ctx context.Context, opts InterfacesOptions)
 	}
 
 	return input, nil
+}
+
+// collectInstanceInterfaces aggregates interface data for non-terminated instances
+func (c *Client) collectInstanceInterfaces(ctx context.Context, result *ec2.DescribeInstancesOutput) ([]InstanceInterfaces, error) {
+	var instances []InstanceInterfaces
+	for _, reservation := range result.Reservations {
+		for _, instance := range reservation.Instances {
+			// Skip terminated instances
+			if instance.State.Name == types.InstanceStateNameTerminated {
+				continue
+			}
+
+			instInterfaces, err := c.GetInstanceInterfaces(ctx, instance)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get interfaces for instance %s: %w",
+					aws.ToString(instance.InstanceId), err)
+			}
+
+			instances = append(instances, *instInterfaces)
+		}
+	}
+	return instances, nil
 }
 
 // addStateFilter adds state filter based on showAll option

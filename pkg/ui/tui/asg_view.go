@@ -11,8 +11,10 @@ import (
 func (m Model) renderASGs() string {
 	var b strings.Builder
 
+	asgs := m.getASGs()
+
 	// Header - simple
-	header := m.renderHeader("Auto Scaling Groups", fmt.Sprintf("%d ASGs", len(m.asgs)))
+	header := m.renderHeader("Auto Scaling Groups", fmt.Sprintf("%d ASGs", len(asgs)))
 	b.WriteString(header)
 	b.WriteString("\n\n")
 
@@ -34,7 +36,7 @@ func (m Model) renderASGs() string {
 	}
 
 	// No ASGs
-	if len(m.asgs) == 0 {
+	if len(asgs) == 0 {
 		b.WriteString(SubtitleStyle.Render("No Auto Scaling Groups found"))
 		b.WriteString("\n\n")
 		b.WriteString(HelpStyle.Render("esc:back"))
@@ -50,7 +52,7 @@ func (m Model) renderASGs() string {
 	b.WriteString("\n")
 
 	// Render ASGs with proper alignment
-	for i, asg := range m.asgs {
+	for i, asg := range asgs {
 		// Truncate name if too long
 		name := asg.Name
 		if len(name) > 50 {
@@ -60,16 +62,24 @@ func (m Model) renderASGs() string {
 		row := fmt.Sprintf("  %-50s %8d %8d %8d %8d",
 			name, asg.DesiredCapacity, asg.MinSize, asg.MaxSize, asg.CurrentSize)
 
-		if i == m.cursor {
-			b.WriteString(ListItemSelectedStyle.Render("▶" + row[1:]))
-		} else {
-			b.WriteString(ListItemStyle.Render(row))
-		}
+		b.WriteString(RenderSelectableRow(row, i == m.cursor))
 		b.WriteString("\n")
 	}
 
-	// Footer
+	// Scaling prompt / search bar
 	b.WriteString("\n")
+	if overlay := m.renderScalingPrompt(ViewASGs); overlay != "" {
+		b.WriteString(overlay)
+		b.WriteString("\n")
+	}
+	if searchBar := m.renderSearchBar(ViewASGs); searchBar != "" {
+		b.WriteString(searchBar)
+		b.WriteString("\n")
+	}
+	if status := m.renderStatusMessage(); status != "" {
+		b.WriteString(status)
+		b.WriteString("\n")
+	}
 	b.WriteString(m.renderASGFooter())
 
 	// Status bar
@@ -81,6 +91,8 @@ func (m Model) renderASGs() string {
 
 // handleASGKeys handles keyboard input for ASG view
 func (m Model) handleASGKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	asgs := m.getASGs()
+
 	switch msg.String() {
 	case "up", "k":
 		if m.cursor > 0 {
@@ -88,21 +100,24 @@ func (m Model) handleASGKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "down", "j":
-		if m.cursor < len(m.asgs)-1 {
+		if m.cursor < len(asgs)-1 {
 			m.cursor++
 		}
 
 	case "g":
-		m.cursor = 0
+		if len(asgs) > 0 {
+			m.cursor = 0
+		}
 
 	case "G":
-		m.cursor = len(m.asgs) - 1
+		if len(asgs) > 0 {
+			m.cursor = len(asgs) - 1
+		}
 
 	case "enter", " ":
-		// Scale ASG - exit TUI and prompt for new capacity
-		if m.cursor < len(m.asgs) {
-			asg := m.asgs[m.cursor]
-			return m, m.scheduleASGScale(asg.Name)
+		if m.cursor < len(asgs) {
+			asg := asgs[m.cursor]
+			m = m.startASGScaling(asg)
 		}
 
 	case "r":
@@ -110,6 +125,7 @@ func (m Model) handleASGKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.loading = true
 		m.loadingMsg = "Refreshing Auto Scaling Groups..."
 		m.err = nil
+		m.statusMessage = ""
 		return m, LoadASGsCmd(m.ctx, m.client)
 
 	case "esc":
@@ -130,6 +146,7 @@ func (m Model) renderASGFooter() string {
 		{"g/G", "top/bottom"},
 		{"enter", "scale"},
 		{"r", "refresh"},
+		{"/", "search"},
 		{"esc", "back"},
 	}
 
