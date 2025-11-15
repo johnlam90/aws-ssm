@@ -107,6 +107,13 @@ func (m Model) renderNodeGroups() string {
 		b.WriteString("  Launch template: n/a\n")
 	}
 	b.WriteString(fmt.Sprintf("  Created:   %s\n", normalizeValue(selected.CreatedAt, "unknown", 0)))
+	if lines := renderTagLines(selected.Tags); len(lines) > 0 {
+		b.WriteString("  Tags:\n")
+		for _, line := range lines {
+			b.WriteString(line)
+			b.WriteString("\n")
+		}
+	}
 
 	b.WriteString("\n")
 	if overlay := m.renderScalingPrompt(ViewNodeGroups); overlay != "" {

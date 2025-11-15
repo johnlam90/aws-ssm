@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/johnlam90/aws-ssm/pkg/aws"
 )
 
 // renderNetworkInterfaces renders the network interfaces view
@@ -98,20 +99,19 @@ func (m Model) renderNetworkInterfaces() string {
 	detailTitle := fmt.Sprintf("Interfaces for %s (%s)", normalizeValue(selected.InstanceName, "(no name)", 0), selected.InstanceID)
 	b.WriteString(SubtitleStyle.Render(detailTitle))
 	b.WriteString("\n")
+	b.WriteString(fmt.Sprintf("  DNS Name:   %s\n", normalizeValue(selected.DNSName, "n/a", 0)))
+	b.WriteString(fmt.Sprintf("  Interfaces: %d\n\n", len(selected.Interfaces)))
 
 	if len(selected.Interfaces) == 0 {
 		b.WriteString(HelpStyle.Render("No interfaces found for this instance"))
 		b.WriteString("\n")
 	} else {
-		detailHeader := fmt.Sprintf("  %-10s %-20s %-22s %-22s", "IFACE", "SUBNET", "CIDR", "SECURITY GROUP")
-		b.WriteString(TableHeaderStyle.Render(detailHeader))
+		widths := calculateInterfaceColumnWidths(selected.Interfaces, m.width)
+		b.WriteString(TableHeaderStyle.Render(formatInterfaceHeader(widths)))
 		b.WriteString("\n")
 
 		for _, iface := range selected.Interfaces {
-			subnet := normalizeValue(iface.SubnetID, "N/A", 20)
-			cidr := normalizeValue(iface.CIDR, "N/A", 22)
-			sg := normalizeValue(iface.SecurityGroup, "N/A", 22)
-			row := fmt.Sprintf("  %-10s %-20s %-22s %-22s", iface.InterfaceName, subnet, cidr, sg)
+			row := formatInterfaceRow(iface, widths)
 			b.WriteString(ListItemStyle.Render(row))
 			b.WriteString("\n")
 		}
@@ -183,6 +183,114 @@ func (m Model) renderNetworkFooter() string {
 	}
 
 	return HelpStyle.Render(strings.Join(parts, " • "))
+}
+
+type interfaceColumnWidths struct {
+	iface  int
+	card   int
+	device int
+	subnet int
+	cidr   int
+	sg     int
+}
+
+func (w interfaceColumnWidths) totalWidth() int {
+	const indent = 2
+	const columnSpacing = 5 // Six columns, five gaps
+	return indent + columnSpacing + w.iface + w.card + w.device + w.subnet + w.cidr + w.sg
+}
+
+func (w *interfaceColumnWidths) clamp(maxWidth int) {
+	if maxWidth <= 0 {
+		return
+	}
+	current := w.totalWidth()
+	if current <= maxWidth {
+		return
+	}
+
+	targets := []struct {
+		ptr *int
+		min int
+	}{
+		{&w.sg, len("SECURITY GROUP")},
+		{&w.subnet, len("SUBNET")},
+		{&w.cidr, len("CIDR")},
+	}
+
+	for _, target := range targets {
+		if current <= maxWidth {
+			break
+		}
+		if *target.ptr <= target.min {
+			continue
+		}
+
+		diff := current - maxWidth
+		reducible := *target.ptr - target.min
+		if reducible > diff {
+			reducible = diff
+		}
+		*target.ptr -= reducible
+		current -= reducible
+	}
+}
+
+func calculateInterfaceColumnWidths(ifaces []aws.NetworkInterface, totalWidth int) interfaceColumnWidths {
+	widths := interfaceColumnWidths{
+		iface:  len("IFACE"),
+		card:   len("CARD"),
+		device: len("DEVICE"),
+		subnet: len("SUBNET"),
+		cidr:   len("CIDR"),
+		sg:     len("SECURITY GROUP"),
+	}
+
+	for _, iface := range ifaces {
+		widths.iface = maxInt(widths.iface, len(normalizeValue(iface.InterfaceName, "n/a", 0)))
+		widths.card = maxInt(widths.card, len(fmt.Sprintf("%d", iface.NetworkCardIndex)))
+		widths.device = maxInt(widths.device, len(fmt.Sprintf("%d", iface.DeviceIndex)))
+		widths.subnet = maxInt(widths.subnet, len(normalizeValue(iface.SubnetID, "N/A", 0)))
+		widths.cidr = maxInt(widths.cidr, len(normalizeValue(iface.CIDR, "N/A", 0)))
+		widths.sg = maxInt(widths.sg, len(normalizeValue(iface.SecurityGroup, "N/A", 0)))
+	}
+
+	widths.clamp(totalWidth)
+	return widths
+}
+
+func formatInterfaceHeader(widths interfaceColumnWidths) string {
+	return fmt.Sprintf("  %-*s %-*s %-*s %-*s %-*s %-*s",
+		widths.iface, "IFACE",
+		widths.card, "CARD",
+		widths.device, "DEVICE",
+		widths.subnet, "SUBNET",
+		widths.cidr, "CIDR",
+		widths.sg, "SECURITY GROUP",
+	)
+}
+
+func formatInterfaceRow(iface aws.NetworkInterface, widths interfaceColumnWidths) string {
+	name := normalizeValue(iface.InterfaceName, "n/a", widths.iface)
+	subnet := normalizeValue(iface.SubnetID, "N/A", widths.subnet)
+	cidr := normalizeValue(iface.CIDR, "N/A", widths.cidr)
+	sg := normalizeValue(iface.SecurityGroup, "N/A", widths.sg)
+
+	return fmt.Sprintf("  %-*s %*d %*d %-*s %-*s %-*s",
+		widths.iface, name,
+		widths.card, iface.NetworkCardIndex,
+		widths.device, iface.DeviceIndex,
+		widths.subnet, subnet,
+		widths.cidr, cidr,
+		widths.sg, sg,
+	)
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // normalizeValue returns a fallback if value is empty and optionally truncates it

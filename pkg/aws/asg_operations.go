@@ -95,6 +95,12 @@ func convertAutoScalingGroup(asg *asgtypes.AutoScalingGroup) *AutoScalingGroup {
 	setStringIfNotNil(asg.HealthCheckType, &result.HealthCheckType)
 	setStringIfNotNil(asg.VPCZoneIdentifier, &result.VPCZoneIdentifier)
 	setStringIfNotNil(asg.LaunchConfigurationName, &result.LaunchConfigurationName)
+	if asg.LaunchTemplate != nil {
+		setStringIfNotNil(asg.LaunchTemplate.LaunchTemplateName, &result.LaunchTemplateName)
+		if asg.LaunchTemplate.Version != nil {
+			result.LaunchTemplateVersion = *asg.LaunchTemplate.Version
+		}
+	}
 
 	// Set integer fields
 	setInt32IfNotNil(asg.MinSize, &result.MinSize)

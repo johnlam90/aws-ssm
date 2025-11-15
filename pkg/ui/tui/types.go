@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"sync"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/johnlam90/aws-ssm/pkg/aws"
@@ -59,9 +60,14 @@ type EC2Instance struct {
 	State            string
 	PrivateIP        string
 	PublicIP         string
+	PrivateDNS       string
+	PublicDNS        string
 	InstanceType     string
 	AvailabilityZone string
 	Tags             map[string]string
+	LaunchTime       time.Time
+	InstanceProfile  string
+	SecurityGroups   []string
 }
 
 // EKSCluster represents an EKS cluster in the TUI
@@ -74,12 +80,21 @@ type EKSCluster struct {
 
 // ASG represents an Auto Scaling Group in the TUI
 type ASG struct {
-	Name            string
-	DesiredCapacity int32
-	MinSize         int32
-	MaxSize         int32
-	CurrentSize     int32
-	Status          string
+	Name                    string
+	DesiredCapacity         int32
+	MinSize                 int32
+	MaxSize                 int32
+	CurrentSize             int32
+	Status                  string
+	HealthCheckType         string
+	CreatedAt               time.Time
+	AvailabilityZones       []string
+	Tags                    map[string]string
+	LaunchTemplateName      string
+	LaunchTemplateVersion   string
+	LaunchConfigurationName string
+	LoadBalancerNames       []string
+	TargetGroupARNs         []string
 }
 
 // NodeGroup represents an EKS node group in the TUI
@@ -97,6 +112,7 @@ type NodeGroup struct {
 	LaunchTemplateID      string
 	LaunchTemplateName    string
 	LaunchTemplateVersion string
+	Tags                  map[string]string
 }
 
 // LoadingMsg is sent when data is being loaded
@@ -180,9 +196,14 @@ func LoadEC2InstancesCmd(ctx context.Context, client *aws.Client) tea.Cmd {
 				State:            inst.State,
 				PrivateIP:        inst.PrivateIP,
 				PublicIP:         inst.PublicIP,
+				PrivateDNS:       inst.PrivateDNS,
+				PublicDNS:        inst.PublicDNS,
 				InstanceType:     inst.InstanceType,
 				AvailabilityZone: inst.AvailabilityZone,
 				Tags:             inst.Tags,
+				LaunchTime:       inst.LaunchTime,
+				InstanceProfile:  inst.InstanceProfile,
+				SecurityGroups:   append([]string{}, inst.SecurityGroups...),
 			}
 		}
 
@@ -422,19 +443,41 @@ func convertToTUIASG(asg *aws.AutoScalingGroup) ASG {
 		status = "Scaling Down"
 	}
 
+	availabilityZones := append([]string{}, asg.AvailabilityZones...)
+	loadBalancers := append([]string{}, asg.LoadBalancerNames...)
+	targetGroups := append([]string{}, asg.TargetGroupARNs...)
+	tags := make(map[string]string, len(asg.Tags))
+	for k, v := range asg.Tags {
+		tags[k] = v
+	}
+
 	return ASG{
-		Name:            asg.Name,
-		DesiredCapacity: asg.DesiredCapacity,
-		MinSize:         asg.MinSize,
-		MaxSize:         asg.MaxSize,
-		CurrentSize:     asg.CurrentSize,
-		Status:          status,
+		Name:                    asg.Name,
+		DesiredCapacity:         asg.DesiredCapacity,
+		MinSize:                 asg.MinSize,
+		MaxSize:                 asg.MaxSize,
+		CurrentSize:             asg.CurrentSize,
+		Status:                  status,
+		HealthCheckType:         asg.HealthCheckType,
+		CreatedAt:               asg.CreatedTime,
+		AvailabilityZones:       availabilityZones,
+		Tags:                    tags,
+		LaunchTemplateName:      asg.LaunchTemplateName,
+		LaunchTemplateVersion:   asg.LaunchTemplateVersion,
+		LaunchConfigurationName: asg.LaunchConfigurationName,
+		LoadBalancerNames:       loadBalancers,
+		TargetGroupARNs:         targetGroups,
 	}
 }
 
 func convertToTUINodeGroup(clusterName string, ng *aws.NodeGroup) NodeGroup {
 	if ng == nil {
 		return NodeGroup{ClusterName: clusterName}
+	}
+
+	tags := make(map[string]string, len(ng.Tags))
+	for k, v := range ng.Tags {
+		tags[k] = v
 	}
 
 	return NodeGroup{
@@ -451,6 +494,7 @@ func convertToTUINodeGroup(clusterName string, ng *aws.NodeGroup) NodeGroup {
 		LaunchTemplateID:      ng.LaunchTemplate.ID,
 		LaunchTemplateName:    ng.LaunchTemplate.Name,
 		LaunchTemplateVersion: ng.LaunchTemplate.Version,
+		Tags:                  tags,
 	}
 }
 

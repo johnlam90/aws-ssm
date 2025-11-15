@@ -45,14 +45,39 @@ func (m Model) renderASGs() string {
 		return b.String()
 	}
 
+	cursor := clampIndex(m.cursor, len(asgs))
+
 	// Table header - clean and aligned
 	headerRow := fmt.Sprintf("  %-50s %8s %8s %8s %8s",
 		"NAME", "DESIRED", "MIN", "MAX", "CURRENT")
 	b.WriteString(TableHeaderStyle.Render(headerRow))
 	b.WriteString("\n")
 
+	visibleHeight := m.height - 14
+	if visibleHeight < 5 {
+		visibleHeight = len(asgs)
+	}
+
+	startIdx := 0
+	endIdx := len(asgs)
+	if len(asgs) > visibleHeight && visibleHeight > 0 {
+		startIdx = cursor - visibleHeight/2
+		if startIdx < 0 {
+			startIdx = 0
+		}
+		endIdx = startIdx + visibleHeight
+		if endIdx > len(asgs) {
+			endIdx = len(asgs)
+			startIdx = endIdx - visibleHeight
+			if startIdx < 0 {
+				startIdx = 0
+			}
+		}
+	}
+
 	// Render ASGs with proper alignment
-	for i, asg := range asgs {
+	for i := startIdx; i < endIdx; i++ {
+		asg := asgs[i]
 		// Truncate name if too long
 		name := asg.Name
 		if len(name) > 50 {
@@ -62,9 +87,21 @@ func (m Model) renderASGs() string {
 		row := fmt.Sprintf("  %-50s %8d %8d %8d %8d",
 			name, asg.DesiredCapacity, asg.MinSize, asg.MaxSize, asg.CurrentSize)
 
-		b.WriteString(RenderSelectableRow(row, i == m.cursor))
+		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
+
+	if visibleHeight > 0 && len(asgs) > visibleHeight {
+		pageInfo := fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(asgs))
+		b.WriteString("\n")
+		b.WriteString(SubtitleStyle.Render(pageInfo))
+	}
+
+	selected := asgs[cursor]
+	b.WriteString("\n")
+	b.WriteString(SubtitleStyle.Render(selected.Name))
+	b.WriteString("\n")
+	b.WriteString(m.renderASGDetails(selected))
 
 	// Scaling prompt / search bar
 	b.WriteString("\n")
@@ -158,4 +195,66 @@ func (m Model) renderASGFooter() string {
 	}
 
 	return HelpStyle.Render(strings.Join(parts, " • "))
+}
+
+func (m Model) renderASGDetails(asg ASG) string {
+	var b strings.Builder
+
+	b.WriteString("  Scaling:\n")
+	b.WriteString(fmt.Sprintf("    Desired: %d  Min: %d  Max: %d  Current: %d\n",
+		asg.DesiredCapacity, asg.MinSize, asg.MaxSize, asg.CurrentSize))
+	if asg.Status != "" {
+		b.WriteString(fmt.Sprintf("    Status:  %s\n", StateStyle(strings.ToLower(asg.Status))))
+	}
+	if asg.HealthCheckType != "" {
+		b.WriteString(fmt.Sprintf("    Health Check: %s\n", asg.HealthCheckType))
+	}
+	if !asg.CreatedAt.IsZero() {
+		b.WriteString(fmt.Sprintf("    Created: %s\n", formatRelativeTimestamp(asg.CreatedAt)))
+	}
+
+	b.WriteString("\n  Launch Configuration:\n")
+	switch {
+	case strings.TrimSpace(asg.LaunchTemplateName) != "":
+		b.WriteString(fmt.Sprintf("    Template: %s", asg.LaunchTemplateName))
+		if strings.TrimSpace(asg.LaunchTemplateVersion) != "" {
+			b.WriteString(fmt.Sprintf(" (version %s)", asg.LaunchTemplateVersion))
+		}
+		b.WriteString("\n")
+	case strings.TrimSpace(asg.LaunchConfigurationName) != "":
+		b.WriteString(fmt.Sprintf("    Configuration: %s\n", asg.LaunchConfigurationName))
+	default:
+		b.WriteString("    Configuration: n/a\n")
+	}
+
+	if len(asg.AvailabilityZones) > 0 {
+		b.WriteString("\n  Availability Zones:\n")
+		for _, az := range asg.AvailabilityZones {
+			b.WriteString(fmt.Sprintf("    • %s\n", az))
+		}
+	}
+
+	if len(asg.LoadBalancerNames) > 0 {
+		b.WriteString("\n  Load Balancers:\n")
+		for _, lb := range asg.LoadBalancerNames {
+			b.WriteString(fmt.Sprintf("    • %s\n", lb))
+		}
+	}
+
+	if len(asg.TargetGroupARNs) > 0 {
+		b.WriteString("\n  Target Groups:\n")
+		for _, tg := range asg.TargetGroupARNs {
+			b.WriteString(fmt.Sprintf("    • %s\n", tg))
+		}
+	}
+
+	if lines := renderTagLines(asg.Tags); len(lines) > 0 {
+		b.WriteString("\n  Tags:\n")
+		for _, line := range lines {
+			b.WriteString(line)
+			b.WriteString("\n")
+		}
+	}
+
+	return b.String()
 }

@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -45,6 +46,8 @@ func (m Model) renderEC2Instances() string {
 		return b.String()
 	}
 
+	cursor := clampIndex(m.cursor, len(instances))
+
 	// Table header - clean and aligned
 	headerRow := fmt.Sprintf("  %-32s %-20s %-15s %-12s %-15s",
 		"NAME", "INSTANCE ID", "PRIVATE IP", "STATE", "TYPE")
@@ -52,13 +55,16 @@ func (m Model) renderEC2Instances() string {
 	b.WriteString("\n")
 
 	// Calculate visible range for pagination
-	visibleHeight := m.height - 10 // Reserve space for header, footer, status
+	visibleHeight := m.height - 14 // Reserve space for header, footer, status, details
+	if visibleHeight < 5 {
+		visibleHeight = len(instances)
+	}
 	startIdx := 0
 	endIdx := len(instances)
 
 	if len(instances) > visibleHeight {
 		// Center the cursor in the visible area
-		startIdx = m.cursor - visibleHeight/2
+		startIdx = cursor - visibleHeight/2
 		if startIdx < 0 {
 			startIdx = 0
 		}
@@ -87,16 +93,23 @@ func (m Model) renderEC2Instances() string {
 		row := fmt.Sprintf("  %-32s %-20s %-15s %s %-15s",
 			name, inst.InstanceID, inst.PrivateIP, state, inst.InstanceType)
 
-		b.WriteString(RenderSelectableRow(row, i == m.cursor))
+		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
 
 	// Pagination indicator
-	if len(instances) > visibleHeight {
+	if visibleHeight > 0 && len(instances) > visibleHeight {
 		pageInfo := fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(instances))
 		b.WriteString("\n")
 		b.WriteString(SubtitleStyle.Render(pageInfo))
 	}
+
+	selected := instances[cursor]
+	b.WriteString("\n")
+	detailTitle := fmt.Sprintf("%s (%s)", normalizeValue(selected.Name, "(no name)", 0), selected.InstanceID)
+	b.WriteString(SubtitleStyle.Render(detailTitle))
+	b.WriteString("\n")
+	b.WriteString(m.renderEC2Details(selected))
 
 	if searchBar := m.renderSearchBar(ViewEC2Instances); searchBar != "" {
 		b.WriteString("\n")
@@ -192,4 +205,47 @@ func (m Model) renderEC2Footer() string {
 	}
 
 	return HelpStyle.Render(strings.Join(parts, " • "))
+}
+
+func (m Model) renderEC2Details(inst EC2Instance) string {
+	var b strings.Builder
+
+	b.WriteString("  Basic Info:\n")
+	b.WriteString(fmt.Sprintf("    State:       %s\n", StateStyle(strings.ToLower(inst.State))))
+	b.WriteString(fmt.Sprintf("    Type:        %s\n", normalizeValue(inst.InstanceType, "unknown", 0)))
+	b.WriteString(fmt.Sprintf("    AZ:          %s\n", normalizeValue(inst.AvailabilityZone, "unknown", 0)))
+	if !inst.LaunchTime.IsZero() {
+		b.WriteString(fmt.Sprintf("    Launch:      %s\n", formatRelativeTimestamp(inst.LaunchTime)))
+		b.WriteString(fmt.Sprintf("    Uptime:      %s\n", humanDuration(time.Since(inst.LaunchTime))))
+	}
+
+	b.WriteString("\n  Network:\n")
+	b.WriteString(fmt.Sprintf("    Private IP:  %s\n", normalizeValue(inst.PrivateIP, "n/a", 0)))
+	b.WriteString(fmt.Sprintf("    Private DNS: %s\n", normalizeValue(inst.PrivateDNS, "n/a", 0)))
+	b.WriteString(fmt.Sprintf("    Public IP:   %s\n", normalizeValue(inst.PublicIP, "n/a", 0)))
+	b.WriteString(fmt.Sprintf("    Public DNS:  %s\n", normalizeValue(inst.PublicDNS, "n/a", 0)))
+
+	b.WriteString("\n  Security:\n")
+	if inst.InstanceProfile != "" {
+		b.WriteString(fmt.Sprintf("    IAM Role:    %s\n", inst.InstanceProfile))
+	} else {
+		b.WriteString("    IAM Role:    n/a\n")
+	}
+	if len(inst.SecurityGroups) > 0 {
+		for _, sg := range inst.SecurityGroups {
+			b.WriteString(fmt.Sprintf("    • %s\n", sg))
+		}
+	} else {
+		b.WriteString("    • no security groups detected\n")
+	}
+
+	if lines := renderTagLines(inst.Tags, "Name"); len(lines) > 0 {
+		b.WriteString("\n  Tags:\n")
+		for _, line := range lines {
+			b.WriteString(line)
+			b.WriteString("\n")
+		}
+	}
+
+	return b.String()
 }
