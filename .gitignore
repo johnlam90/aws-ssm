@@ -37,3 +37,4 @@ Thumbs.db
 .history
 .gocache/
 .golangci-cache/
+aws-ssm-tui

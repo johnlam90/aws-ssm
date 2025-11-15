@@ -615,7 +615,8 @@ func (m Model) handleASGNavigation(action NavigationKey) (tea.Model, tea.Cmd) {
 		m.cursor = min(len(asgs)-1, m.cursor+10)
 	case NavScale:
 		if m.cursor < len(asgs) {
-			m.statusMessage = "ASG scaling not implemented yet"
+			asgs := m.getASGs()
+			m = m.startASGScaling(asgs[m.cursor])
 		}
 	case NavDetails:
 		if m.cursor < len(asgs) {
@@ -647,9 +648,10 @@ func (m Model) handleNodeGroupNavigation(action NavigationKey) (tea.Model, tea.C
 		m.cursor = max(0, m.cursor-10)
 	case NavPageDown:
 		m.cursor = min(len(groups)-1, m.cursor+10)
-	case NavSelect:
+	case NavScale:
 		if m.cursor < len(groups) {
-			m.statusMessage = "Node group update not implemented yet"
+			groups := m.getNodeGroups()
+			m = m.startNodeGroupScaling(groups[m.cursor])
 		}
 	case NavDetails:
 		if m.cursor < len(groups) {

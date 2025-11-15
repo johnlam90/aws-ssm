@@ -516,3 +516,115 @@ func RenderMetric(label string, value string, highlight bool) string {
 
 	return labelStyle.Render(label) + " " + valueStyle.Render(value)
 }
+
+// Beautiful Dashboard Styling Functions
+
+// DashboardTitleStyle returns the main title styling for the beautiful dashboard
+func DashboardTitleStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.AccentBlue()).
+		Bold(true).
+		MarginBottom(0)
+}
+
+// DashboardSubtitleStyle returns the subtitle/context styling
+func DashboardSubtitleStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Secondary()).
+		MarginBottom(1)
+}
+
+// DashboardHeaderBarStyle returns the header bar with context information
+func DashboardHeaderBarStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Muted()).
+		MarginBottom(1)
+}
+
+// DashboardSeparatorStyle returns the horizontal separator line
+func DashboardSeparatorStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Border()).
+		MarginTop(1).
+		MarginBottom(1)
+}
+
+// DashboardSectionTitleStyle returns the section title styling
+func DashboardSectionTitleStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Primary()).
+		Bold(true).
+		MarginBottom(1)
+}
+
+// DashboardServiceNameStyle returns the service name column styling
+func DashboardServiceNameStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Primary()).
+		Width(22). // Fixed width for alignment
+		Bold(true)
+}
+
+// DashboardServiceDescStyle returns the service description column styling
+func DashboardServiceDescStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Secondary()).
+		Width(40) // Fixed width for alignment
+}
+
+// DashboardSelectionBarStyle returns the vertical selection bar styling
+func DashboardSelectionBarStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.AccentBlue()).
+		Bold(true)
+}
+
+// DashboardSelectedNameStyle returns the selected service name styling
+func DashboardSelectedNameStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.AccentBlue()).
+		Background(theme.Highlight()).
+		Bold(true).
+		Width(22) // Same width as normal for alignment
+}
+
+// DashboardSelectedDescStyle returns the selected service description styling
+func DashboardSelectedDescStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.AccentBlue()).
+		Background(theme.Highlight()).
+		Width(40) // Same width as normal for alignment
+}
+
+// DashboardFooterStyle returns the footer styling
+func DashboardFooterStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Muted()).
+		MarginTop(1)
+}
+
+// DashboardFooterKeyStyle returns the footer key styling
+func DashboardFooterKeyStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.AccentIndigo()).
+		Bold(true)
+}
+
+// DashboardFooterActionStyle returns the footer action description styling
+func DashboardFooterActionStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Secondary())
+}

@@ -107,6 +107,7 @@ var viewKeyBindings = map[ViewMode][]KeyBinding{
 		{Key: "down, j", Description: "Move down", Action: NavDown},
 		{Key: "g g", Description: "Go to top", Action: NavHome},
 		{Key: "G", Description: "Go to bottom", Action: NavEnd},
+		{Key: "enter, space", Description: "Scale node group", Action: NavScale},
 		{Key: "u", Description: "Update launch template", Action: NavSelect},
 		{Key: "d", Description: "Show details", Action: NavDetails},
 	},
