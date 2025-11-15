@@ -21,25 +21,25 @@ func (m Model) renderNetworkInterfaces() string {
 	if m.loading {
 		b.WriteString(m.renderLoading())
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle.Render(m.getStatusBar()))
+        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
 		return b.String()
 	}
 
 	if m.err != nil {
 		b.WriteString(m.renderError())
 		b.WriteString("\n\n")
-		b.WriteString(HelpStyle.Render("esc:back"))
+        b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle.Render(m.getStatusBar()))
+        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
 		return b.String()
 	}
 
 	if len(instances) == 0 {
-		b.WriteString(SubtitleStyle.Render("No instances with network interfaces"))
+        b.WriteString(SubtitleStyle().Render("No instances with network interfaces"))
 		b.WriteString("\n\n")
-		b.WriteString(HelpStyle.Render("esc:back"))
+        b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle.Render(m.getStatusBar()))
+        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
 		return b.String()
 	}
 
@@ -75,7 +75,7 @@ func (m Model) renderNetworkInterfaces() string {
 	}
 
 	headerRow := fmt.Sprintf("  %-28s %-20s %-32s %6s", "NAME", "INSTANCE ID", "DNS NAME", "IFACES")
-	b.WriteString(TableHeaderStyle.Render(headerRow))
+    b.WriteString(TableHeaderStyle().Render(headerRow))
 	b.WriteString("\n")
 
 	for i := startIdx; i < endIdx; i++ {
@@ -97,22 +97,22 @@ func (m Model) renderNetworkInterfaces() string {
 
 	b.WriteString("\n")
 	detailTitle := fmt.Sprintf("Interfaces for %s (%s)", normalizeValue(selected.InstanceName, "(no name)", 0), selected.InstanceID)
-	b.WriteString(SubtitleStyle.Render(detailTitle))
+    b.WriteString(SubtitleStyle().Render(detailTitle))
 	b.WriteString("\n")
 	b.WriteString(fmt.Sprintf("  DNS Name:   %s\n", normalizeValue(selected.DNSName, "n/a", 0)))
 	b.WriteString(fmt.Sprintf("  Interfaces: %d\n\n", len(selected.Interfaces)))
 
 	if len(selected.Interfaces) == 0 {
-		b.WriteString(HelpStyle.Render("No interfaces found for this instance"))
+        b.WriteString(HelpStyle().Render("No interfaces found for this instance"))
 		b.WriteString("\n")
 	} else {
 		widths := calculateInterfaceColumnWidths(selected.Interfaces, m.width)
-		b.WriteString(TableHeaderStyle.Render(formatInterfaceHeader(widths)))
+        b.WriteString(TableHeaderStyle().Render(formatInterfaceHeader(widths)))
 		b.WriteString("\n")
 
 		for _, iface := range selected.Interfaces {
 			row := formatInterfaceRow(iface, widths)
-			b.WriteString(ListItemStyle.Render(row))
+            b.WriteString(ListItemStyle().Render(row))
 			b.WriteString("\n")
 		}
 	}
@@ -124,7 +124,7 @@ func (m Model) renderNetworkInterfaces() string {
 	}
 	b.WriteString(m.renderNetworkFooter())
 	b.WriteString("\n")
-	b.WriteString(StatusBarStyle.Width(m.width).Render(m.getStatusBar()))
+    b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 
 	return b.String()
 }
@@ -177,12 +177,12 @@ func (m Model) renderNetworkFooter() string {
 
 	var parts []string
 	for _, k := range keys {
-		keyStyle := StatusBarKeyStyle.Render(k.key)
-		descStyle := StatusBarValueStyle.Render(k.desc)
+        keyStyle := StatusBarKeyStyle().Render(k.key)
+        descStyle := StatusBarValueStyle().Render(k.desc)
 		parts = append(parts, fmt.Sprintf("%s %s", keyStyle, descStyle))
 	}
 
-	return HelpStyle.Render(strings.Join(parts, " • "))
+    return HelpStyle().Render(strings.Join(parts, " • "))
 }
 
 type interfaceColumnWidths struct {

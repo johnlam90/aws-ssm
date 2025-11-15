@@ -157,9 +157,9 @@ func (m Model) handleScalingResult(msg ScalingResultMsg) (tea.Model, tea.Cmd) {
 		name := m.scaling.displayName()
 		desired := m.scaling.RequestedDesired
 		m.scaling = nil
-		m.statusMessage = fmt.Sprintf("Scaled %s to %d", name, desired)
+		m.setStatusMessage(fmt.Sprintf("Scaled %s to %d", name, desired), "success")
 	} else if msg.Error != nil {
-		m.statusMessage = fmt.Sprintf("Scaling failed: %v", msg.Error)
+		m.setStatusMessage(fmt.Sprintf("Scaling failed: %v", msg.Error), "error")
 	}
 
 	switch msg.View {
@@ -202,38 +202,38 @@ func (m Model) renderScalingPrompt(view ViewMode) string {
 	}
 
 	var b strings.Builder
-	b.WriteString(ModalTitleStyle.Render(title))
+    b.WriteString(ModalTitleStyle().Render(title))
 	b.WriteString("\n")
-	b.WriteString(SubtitleStyle.Render(subtitle))
+    b.WriteString(SubtitleStyle().Render(subtitle))
 	b.WriteString("\n\n")
 
-	b.WriteString(ModalLabelStyle.Render("Current capacity"))
+    b.WriteString(ModalLabelStyle().Render("Current capacity"))
 	b.WriteString("\n")
 	b.WriteString(fmt.Sprintf("  Desired %d  |  Min %d  |  Max %d  |  Actual %d\n\n",
 		s.CurrentDesired, s.CurrentMin, s.CurrentMax, s.CurrentSize))
 
-	b.WriteString(ModalLabelStyle.Render("New desired capacity"))
+    b.WriteString(ModalLabelStyle().Render("New desired capacity"))
 	b.WriteString("\n")
 
 	if s.Submitting {
-		b.WriteString(LoadingStyle.Render(fmt.Sprintf("  Scaling to %s ...", input)))
+        b.WriteString(LoadingStyle().Render(fmt.Sprintf("  Scaling to %s ...", input)))
 		b.WriteString("\n")
 	} else {
 		b.WriteString("  ")
-		b.WriteString(ModalInputStyle.Render(input))
+        b.WriteString(ModalInputStyle().Render(input))
 		b.WriteString("\n")
-		b.WriteString(ModalHelpStyle.Render("enter:apply   esc:cancel   digits:edit   ctrl+u:clear"))
+        b.WriteString(ModalHelpStyle().Render("enter:apply   esc:cancel   digits:edit   ctrl+u:clear"))
 		b.WriteString("\n")
 	}
 
 	if s.Error != nil {
 		b.WriteString("\n")
-		b.WriteString(ErrorStyle.Render(fmt.Sprintf("Error: %v", s.Error)))
+        b.WriteString(ErrorStyle().Render(fmt.Sprintf("Error: %v", s.Error)))
 		b.WriteString("\n")
 	}
 
 	modalWidth := calculateModalWidth(m.width)
-	modal := ModalStyle.Width(modalWidth).Render(b.String())
+    modal := ModalStyle().Width(modalWidth).Render(b.String())
 	return centerModal(modal, m.width)
 }
 
@@ -242,7 +242,7 @@ func (m Model) renderStatusMessage() string {
 	if strings.TrimSpace(m.statusMessage) == "" {
 		return ""
 	}
-	return SuccessStyle.Render(m.statusMessage)
+    return SuccessStyle().Render(m.statusMessage)
 }
 
 func calculateModalWidth(totalWidth int) int {

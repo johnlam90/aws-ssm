@@ -22,26 +22,26 @@ func (m Model) renderASGs() string {
 	if m.loading {
 		b.WriteString(m.renderLoading())
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle.Render(m.getStatusBar()))
+        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
 		return b.String()
 	}
 
 	if m.err != nil {
 		b.WriteString(m.renderError())
 		b.WriteString("\n\n")
-		b.WriteString(HelpStyle.Render("esc:back"))
+        b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle.Render(m.getStatusBar()))
+        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
 		return b.String()
 	}
 
 	// No ASGs
 	if len(asgs) == 0 {
-		b.WriteString(SubtitleStyle.Render("No Auto Scaling Groups found"))
+        b.WriteString(SubtitleStyle().Render("No Auto Scaling Groups found"))
 		b.WriteString("\n\n")
-		b.WriteString(HelpStyle.Render("esc:back"))
+        b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle.Render(m.getStatusBar()))
+        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
 		return b.String()
 	}
 
@@ -50,7 +50,7 @@ func (m Model) renderASGs() string {
 	// Table header - clean and aligned
 	headerRow := fmt.Sprintf("  %-50s %8s %8s %8s %8s",
 		"NAME", "DESIRED", "MIN", "MAX", "CURRENT")
-	b.WriteString(TableHeaderStyle.Render(headerRow))
+    b.WriteString(TableHeaderStyle().Render(headerRow))
 	b.WriteString("\n")
 
 	visibleHeight := m.height - 14
@@ -94,12 +94,12 @@ func (m Model) renderASGs() string {
 	if visibleHeight > 0 && len(asgs) > visibleHeight {
 		pageInfo := fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(asgs))
 		b.WriteString("\n")
-		b.WriteString(SubtitleStyle.Render(pageInfo))
+        b.WriteString(SubtitleStyle().Render(pageInfo))
 	}
 
 	selected := asgs[cursor]
 	b.WriteString("\n")
-	b.WriteString(SubtitleStyle.Render(selected.Name))
+    b.WriteString(SubtitleStyle().Render(selected.Name))
 	b.WriteString("\n")
 	b.WriteString(m.renderASGDetails(selected))
 
@@ -121,7 +121,7 @@ func (m Model) renderASGs() string {
 
 	// Status bar
 	b.WriteString("\n")
-	b.WriteString(StatusBarStyle.Width(m.width).Render(m.getStatusBar()))
+    b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 
 	return b.String()
 }
@@ -189,12 +189,12 @@ func (m Model) renderASGFooter() string {
 
 	var parts []string
 	for _, k := range keys {
-		keyStyle := StatusBarKeyStyle.Render(k.key)
-		descStyle := StatusBarValueStyle.Render(k.desc)
+        keyStyle := StatusBarKeyStyle().Render(k.key)
+        descStyle := StatusBarValueStyle().Render(k.desc)
 		parts = append(parts, fmt.Sprintf("%s %s", keyStyle, descStyle))
 	}
 
-	return HelpStyle.Render(strings.Join(parts, " • "))
+    return HelpStyle().Render(strings.Join(parts, " • "))
 }
 
 func (m Model) renderASGDetails(asg ASG) string {

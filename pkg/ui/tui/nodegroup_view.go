@@ -20,25 +20,25 @@ func (m Model) renderNodeGroups() string {
 	if m.loading {
 		b.WriteString(m.renderLoading())
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle.Render(m.getStatusBar()))
+        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
 		return b.String()
 	}
 
 	if m.err != nil {
 		b.WriteString(m.renderError())
 		b.WriteString("\n\n")
-		b.WriteString(HelpStyle.Render("esc:back"))
+        b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle.Render(m.getStatusBar()))
+        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
 		return b.String()
 	}
 
 	if len(groups) == 0 {
-		b.WriteString(SubtitleStyle.Render("No EKS node groups found"))
+        b.WriteString(SubtitleStyle().Render("No EKS node groups found"))
 		b.WriteString("\n\n")
-		b.WriteString(HelpStyle.Render("esc:back"))
+        b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle.Render(m.getStatusBar()))
+        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
 		return b.String()
 	}
 
@@ -67,7 +67,7 @@ func (m Model) renderNodeGroups() string {
 
 	headerRow := fmt.Sprintf("  %-24s %-28s %-10s %8s %8s %8s %8s",
 		"CLUSTER", "NODE GROUP", "STATUS", "DESIRED", "MIN", "MAX", "CURRENT")
-	b.WriteString(TableHeaderStyle.Render(headerRow))
+    b.WriteString(TableHeaderStyle().Render(headerRow))
 	b.WriteString("\n")
 
 	for i := startIdx; i < endIdx; i++ {
@@ -85,7 +85,7 @@ func (m Model) renderNodeGroups() string {
 	selected := groups[cursor]
 	b.WriteString("\n")
 	detailTitle := fmt.Sprintf("%s / %s", selected.ClusterName, selected.Name)
-	b.WriteString(SubtitleStyle.Render(detailTitle))
+    b.WriteString(SubtitleStyle().Render(detailTitle))
 	b.WriteString("\n")
 
 	instanceTypes := strings.Join(selected.InstanceTypes, ", ")
@@ -134,7 +134,7 @@ func (m Model) renderNodeGroups() string {
 	}
 	b.WriteString(m.renderNodeGroupFooter())
 	b.WriteString("\n")
-	b.WriteString(StatusBarStyle.Width(m.width).Render(m.getStatusBar()))
+    b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 
 	return b.String()
 }
@@ -204,12 +204,12 @@ func (m Model) renderNodeGroupFooter() string {
 
 	var parts []string
 	for _, k := range keys {
-		keyStyle := StatusBarKeyStyle.Render(k.key)
-		descStyle := StatusBarValueStyle.Render(k.desc)
+        keyStyle := StatusBarKeyStyle().Render(k.key)
+        descStyle := StatusBarValueStyle().Render(k.desc)
 		parts = append(parts, fmt.Sprintf("%s %s", keyStyle, descStyle))
 	}
 
-	return HelpStyle.Render(strings.Join(parts, " • "))
+    return HelpStyle().Render(strings.Join(parts, " • "))
 }
 
 // clampIndex ensures cursor stays within list bounds

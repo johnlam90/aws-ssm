@@ -152,9 +152,9 @@ func (m Model) handleLaunchTemplateUpdateResult(msg LaunchTemplateUpdateResultMs
 		name := fmt.Sprintf("%s/%s", m.ltUpdate.ClusterName, m.ltUpdate.NodeGroupName)
 		version := msg.Version
 		m.ltUpdate = nil
-		m.statusMessage = fmt.Sprintf("Updated launch template for %s to %s", name, version)
+		m.setStatusMessage(fmt.Sprintf("Updated launch template for %s to %s", name, version), "success")
 	} else if msg.Error != nil {
-		m.statusMessage = fmt.Sprintf("Launch template update failed: %v", msg.Error)
+		m.setStatusMessage(fmt.Sprintf("Launch template update failed: %v", msg.Error), "error")
 	}
 
 	m.loading = true
@@ -241,7 +241,7 @@ func (m Model) renderLaunchTemplatePrompt() string {
 	var b strings.Builder
 
 	title := fmt.Sprintf("Update Launch Template • %s / %s", state.ClusterName, state.NodeGroupName)
-	b.WriteString(TitleStyle.Render(title))
+    b.WriteString(TitleStyle().Render(title))
 	b.WriteString("\n")
 
 	ltName := normalizeValue(state.LaunchTemplateName, "n/a", 0)
@@ -251,13 +251,13 @@ func (m Model) renderLaunchTemplatePrompt() string {
 
 	switch {
 	case state.Submitting:
-		b.WriteString(LoadingStyle.Render(fmt.Sprintf("Updating to %s ...", state.RequestedVersion)))
+        b.WriteString(LoadingStyle().Render(fmt.Sprintf("Updating to %s ...", state.RequestedVersion)))
 		b.WriteString("\n")
 	case state.Loading:
-		b.WriteString(LoadingStyle.Render("Loading launch template versions..."))
+        b.WriteString(LoadingStyle().Render("Loading launch template versions..."))
 		b.WriteString("\n")
 	case len(state.Options) == 0:
-		b.WriteString(ErrorStyle.Render("No launch template versions available"))
+        b.WriteString(ErrorStyle().Render("No launch template versions available"))
 		b.WriteString("\n")
 	default:
 		start := state.Cursor - 3
@@ -284,14 +284,14 @@ func (m Model) renderLaunchTemplatePrompt() string {
 		}
 
 		b.WriteString("\n")
-		b.WriteString(HelpStyle.Render("↑/k ↓/j select  enter:apply  r:reload  esc:cancel"))
+        b.WriteString(HelpStyle().Render("↑/k ↓/j select  enter:apply  r:reload  esc:cancel"))
 		b.WriteString("\n")
 	}
 
 	if state.Error != nil {
-		b.WriteString(ErrorStyle.Render(fmt.Sprintf("Error: %v", state.Error)))
+        b.WriteString(ErrorStyle().Render(fmt.Sprintf("Error: %v", state.Error)))
 		b.WriteString("\n")
 	}
 
-	return PanelStyle.Width(m.width).Render(b.String())
+    return PanelStyle().Width(m.width).Render(b.String())
 }

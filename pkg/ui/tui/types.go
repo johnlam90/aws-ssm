@@ -2,6 +2,8 @@ package tui
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -68,6 +70,15 @@ type EC2Instance struct {
 	LaunchTime       time.Time
 	InstanceProfile  string
 	SecurityGroups   []string
+	
+	// Cached search fields for performance optimization
+	cachedNameLower      string
+	cachedIDLower        string
+	cachedStateLower     string
+	cachedTypeLower      string
+	cachedPrivateIPLower string
+	cachedPublicIPLower  string
+	cachedTagsString     string
 }
 
 // EKSCluster represents an EKS cluster in the TUI
@@ -113,6 +124,17 @@ type NodeGroup struct {
 	LaunchTemplateName    string
 	LaunchTemplateVersion string
 	Tags                  map[string]string
+	
+	// Cached search fields for performance optimization
+	cachedClusterLower           string
+	cachedNameLower              string
+	cachedStatusLower            string
+	cachedVersionLower           string
+	cachedInstanceTypesJoined    string
+	cachedInstanceTypesLower     string
+	cachedLaunchTemplateNameLower string
+	cachedLaunchTemplateVersionLower string
+	cachedLaunchTemplateIDLower  string
 }
 
 // LoadingMsg is sent when data is being loaded
@@ -153,6 +175,12 @@ type LaunchTemplateUpdateResultMsg struct {
 	Error         error
 }
 
+// SearchDebounceMsg is sent when search debounce completes
+type SearchDebounceMsg struct {
+	View  ViewMode
+	Query string
+}
+
 // ErrorMsg represents an error message
 type ErrorMsg struct {
 	Err error
@@ -169,6 +197,36 @@ type Config struct {
 	Profile    string
 	ConfigPath string
 	NoColor    bool
+}
+
+// PrecomputeSearchFields precomputes searchable fields for performance
+func (e *EC2Instance) PrecomputeSearchFields() {
+	e.cachedNameLower = strings.ToLower(e.Name)
+	e.cachedIDLower = strings.ToLower(e.InstanceID)
+	e.cachedStateLower = strings.ToLower(e.State)
+	e.cachedTypeLower = strings.ToLower(e.InstanceType)
+	e.cachedPrivateIPLower = strings.ToLower(e.PrivateIP)
+	e.cachedPublicIPLower = strings.ToLower(e.PublicIP)
+	
+	// Precompute tags string
+	tagPairs := make([]string, 0, len(e.Tags))
+	for k, v := range e.Tags {
+		tagPairs = append(tagPairs, fmt.Sprintf("%s:%s", strings.ToLower(k), strings.ToLower(v)))
+	}
+	e.cachedTagsString = strings.Join(tagPairs, " ")
+}
+
+// PrecomputeSearchFields precomputes searchable fields for performance
+func (ng *NodeGroup) PrecomputeSearchFields() {
+	ng.cachedClusterLower = strings.ToLower(ng.ClusterName)
+	ng.cachedNameLower = strings.ToLower(ng.Name)
+	ng.cachedStatusLower = strings.ToLower(ng.Status)
+	ng.cachedVersionLower = strings.ToLower(ng.Version)
+	ng.cachedInstanceTypesJoined = strings.Join(ng.InstanceTypes, ",")
+	ng.cachedInstanceTypesLower = strings.ToLower(ng.cachedInstanceTypesJoined)
+	ng.cachedLaunchTemplateNameLower = strings.ToLower(ng.LaunchTemplateName)
+	ng.cachedLaunchTemplateVersionLower = strings.ToLower(ng.LaunchTemplateVersion)
+	ng.cachedLaunchTemplateIDLower = strings.ToLower(ng.LaunchTemplateID)
 }
 
 const (
@@ -205,6 +263,8 @@ func LoadEC2InstancesCmd(ctx context.Context, client *aws.Client) tea.Cmd {
 				InstanceProfile:  inst.InstanceProfile,
 				SecurityGroups:   append([]string{}, inst.SecurityGroups...),
 			}
+			// Precompute search fields for performance
+			tuiInstances[i].PrecomputeSearchFields()
 		}
 
 		return DataLoadedMsg{
@@ -480,7 +540,7 @@ func convertToTUINodeGroup(clusterName string, ng *aws.NodeGroup) NodeGroup {
 		tags[k] = v
 	}
 
-	return NodeGroup{
+	nodeGroup := NodeGroup{
 		ClusterName:           clusterName,
 		Name:                  ng.Name,
 		Status:                ng.Status,
@@ -496,6 +556,11 @@ func convertToTUINodeGroup(clusterName string, ng *aws.NodeGroup) NodeGroup {
 		LaunchTemplateVersion: ng.LaunchTemplate.Version,
 		Tags:                  tags,
 	}
+	
+	// Precompute search fields for performance
+	nodeGroup.PrecomputeSearchFields()
+	
+	return nodeGroup
 }
 
 // ScaleASGCmd scales an Auto Scaling Group without leaving the TUI

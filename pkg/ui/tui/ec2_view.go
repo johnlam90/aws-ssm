@@ -23,26 +23,26 @@ func (m Model) renderEC2Instances() string {
 	if m.loading {
 		b.WriteString(m.renderLoading())
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle.Render(m.getStatusBar()))
+        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
 		return b.String()
 	}
 
 	if m.err != nil {
 		b.WriteString(m.renderError())
 		b.WriteString("\n\n")
-		b.WriteString(HelpStyle.Render("esc:back"))
+        b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle.Render(m.getStatusBar()))
+        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
 		return b.String()
 	}
 
 	// No instances
 	if len(instances) == 0 {
-		b.WriteString(SubtitleStyle.Render("No EC2 instances found"))
+        b.WriteString(SubtitleStyle().Render("No EC2 instances found"))
 		b.WriteString("\n\n")
-		b.WriteString(HelpStyle.Render("esc:back"))
+        b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle.Render(m.getStatusBar()))
+        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
 		return b.String()
 	}
 
@@ -51,7 +51,7 @@ func (m Model) renderEC2Instances() string {
 	// Table header - clean and aligned
 	headerRow := fmt.Sprintf("  %-32s %-20s %-15s %-12s %-15s",
 		"NAME", "INSTANCE ID", "PRIVATE IP", "STATE", "TYPE")
-	b.WriteString(TableHeaderStyle.Render(headerRow))
+    b.WriteString(TableHeaderStyle().Render(headerRow))
 	b.WriteString("\n")
 
 	// Calculate visible range for pagination
@@ -101,13 +101,13 @@ func (m Model) renderEC2Instances() string {
 	if visibleHeight > 0 && len(instances) > visibleHeight {
 		pageInfo := fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(instances))
 		b.WriteString("\n")
-		b.WriteString(SubtitleStyle.Render(pageInfo))
+        b.WriteString(SubtitleStyle().Render(pageInfo))
 	}
 
 	selected := instances[cursor]
 	b.WriteString("\n")
 	detailTitle := fmt.Sprintf("%s (%s)", normalizeValue(selected.Name, "(no name)", 0), selected.InstanceID)
-	b.WriteString(SubtitleStyle.Render(detailTitle))
+    b.WriteString(SubtitleStyle().Render(detailTitle))
 	b.WriteString("\n")
 	b.WriteString(m.renderEC2Details(selected))
 
@@ -123,7 +123,7 @@ func (m Model) renderEC2Instances() string {
 
 	// Status bar
 	b.WriteString("\n")
-	b.WriteString(StatusBarStyle.Width(m.width).Render(m.getStatusBar()))
+    b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 
 	return b.String()
 }
@@ -199,12 +199,12 @@ func (m Model) renderEC2Footer() string {
 
 	var parts []string
 	for _, k := range keys {
-		keyStyle := StatusBarKeyStyle.Render(k.key)
-		descStyle := StatusBarValueStyle.Render(k.desc)
+        keyStyle := StatusBarKeyStyle().Render(k.key)
+        descStyle := StatusBarValueStyle().Render(k.desc)
 		parts = append(parts, fmt.Sprintf("%s %s", keyStyle, descStyle))
 	}
 
-	return HelpStyle.Render(strings.Join(parts, " • "))
+    return HelpStyle().Render(strings.Join(parts, " • "))
 }
 
 func (m Model) renderEC2Details(inst EC2Instance) string {

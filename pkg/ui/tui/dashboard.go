@@ -18,17 +18,17 @@ func (m Model) renderDashboard() string {
 	b.WriteString("\n\n")
 
 	// Menu items - minimal, no icons
-	for i, item := range m.menuItems {
-		var style lipgloss.Style
-		if i == m.cursor {
-			style = MenuItemSelectedStyle
-		} else {
-			style = MenuItemStyle
-		}
+    for i, item := range m.menuItems {
+        var style lipgloss.Style
+        if i == m.cursor {
+            style = MenuItemSelectedStyle()
+        } else {
+            style = MenuItemStyle()
+        }
 
 		// Simple format: title and description on same line
 		title := style.Render(item.Title)
-		desc := SubtitleStyle.Render(" - " + item.Description)
+        desc := SubtitleStyle().Render(" - " + item.Description)
 
 		b.WriteString("  " + title + desc)
 		b.WriteString("\n")
@@ -40,7 +40,7 @@ func (m Model) renderDashboard() string {
 
 	// Status bar
 	b.WriteString("\n")
-	b.WriteString(StatusBarStyle.Width(m.width).Render(m.getStatusBar()))
+    b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 
 	return b.String()
 }
@@ -102,12 +102,12 @@ func (m Model) renderHeader(title, subtitle string) string {
 	var b strings.Builder
 
 	// Title - simple
-	titleText := TitleStyle.Render(title)
+    titleText := TitleStyle().Render(title)
 	b.WriteString(titleText)
 
 	// Subtitle on same line
 	if subtitle != "" {
-		subtitleText := SubtitleStyle.Render(" - " + subtitle)
+        subtitleText := SubtitleStyle().Render(" - " + subtitle)
 		b.WriteString(subtitleText)
 	}
 
@@ -132,7 +132,7 @@ func (m Model) renderFooter() string {
 		parts = append(parts, fmt.Sprintf("%s:%s", k.key, k.desc))
 	}
 
-	return SubtitleStyle.Render(strings.Join(parts, "  "))
+    return SubtitleStyle().Render(strings.Join(parts, "  "))
 }
 
 // renderLoading renders a loading message
@@ -146,7 +146,7 @@ func (m Model) renderLoading() string {
 	frame := string(spinner[0])
 
 	msg := fmt.Sprintf("%s %s", frame, m.loadingMsg)
-	return LoadingStyle.Render(msg)
+    return LoadingStyle().Render(msg)
 }
 
 // renderError renders an error message
@@ -155,5 +155,5 @@ func (m Model) renderError() string {
 		return ""
 	}
 
-	return ErrorStyle.Render(fmt.Sprintf("Error: %v", m.err))
+    return ErrorStyle().Render(fmt.Sprintf("Error: %v", m.err))
 }

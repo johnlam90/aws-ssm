@@ -7,7 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// renderHelp renders the help view
+// renderHelp renders the help view with comprehensive keybindings
 func (m Model) renderHelp() string {
 	var b strings.Builder
 
@@ -16,66 +16,48 @@ func (m Model) renderHelp() string {
 	b.WriteString(header)
 	b.WriteString("\n\n")
 
-	// Global keybindings - minimal
-	b.WriteString(TitleStyle.Render("Global Keybindings"))
-	b.WriteString("\n\n")
-	b.WriteString(m.renderHelpSection([]helpItem{
-		{"q", "Quit application (from dashboard)"},
-		{"ctrl+c", "Force quit"},
-		{"?", "Toggle help"},
-		{"esc", "Go back / Cancel"},
-	}))
+	// Show quick reference first
+	b.WriteString(GetQuickReference())
 	b.WriteString("\n")
 
-	// Navigation keybindings - minimal
-	b.WriteString(TitleStyle.Render("Navigation"))
+	// View-specific keybindings
+	if m.currentView != ViewHelp {
+		bindings := GetKeyBindings(m.currentView)
+		if len(bindings) > 0 {
+			b.WriteString(TitleStyle().Render("Current View Keybindings"))
+			b.WriteString("\n\n")
+			b.WriteString(FormatKeyBindings(bindings))
+			b.WriteString("\n")
+		}
+	}
+
+	// Global keybindings
+	b.WriteString(TitleStyle().Render("Global Keybindings"))
 	b.WriteString("\n\n")
-	b.WriteString(m.renderHelpSection([]helpItem{
-		{"↑ / k", "Move up"},
-		{"↓ / j", "Move down"},
-		{"← / h", "Move left (future use)"},
-		{"→ / l", "Move right (future use)"},
-		{"g", "Go to top"},
-		{"G", "Go to bottom"},
-		{"enter / space", "Select item"},
-	}))
+	b.WriteString(FormatKeyBindings(globalKeyBindings))
 	b.WriteString("\n")
 
-	// Resource-specific keybindings - minimal
-	b.WriteString(TitleStyle.Render("Resource Actions"))
+	// Navigation tips
+	b.WriteString(TitleStyle().Render("Navigation Tips"))
 	b.WriteString("\n\n")
-	b.WriteString(m.renderHelpSection([]helpItem{
-		{"r", "Refresh current view"},
-		{"enter", "Connect to instance / View details"},
-		{"/", "Search/filter current view"},
-		{"ctrl+u", "Clear search input"},
-	}))
+	b.WriteString(SubtitleStyle().Render("Vim-style navigation:"))
 	b.WriteString("\n")
-
-	// Clipboard - minimal
-	b.WriteString(TitleStyle.Render("Clipboard"))
-	b.WriteString("\n\n")
-	b.WriteString(m.renderHelpSection([]helpItem{
-		{"mouse select", "Select any visible text with mouse"},
-		{"cmd+c", "Copy selected text (macOS)"},
-		{"ctrl+shift+c", "Copy selected text (Linux/Windows)"},
-	}))
+	b.WriteString("  • Use j/k for up/down movement\n")
+	b.WriteString("  • Use g g to jump to top, G to jump to bottom\n")
+	b.WriteString("  • Use ctrl+d/ctrl+u for page navigation\n")
 	b.WriteString("\n")
-
-	// About - minimal
-	b.WriteString(TitleStyle.Render("About"))
-	b.WriteString("\n\n")
-	b.WriteString(SubtitleStyle.Render("AWS SSM Manager TUI"))
+	b.WriteString(SubtitleStyle().Render("Command chaining:"))
 	b.WriteString("\n")
-	b.WriteString(SubtitleStyle.Render("A terminal user interface for managing AWS resources"))
-	b.WriteString("\n\n")
+	b.WriteString("  • Press keys in sequence for advanced commands\n")
+	b.WriteString("  • Press esc to cancel current command\n")
+	b.WriteString("\n")
 
 	// Footer
-	b.WriteString(HelpStyle.Render("Press ESC or ? to close help"))
+	b.WriteString(HelpStyle().Render("Press ESC or ? to close help"))
 	b.WriteString("\n")
 
 	// Status bar
-	b.WriteString(StatusBarStyle.Width(m.width).Render(m.getStatusBar()))
+	b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 
 	return b.String()
 }
@@ -91,8 +73,8 @@ func (m Model) renderHelpSection(items []helpItem) string {
 	var b strings.Builder
 
 	for _, item := range items {
-		key := HelpKeyStyle.Render(fmt.Sprintf("%-15s", item.key))
-		desc := HelpDescStyle.Render(item.desc)
+        key := HelpKeyStyle().Render(fmt.Sprintf("%-15s", item.key))
+        desc := HelpDescStyle().Render(item.desc)
 		b.WriteString(fmt.Sprintf("  %s  %s\n", key, desc))
 	}
 

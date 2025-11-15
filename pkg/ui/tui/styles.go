@@ -29,149 +29,418 @@ import (
 // - Indigo (#818CF8): Information, keybindings - "helpful reference"
 // - Gray scale: Content hierarchy from white (primary) to muted gray (tertiary)
 
-// Jony Ive-inspired minimal color palette
-// Philosophy: Color used sparingly and purposefully, only where it adds functional value
-// Palette: Muted, refined tones with high contrast for accessibility
+// Claude/Codex/Droid CLI-inspired modern color palette
+// Philosophy: Sophisticated, professional aesthetic with subtle depth and modern appeal
+// Design principles:
+// 1. Depth through subtle gradients and layered shadows
+// 2. Consistent semantic meaning across all colors
+// 3. High accessibility contrast ratios
+// 4. Smooth transitions and animations
+// 5. Contextual highlighting that guides attention naturally
+
 var (
-	// Primary colors - refined monochromatic base
-	ColorPrimary   = lipgloss.Color("#FFFFFF") // Pure white - primary text
-	ColorSecondary = lipgloss.Color("#9CA3AF") // Cool gray - secondary text
-	ColorMuted     = lipgloss.Color("#6B7280") // Muted gray - tertiary text
+	// Primary colors - modern monochromatic with depth
+	ColorPrimary   = lipgloss.Color("#E6EDF3") // Soft white - primary text (improved from harsh #FFFFFF)
+	ColorSecondary = lipgloss.Color("#8B949E") // Modern gray - secondary text
+	ColorMuted     = lipgloss.Color("#484F58") // Subtle gray - tertiary text
 
-	// Functional accent colors - subtle and purposeful
-	// These colors guide attention and communicate state
-	ColorAccentBlue   = lipgloss.Color("#60A5FA") // Soft blue - interactive elements, focus
-	ColorAccentGreen  = lipgloss.Color("#34D399") // Refined green - success, active states
-	ColorAccentAmber  = lipgloss.Color("#FBBF24") // Warm amber - warnings, pending states
-	ColorAccentRed    = lipgloss.Color("#F87171") // Soft red - errors, stopped states
-	ColorAccentIndigo = lipgloss.Color("#818CF8") // Subtle indigo - information, highlights
+	// Functional accent colors - sophisticated and purposeful
+	ColorAccentBlue   = lipgloss.Color("#58A6FF") // Modern blue - interactive elements, focus (GitHub's modern blue)
+	ColorAccentGreen  = lipgloss.Color("#3FB950") // Vibrant green - success, active states
+	ColorAccentAmber  = lipgloss.Color("#D29922") // Sophisticated amber - warnings, pending states
+	ColorAccentRed    = lipgloss.Color("#F85149") // Modern red - errors, stopped states
+	ColorAccentIndigo = lipgloss.Color("#A371F7") // Rich indigo - information, highlights
 
-	// State colors - communicate status at a glance
-	ColorRunning    = lipgloss.Color("#34D399") // Green - active, healthy
-	ColorStopped    = lipgloss.Color("#9CA3AF") // Gray - inactive, neutral
-	ColorPending    = lipgloss.Color("#FBBF24") // Amber - transitional, attention
-	ColorTerminated = lipgloss.Color("#6B7280") // Muted gray - ended, archived
+	// State colors - clear semantic meaning
+	ColorRunning    = lipgloss.Color("#3FB950") // Green - active, healthy
+	ColorStopped    = lipgloss.Color("#8B949E") // Gray - inactive, neutral
+	ColorPending    = lipgloss.Color("#D29922") // Amber - transitional, attention
+	ColorTerminated = lipgloss.Color("#484F58") // Dark gray - ended, archived
 
-	// UI foundation - clean, minimal structure
-	ColorBorder     = lipgloss.Color("#374151") // Subtle border - defines space without distraction
-	ColorBackground = lipgloss.Color("#000000") // Pure black - maximum contrast
-	ColorForeground = lipgloss.Color("#E5E7EB") // Light gray - readable, not harsh
-	ColorSelected   = lipgloss.Color("#1E293B") // Slate gray - subtle but visible selection highlight
+	// UI foundation - modern dark theme with depth
+	ColorBorder     = lipgloss.Color("#30363D") // Subtle border - modern dark border
+	ColorBackground = lipgloss.Color("#0D1117") // Deep dark - modern dark background
+	ColorForeground = lipgloss.Color("#C9D1D9") // Soft white - readable foreground
+	ColorSelected   = lipgloss.Color("#1F2937") // Modern slate - selection highlight
 	ColorFocused    = lipgloss.Color("#1E3A8A") // Deep blue - focused element background
+
+	// Modern CLI enhancement colors
+	ColorGradientStart = lipgloss.Color("#58A6FF") // Blue gradient start
+	ColorGradientEnd   = lipgloss.Color("#A371F7") // Purple gradient end
+	ColorShadow        = lipgloss.Color("#161B22") // Subtle shadow color
+	ColorHighlight     = lipgloss.Color("#21262D") // Modern highlight background
 )
 
-// Styles following Jony Ive's design principles:
-// - Purposeful use of color to create hierarchy and guide attention
-// - Subtle accents that enhance usability without distraction
-// - High contrast for accessibility
-var (
-	// Title style - pure white for maximum hierarchy
-	TitleStyle = lipgloss.NewStyle().
-			Foreground(ColorPrimary).
-			Bold(true)
+// Theme interface for managing color schemes and no-color support
+type Theme interface {
+	// Color accessors
+	Primary() lipgloss.Color
+	Secondary() lipgloss.Color
+	Muted() lipgloss.Color
+	AccentBlue() lipgloss.Color
+	AccentGreen() lipgloss.Color
+	AccentAmber() lipgloss.Color
+	AccentRed() lipgloss.Color
+	AccentIndigo() lipgloss.Color
+	
+	// State colors
+	Running() lipgloss.Color
+	Stopped() lipgloss.Color
+	Pending() lipgloss.Color
+	Terminated() lipgloss.Color
+	
+	// UI colors
+	Border() lipgloss.Color
+	Background() lipgloss.Color
+	Foreground() lipgloss.Color
+	Selected() lipgloss.Color
+	Focused() lipgloss.Color
+	
+	// Enhanced colors
+	GradientStart() lipgloss.Color
+	GradientEnd() lipgloss.Color
+	Shadow() lipgloss.Color
+	Highlight() lipgloss.Color
+	
+	// Utility
+	IsColorEnabled() bool
+}
 
-	// Subtitle style - muted gray for supporting information
-	SubtitleStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted)
+// ModernTheme implements the sophisticated color scheme
+type ModernTheme struct {
+	colorsEnabled bool
+}
 
-	// Menu item styles - subtle blue accent on selection for visual feedback
-	MenuItemStyle = lipgloss.NewStyle().
-			Foreground(ColorForeground)
+// NewModernTheme creates a new modern theme
+func NewModernTheme(colorsEnabled bool) *ModernTheme {
+	return &ModernTheme{colorsEnabled: colorsEnabled}
+}
 
-	MenuItemSelectedStyle = lipgloss.NewStyle().
-				Foreground(ColorAccentBlue). // Blue indicates interactivity
-				Background(ColorFocused).    // Deep blue background for focus
-				Bold(true)
+func (t *ModernTheme) Primary() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorPrimary
+}
 
-	// List item styles - blue accent guides the eye to selected item
-	ListItemStyle = lipgloss.NewStyle().
-			Foreground(ColorForeground)
+func (t *ModernTheme) Secondary() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorSecondary
+}
 
-	ListItemSelectedStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#60A5FA")). // Bright blue for visibility
-				Bold(true)
+func (t *ModernTheme) Muted() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorMuted
+}
 
-	// Header styles for tables - refined gray creates visual separation
-	TableHeaderStyle = lipgloss.NewStyle().
-				Foreground(ColorSecondary).
-				BorderStyle(lipgloss.NormalBorder()).
-				BorderBottom(true).
-				BorderForeground(ColorBorder).
-				Bold(true)
+func (t *ModernTheme) AccentBlue() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorAccentBlue
+}
 
-	// Status bar style - muted to stay out of the way
-	StatusBarStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted)
+func (t *ModernTheme) AccentGreen() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorAccentGreen
+}
 
-	// Status bar key style - indigo accent for keybindings (functional color)
-	StatusBarKeyStyle = lipgloss.NewStyle().
-				Foreground(ColorAccentIndigo).
-				Bold(true)
+func (t *ModernTheme) AccentAmber() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorAccentAmber
+}
 
-	StatusBarValueStyle = lipgloss.NewStyle().
-				Foreground(ColorForeground)
+func (t *ModernTheme) AccentRed() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorAccentRed
+}
 
-	// Help text style - muted gray for non-critical information
-	HelpStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted)
+func (t *ModernTheme) AccentIndigo() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorAccentIndigo
+}
 
-	// Help key style - indigo accent makes keybindings scannable
-	HelpKeyStyle = lipgloss.NewStyle().
-			Foreground(ColorAccentIndigo).
-			Bold(true)
+func (t *ModernTheme) Running() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorRunning
+}
 
-	HelpDescStyle = lipgloss.NewStyle().
-			Foreground(ColorSecondary)
+func (t *ModernTheme) Stopped() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorStopped
+}
 
-	// Border styles - subtle, defines space without visual noise
-	BorderStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(ColorBorder)
+func (t *ModernTheme) Pending() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorPending
+}
 
-	// Error style - soft red communicates issues clearly
-	ErrorStyle = lipgloss.NewStyle().
-			Foreground(ColorAccentRed).
-			Bold(true)
+func (t *ModernTheme) Terminated() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorTerminated
+}
 
-	// Success style - refined green for positive feedback
-	SuccessStyle = lipgloss.NewStyle().
-			Foreground(ColorAccentGreen).
-			Bold(true)
+func (t *ModernTheme) Border() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorBorder
+}
 
-	// Loading style - muted to indicate passive state
-	LoadingStyle = lipgloss.NewStyle().
-			Foreground(ColorSecondary)
+func (t *ModernTheme) Background() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorBackground
+}
 
-	// Panel style - minimal borders for clean structure
-	PanelStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(ColorBorder)
+func (t *ModernTheme) Foreground() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorForeground
+}
 
-	// Modal styles - used for focused interactions like scaling prompts
-	ModalStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(ColorAccentBlue).
-			Foreground(ColorPrimary).
-			Background(ColorSelected).
-			Padding(1, 2)
+func (t *ModernTheme) Selected() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorSelected
+}
 
-	ModalTitleStyle = lipgloss.NewStyle().
-			Foreground(ColorPrimary).
-			Bold(true)
+func (t *ModernTheme) Focused() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorFocused
+}
 
-	ModalLabelStyle = lipgloss.NewStyle().
-			Foreground(ColorSecondary).
-			Bold(true)
+func (t *ModernTheme) GradientStart() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorGradientStart
+}
 
-	ModalInputStyle = lipgloss.NewStyle().
-			Foreground(ColorPrimary).
-			Background(ColorFocused).
-			Padding(0, 1).
-			Bold(true)
+func (t *ModernTheme) GradientEnd() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorGradientEnd
+}
 
-	ModalHelpStyle = lipgloss.NewStyle().
-			Foreground(ColorAccentIndigo)
-)
+func (t *ModernTheme) Shadow() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorShadow
+}
+
+func (t *ModernTheme) Highlight() lipgloss.Color {
+	if !t.colorsEnabled {
+		return lipgloss.Color("")
+	}
+	return ColorHighlight
+}
+
+func (t *ModernTheme) IsColorEnabled() bool {
+	return t.colorsEnabled
+}
+
+// Global theme instance
+var globalTheme Theme = NewModernTheme(true)
+
+// SetTheme sets the global theme
+func SetTheme(theme Theme) {
+	globalTheme = theme
+}
+
+// GetTheme returns the global theme
+func GetTheme() Theme {
+	return globalTheme
+}
+
+// Modern style functions that respect theme settings
+func TitleStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Primary()).
+		Bold(true)
+}
+
+func SubtitleStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Muted())
+}
+
+func MenuItemStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Foreground())
+}
+
+func MenuItemSelectedStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.AccentBlue()).
+		Background(theme.Focused()).
+		Bold(true)
+}
+
+func ListItemStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Foreground())
+}
+
+func ListItemSelectedStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.AccentBlue()).
+		Bold(true)
+}
+
+func TableHeaderStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Secondary()).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderBottom(true).
+		BorderForeground(theme.Border()).
+		Bold(true)
+}
+
+func StatusBarStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Muted())
+}
+
+func StatusBarKeyStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.AccentIndigo()).
+		Bold(true)
+}
+
+func StatusBarValueStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Foreground())
+}
+
+func HelpStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Muted())
+}
+
+func HelpKeyStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.AccentIndigo()).
+		Bold(true)
+}
+
+func HelpDescStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Secondary())
+}
+
+func BorderStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(theme.Border())
+}
+
+func ErrorStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.AccentRed()).
+		Bold(true)
+}
+
+func SuccessStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.AccentGreen()).
+		Bold(true)
+}
+
+func LoadingStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Secondary())
+}
+
+func PanelStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(theme.Border())
+}
+
+func ModalStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(theme.AccentBlue()).
+		Foreground(theme.Primary()).
+		Background(theme.Selected()).
+		Padding(1, 2)
+}
+
+func ModalTitleStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Primary()).
+		Bold(true)
+}
+
+func ModalLabelStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Secondary()).
+		Bold(true)
+}
+
+func ModalInputStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Primary()).
+		Background(theme.Focused()).
+		Padding(0, 1).
+		Bold(true)
+}
+
+func ModalHelpStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.AccentIndigo())
+}
 
 // GetStateColor returns the appropriate color for an instance state
 func GetStateColor(state string) lipgloss.Color {
@@ -212,27 +481,27 @@ func RenderSelectableRow(row string, selected bool) string {
 	}
 
 	// Apply bright blue color to the entire row
-	return ListItemSelectedStyle.Render(row)
+    return ListItemSelectedStyle().Render(row)
 }
 
 // RenderStatusMessage renders a status message with appropriate semantic color
 func RenderStatusMessage(message string, messageType string) string {
-	var style lipgloss.Style
+    var style lipgloss.Style
 
-	switch messageType {
-	case "success":
-		style = SuccessStyle
-	case "error":
-		style = ErrorStyle
-	case "warning":
-		style = lipgloss.NewStyle().Foreground(ColorAccentAmber).Bold(true)
-	case "info":
-		style = lipgloss.NewStyle().Foreground(ColorAccentIndigo)
-	default:
-		style = lipgloss.NewStyle().Foreground(ColorForeground)
-	}
+    switch messageType {
+    case "success":
+        style = SuccessStyle()
+    case "error":
+        style = ErrorStyle()
+    case "warning":
+        style = lipgloss.NewStyle().Foreground(ColorAccentAmber).Bold(true)
+    case "info":
+        style = lipgloss.NewStyle().Foreground(ColorAccentIndigo)
+    default:
+        style = lipgloss.NewStyle().Foreground(ColorForeground)
+    }
 
-	return style.Render(message)
+    return style.Render(message)
 }
 
 // RenderMetric renders a key metric with subtle color accent for emphasis
