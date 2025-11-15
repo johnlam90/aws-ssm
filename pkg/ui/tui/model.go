@@ -653,6 +653,13 @@ func (m Model) handleNodeGroupNavigation(action NavigationKey) (tea.Model, tea.C
 			groups := m.getNodeGroups()
 			m = m.startNodeGroupScaling(groups[m.cursor])
 		}
+	case NavSelect:
+		if m.cursor < len(groups) {
+			groups := m.getNodeGroups()
+			var cmd tea.Cmd
+			m, cmd = m.startNodeGroupLaunchTemplateUpdate(groups[m.cursor])
+			return m, cmd
+		}
 	case NavDetails:
 		if m.cursor < len(groups) {
 			m.statusMessage = fmt.Sprintf("Node group %s details: %s", 

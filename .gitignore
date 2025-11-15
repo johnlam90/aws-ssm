@@ -38,3 +38,4 @@ Thumbs.db
 .gocache/
 .golangci-cache/
 aws-ssm-tui
+dashboard_beautiful_preview.md

@@ -37,7 +37,7 @@ func (m Model) startNodeGroupLaunchTemplateUpdate(ng NodeGroup) (Model, tea.Cmd)
 		return m, nil
 	}
 
-	m.scaling = nil
+	m.scaling = nil  // Clear any existing scaling state
 	state := &LaunchTemplateUpdateState{
 		ClusterName:        ng.ClusterName,
 		NodeGroupName:      ng.Name,

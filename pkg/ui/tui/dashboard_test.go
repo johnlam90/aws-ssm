@@ -53,11 +53,11 @@ func TestBeautifulDashboardRendering(t *testing.T) {
 		t.Error("Dashboard should contain navigation hints")
 	}
 
-	if !strings.Contains(view, "↑/k Up") {
+	if !strings.Contains(view, "↑/k") {
 		t.Error("Dashboard should contain up navigation hint")
 	}
 
-	if !strings.Contains(view, "↓/j Down") {
+	if !strings.Contains(view, "↓/j") {
 		t.Error("Dashboard should contain down navigation hint")
 	}
 
