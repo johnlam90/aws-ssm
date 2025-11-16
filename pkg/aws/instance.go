@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -22,6 +23,9 @@ type Instance struct {
 	InstanceType     string
 	AvailabilityZone string
 	Tags             map[string]string
+	LaunchTime       time.Time
+	SecurityGroups   []string
+	InstanceProfile  string
 }
 
 // FindInstances queries EC2 instances based on various identifiers and only returns running instances.
@@ -177,6 +181,8 @@ func (c *Client) describeInstances(ctx context.Context, filters []types.Filter) 
 					InstanceType:     string(inst.InstanceType),
 					AvailabilityZone: aws.ToString(inst.Placement.AvailabilityZone),
 					Tags:             make(map[string]string),
+					LaunchTime:       aws.ToTime(inst.LaunchTime),
+					SecurityGroups:   make([]string, 0, len(inst.SecurityGroups)),
 				}
 
 				// Extract tags
@@ -187,6 +193,21 @@ func (c *Client) describeInstances(ctx context.Context, filters []types.Filter) 
 					if key == "Name" {
 						instance.Name = value
 					}
+				}
+
+				// Extract security groups
+				for _, sg := range inst.SecurityGroups {
+					group := aws.ToString(sg.GroupId)
+					if group == "" {
+						group = aws.ToString(sg.GroupName)
+					}
+					if group != "" {
+						instance.SecurityGroups = append(instance.SecurityGroups, group)
+					}
+				}
+
+				if inst.IamInstanceProfile != nil {
+					instance.InstanceProfile = aws.ToString(inst.IamInstanceProfile.Arn)
 				}
 
 				instances = append(instances, instance)

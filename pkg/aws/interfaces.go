@@ -5,11 +5,15 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"golang.org/x/sync/errgroup"
 )
+
+const networkInterfaceWorkerLimit = 8
 
 // InterfacesOptions contains options for listing network interfaces
 type InterfacesOptions struct {
@@ -38,6 +42,30 @@ type InstanceInterfaces struct {
 	Interfaces   []NetworkInterface
 }
 
+type subnetCIDRCache struct {
+	mu    sync.RWMutex
+	cidrs map[string]string
+}
+
+func newSubnetCIDRCache() *subnetCIDRCache {
+	return &subnetCIDRCache{
+		cidrs: make(map[string]string),
+	}
+}
+
+func (c *subnetCIDRCache) get(subnetID string) (string, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	value, ok := c.cidrs[subnetID]
+	return value, ok
+}
+
+func (c *subnetCIDRCache) set(subnetID, cidr string) {
+	c.mu.Lock()
+	c.cidrs[subnetID] = cidr
+	c.mu.Unlock()
+}
+
 // GetSubnetCIDR retrieves the CIDR block for a given subnet ID
 func (c *Client) GetSubnetCIDR(ctx context.Context, subnetID string) (string, error) {
 	if subnetID == "" {
@@ -58,6 +86,23 @@ func (c *Client) GetSubnetCIDR(ctx context.Context, subnetID string) (string, er
 	}
 
 	return "N/A", nil
+}
+
+func (c *Client) getSubnetCIDRWithCache(ctx context.Context, subnetID string, cache *subnetCIDRCache) (string, error) {
+	if cache != nil {
+		if cidr, ok := cache.get(subnetID); ok {
+			return cidr, nil
+		}
+	}
+
+	cidr, err := c.GetSubnetCIDR(ctx, subnetID)
+	if err != nil {
+		return "", err
+	}
+	if cache != nil {
+		cache.set(subnetID, cidr)
+	}
+	return cidr, nil
 }
 
 // getInstanceName extracts the instance name from tags
@@ -97,7 +142,7 @@ func sortInterfacesByCardAndDevice(interfaces []types.InstanceNetworkInterface) 
 }
 
 // processInterface creates a NetworkInterface from an EC2 interface with ENS naming
-func (c *Client) processInterface(ctx context.Context, iface types.InstanceNetworkInterface, ensName string) (NetworkInterface, error) {
+func (c *Client) processInterface(ctx context.Context, iface types.InstanceNetworkInterface, ensName string, cache *subnetCIDRCache) (NetworkInterface, error) {
 	networkCardIndex := int32(0)
 	deviceIndex := int32(0)
 	if iface.Attachment != nil {
@@ -113,7 +158,7 @@ func (c *Client) processInterface(ctx context.Context, iface types.InstanceNetwo
 	// Get CIDR block for the subnet
 	cidr := "N/A"
 	if subnetID != "N/A" {
-		cidrBlock, err := c.GetSubnetCIDR(ctx, subnetID)
+		cidrBlock, err := c.getSubnetCIDRWithCache(ctx, subnetID, cache)
 		if err == nil {
 			cidr = cidrBlock
 		}
@@ -137,6 +182,10 @@ func (c *Client) processInterface(ctx context.Context, iface types.InstanceNetwo
 
 // GetInstanceInterfaces retrieves network interfaces for a specific instance
 func (c *Client) GetInstanceInterfaces(ctx context.Context, instance types.Instance) (*InstanceInterfaces, error) {
+	return c.getInstanceInterfaces(ctx, instance, newSubnetCIDRCache())
+}
+
+func (c *Client) getInstanceInterfaces(ctx context.Context, instance types.Instance, cache *subnetCIDRCache) (*InstanceInterfaces, error) {
 	instanceID := aws.ToString(instance.InstanceId)
 	dnsName := aws.ToString(instance.PrivateDnsName)
 	if dnsName == "" {
@@ -151,25 +200,14 @@ func (c *Client) GetInstanceInterfaces(ctx context.Context, instance types.Insta
 	// Sort interfaces by network card index first, then by device index
 	sortedInterfaces := sortInterfacesByCardAndDevice(instance.NetworkInterfaces)
 
-	// First pass: count interfaces per network card
-	// This is needed to calculate continuous ENS naming across network cards
-	interfaceCountPerCard := make(map[int32]int32)
-	for _, iface := range sortedInterfaces {
-		if iface.Attachment != nil {
-			networkCardIndex := aws.ToInt32(iface.Attachment.NetworkCardIndex)
-			interfaceCountPerCard[networkCardIndex]++
-		}
-	}
-
-	// Second pass: process interfaces and calculate ENS names
-	// Use a running counter to ensure continuous numbering
+	// Process interfaces with continuous ENS naming (ens5, ens6, ...)
 	ensCounter := int32(5) // Start at ens5 (first interface)
 
 	for _, iface := range sortedInterfaces {
 		ensName := fmt.Sprintf("ens%d", ensCounter)
 		ensCounter++ // Increment for next interface
 
-		netInterface, err := c.processInterface(ctx, iface, ensName)
+		netInterface, err := c.processInterface(ctx, iface, ensName, cache)
 		if err != nil {
 			continue // Skip interfaces that fail to process
 		}
@@ -230,6 +268,29 @@ func (c *Client) ListNetworkInterfaces(ctx context.Context, opts InterfacesOptio
 	return nil
 }
 
+// FetchNetworkInterfaces returns network interface data for EC2 instances without printing
+func (c *Client) FetchNetworkInterfaces(ctx context.Context, opts InterfacesOptions) ([]InstanceInterfaces, error) {
+	// Build and resolve instance query
+	input, err := c.buildInstanceQuery(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Describe instances
+	result, err := c.EC2Client.DescribeInstances(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to describe instances: %w", err)
+	}
+
+	// Collect network interface data
+	instances, err := c.collectInstanceInterfaces(ctx, result)
+	if err != nil {
+		return nil, err
+	}
+
+	return instances, nil
+}
+
 // buildInstanceQuery builds the EC2 query based on options
 func (c *Client) buildInstanceQuery(ctx context.Context, opts InterfacesOptions) (*ec2.DescribeInstancesInput, error) {
 	var filters []types.Filter
@@ -263,6 +324,66 @@ func (c *Client) buildInstanceQuery(ctx context.Context, opts InterfacesOptions)
 	}
 
 	return input, nil
+}
+
+// collectInstanceInterfaces aggregates interface data for non-terminated instances
+func (c *Client) collectInstanceInterfaces(ctx context.Context, result *ec2.DescribeInstancesOutput) ([]InstanceInterfaces, error) {
+	var targets []types.Instance
+	for _, reservation := range result.Reservations {
+		for _, instance := range reservation.Instances {
+			if instance.State.Name == types.InstanceStateNameTerminated {
+				continue
+			}
+			targets = append(targets, instance)
+		}
+	}
+
+	if len(targets) == 0 {
+		return nil, nil
+	}
+
+	cache := newSubnetCIDRCache()
+	instances := make([]InstanceInterfaces, len(targets))
+
+	g, gCtx := errgroup.WithContext(ctx)
+	concurrency := networkInterfaceWorkerLimit
+	if len(targets) < concurrency {
+		concurrency = len(targets)
+	}
+	if concurrency == 0 {
+		concurrency = 1
+	}
+	sem := make(chan struct{}, concurrency)
+
+	for idx := range targets {
+		idx := idx
+		instance := targets[idx]
+		g.Go(func() error {
+			select {
+			case <-gCtx.Done():
+				return gCtx.Err()
+			default:
+			}
+
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			instInterfaces, err := c.getInstanceInterfaces(gCtx, instance, cache)
+			if err != nil {
+				return fmt.Errorf("failed to get interfaces for instance %s: %w",
+					aws.ToString(instance.InstanceId), err)
+			}
+
+			instances[idx] = *instInterfaces
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	return instances, nil
 }
 
 // addStateFilter adds state filter based on showAll option
@@ -352,6 +473,7 @@ func (c *Client) resolveSingleIdentifier(ctx context.Context, identifier string,
 // processAndDisplayInstances processes and displays network interfaces for all instances
 func (c *Client) processAndDisplayInstances(ctx context.Context, result *ec2.DescribeInstancesOutput) int {
 	instanceCount := 0
+	cache := newSubnetCIDRCache()
 	for _, reservation := range result.Reservations {
 		for _, instance := range reservation.Instances {
 			// Skip terminated instances
@@ -359,16 +481,15 @@ func (c *Client) processAndDisplayInstances(ctx context.Context, result *ec2.Des
 				continue
 			}
 
-			c.displayInstanceInterfaces(ctx, instance)
+			c.displayInstanceInterfacesWithCache(ctx, instance, cache)
 			instanceCount++
 		}
 	}
 	return instanceCount
 }
 
-// displayInstanceInterfaces displays network interfaces for a single instance
-func (c *Client) displayInstanceInterfaces(ctx context.Context, instance types.Instance) {
-	instInterfaces, err := c.GetInstanceInterfaces(ctx, instance)
+func (c *Client) displayInstanceInterfacesWithCache(ctx context.Context, instance types.Instance, cache *subnetCIDRCache) {
+	instInterfaces, err := c.getInstanceInterfaces(ctx, instance, cache)
 	if err != nil {
 		fmt.Printf("Error getting interfaces for instance %s: %v\n",
 			aws.ToString(instance.InstanceId), err)
