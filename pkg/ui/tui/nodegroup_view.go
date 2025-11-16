@@ -196,7 +196,7 @@ func (m Model) renderNodeGroupFooter() string {
 		{"↓/j", "down"},
 		{"g/G", "top/bottom"},
 		{"enter", "scale"},
-		{"u", "update LT"},
+		{"u/U", "update LT"},
 		{"r", "refresh"},
 		{"/", "search"},
 		{"esc", "back"},

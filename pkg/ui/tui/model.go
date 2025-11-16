@@ -50,24 +50,24 @@ type Model struct {
 	pendingEKSCluster *string // Cluster name to show details for after TUI exits
 
 	// Transient UI state
-	searchActive     bool
-	searchBuffer     string
-	searchQueries    map[ViewMode]string
-	searchDebounce   *time.Timer
-	scaling          *ScalingState
-	ltUpdate         *LaunchTemplateUpdateState
-	statusMessage    string
-	statusAnimation  *StatusAnimation
+	searchActive    bool
+	searchBuffer    string
+	searchQueries   map[ViewMode]string
+	searchDebounce  *time.Timer
+	scaling         *ScalingState
+	ltUpdate        *LaunchTemplateUpdateState
+	statusMessage   string
+	statusAnimation *StatusAnimation
 }
 
 // NewModel creates a new TUI model
 func NewModel(ctx context.Context, client *aws.Client, config Config) Model {
 	// Initialize theme based on config
 	SetTheme(NewModernTheme(!config.NoColor))
-	
+
 	// Initialize navigation manager
 	navigation := NewNavigationManager()
-	
+
 	menuItems := []MenuItem{
 		{
 			Title:       "EC2 Instances",
@@ -108,9 +108,9 @@ func NewModel(ctx context.Context, client *aws.Client, config Config) Model {
 	}
 
 	// Create spinner
-    s := spinner.New()
-    s.Spinner = spinner.Dot
-    s.Style = LoadingStyle()
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = LoadingStyle()
 
 	return Model{
 		ctx:           ctx,
@@ -134,7 +134,7 @@ func (m Model) Init() tea.Cmd {
 // Update handles messages and updates the model
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-	
+
 	// Update status animation
 	m.updateStatusAnimation()
 
@@ -160,6 +160,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, searchCmd
 			}
 		}
+
+		// Handle launch template shortcut explicitly so it survives nav refactors
+		if updated, cmd, handled := m.handleNodeGroupLaunchTemplateShortcut(msg); handled {
+			return updated, cmd
+		}
+
 		return m.handleKeyPress(msg)
 
 	case DataLoadedMsg:
@@ -234,7 +240,7 @@ func (m Model) View() string {
 func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Use navigation manager to handle the key press
 	navAction := m.navigation.HandleKey(msg, m.currentView)
-	
+
 	switch navAction {
 	case NavQuit:
 		// Handle quit with confirmation
@@ -266,10 +272,10 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m = m.beginSearch()
 			return m, nil
 		}
-		
+
 	case NavBack:
 		return m.navigateBack(), nil
-		
+
 	case NavRefresh:
 		// Handle refresh based on current view
 		return m.handleRefresh()
@@ -478,7 +484,7 @@ func (m Model) handleDashboardNavigation(action NavigationKey) (tea.Model, tea.C
 // handleRefresh handles refresh based on current view
 func (m Model) handleRefresh() (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-	
+
 	switch m.currentView {
 	case ViewEC2Instances:
 		m.loading = true
@@ -503,14 +509,14 @@ func (m Model) handleRefresh() (tea.Model, tea.Cmd) {
 	default:
 		m.statusMessage = "Refresh not available for this view"
 	}
-	
+
 	return m, cmd
 }
 
 // handleEC2Navigation handles navigation actions for EC2 instances
 func (m Model) handleEC2Navigation(action NavigationKey) (tea.Model, tea.Cmd) {
 	instances := m.getEC2Instances()
-	
+
 	switch action {
 	case NavUp:
 		if m.cursor > 0 {
@@ -541,7 +547,7 @@ func (m Model) handleEC2Navigation(action NavigationKey) (tea.Model, tea.Cmd) {
 		}
 	case NavDetails:
 		if m.cursor < len(instances) {
-			m.statusMessage = fmt.Sprintf("Instance %s details: %s", 
+			m.statusMessage = fmt.Sprintf("Instance %s details: %s",
 				instances[m.cursor].InstanceID, instances[m.cursor].State)
 		}
 	case NavScale:
@@ -557,7 +563,7 @@ func (m Model) handleEC2Navigation(action NavigationKey) (tea.Model, tea.Cmd) {
 // handleEKSNavigation handles navigation actions for EKS clusters
 func (m Model) handleEKSNavigation(action NavigationKey) (tea.Model, tea.Cmd) {
 	clusters := m.getEKSClusters()
-	
+
 	switch action {
 	case NavUp:
 		if m.cursor > 0 {
@@ -585,7 +591,7 @@ func (m Model) handleEKSNavigation(action NavigationKey) (tea.Model, tea.Cmd) {
 		}
 	case NavDetails:
 		if m.cursor < len(clusters) {
-			m.statusMessage = fmt.Sprintf("Cluster %s details: %s", 
+			m.statusMessage = fmt.Sprintf("Cluster %s details: %s",
 				clusters[m.cursor].Name, clusters[m.cursor].Status)
 		}
 	}
@@ -595,7 +601,7 @@ func (m Model) handleEKSNavigation(action NavigationKey) (tea.Model, tea.Cmd) {
 // handleASGNavigation handles navigation actions for ASGs
 func (m Model) handleASGNavigation(action NavigationKey) (tea.Model, tea.Cmd) {
 	asgs := m.getASGs()
-	
+
 	switch action {
 	case NavUp:
 		if m.cursor > 0 {
@@ -620,7 +626,7 @@ func (m Model) handleASGNavigation(action NavigationKey) (tea.Model, tea.Cmd) {
 		}
 	case NavDetails:
 		if m.cursor < len(asgs) {
-			m.statusMessage = fmt.Sprintf("ASG %s details: %d instances", 
+			m.statusMessage = fmt.Sprintf("ASG %s details: %d instances",
 				asgs[m.cursor].Name, asgs[m.cursor].DesiredCapacity)
 		}
 	}
@@ -630,7 +636,7 @@ func (m Model) handleASGNavigation(action NavigationKey) (tea.Model, tea.Cmd) {
 // handleNodeGroupNavigation handles navigation actions for node groups
 func (m Model) handleNodeGroupNavigation(action NavigationKey) (tea.Model, tea.Cmd) {
 	groups := m.getNodeGroups()
-	
+
 	switch action {
 	case NavUp:
 		if m.cursor > 0 {
@@ -662,17 +668,37 @@ func (m Model) handleNodeGroupNavigation(action NavigationKey) (tea.Model, tea.C
 		}
 	case NavDetails:
 		if m.cursor < len(groups) {
-			m.statusMessage = fmt.Sprintf("Node group %s details: %s", 
+			m.statusMessage = fmt.Sprintf("Node group %s details: %s",
 				groups[m.cursor].Name, groups[m.cursor].Status)
 		}
 	}
 	return m, nil
 }
 
+// handleNodeGroupLaunchTemplateShortcut catches the legacy 'u' shortcut directly
+func (m Model) handleNodeGroupLaunchTemplateShortcut(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+	if m.currentView != ViewNodeGroups {
+		return m, nil, false
+	}
+
+	switch msg.String() {
+	case "u", "U":
+		groups := m.getNodeGroups()
+		if len(groups) == 0 || m.cursor >= len(groups) {
+			return m, nil, true
+		}
+		var cmd tea.Cmd
+		m, cmd = m.startNodeGroupLaunchTemplateUpdate(groups[m.cursor])
+		return m, cmd, true
+	default:
+		return m, nil, false
+	}
+}
+
 // handleNetworkInterfaceNavigation handles navigation actions for network interfaces
 func (m Model) handleNetworkInterfaceNavigation(action NavigationKey) (tea.Model, tea.Cmd) {
 	interfaces := m.getNetworkInterfaces()
-	
+
 	switch action {
 	case NavUp:
 		if m.cursor > 0 {
@@ -693,7 +719,7 @@ func (m Model) handleNetworkInterfaceNavigation(action NavigationKey) (tea.Model
 	case NavDetails:
 		if m.cursor < len(interfaces) {
 			iface := interfaces[m.cursor]
-			m.statusMessage = fmt.Sprintf("Instance %s interfaces: %d total", 
+			m.statusMessage = fmt.Sprintf("Instance %s interfaces: %d total",
 				iface.InstanceID, len(iface.Interfaces))
 		}
 	}
