@@ -22,9 +22,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-// Force legacy twinj/uuid version expected by session-manager-plugin code path
-replace github.com/twinj/uuid => github.com/twinj/uuid v0.0.0-20151029044442-89173bcdda19
-
 require github.com/twinj/uuid v0.0.0-20151029044442-89173bcdda19 // indirect; legacy uuid required by plugin
 
 require (
