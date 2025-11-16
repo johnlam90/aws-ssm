@@ -17,7 +17,6 @@ type BubblesFinder struct {
 	promptString string
 	colors       ColorManager
 	selected     int
-	cancelled    bool
 }
 
 // bubbleItem implements list.Item interface

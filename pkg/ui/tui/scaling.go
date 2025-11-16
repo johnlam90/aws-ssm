@@ -83,67 +83,80 @@ func (m Model) handleScalingKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.scaling == nil {
 		return m, nil
 	}
-
 	if m.scaling.Submitting {
-		// Allow cancelling while request is in-flight
 		if msg.Type == tea.KeyEsc {
 			m.scaling = nil
 		}
 		return m, nil
 	}
-
 	switch msg.Type {
 	case tea.KeyEsc:
+		return m.clearScaling(), nil
+	case tea.KeyCtrlU:
+		return m.clearScalingInput(), nil
+	case tea.KeyBackspace:
+		return m.backspaceScalingInput(), nil
+	case tea.KeyEnter:
+		return m.submitScaling()
+	}
+	return m.appendScalingDigit(msg), nil
+}
+
+func (m Model) clearScaling() Model {
+	m.scaling = nil
+	return m
+}
+
+func (m Model) clearScalingInput() Model {
+	m.scaling.Input = ""
+	m.scaling.Error = nil
+	return m
+}
+
+func (m Model) backspaceScalingInput() Model {
+	if len(m.scaling.Input) > 0 {
+		m.scaling.Input = m.scaling.Input[:len(m.scaling.Input)-1]
+	}
+	m.scaling.Error = nil
+	return m
+}
+
+func (m Model) submitScaling() (tea.Model, tea.Cmd) {
+	if strings.TrimSpace(m.scaling.Input) == "" {
+		m.scaling.Error = fmt.Errorf("enter a desired capacity")
+		return m, nil
+	}
+	val, err := strconv.ParseInt(m.scaling.Input, 10, 32)
+	if err != nil || val < 0 {
+		m.scaling.Error = fmt.Errorf("invalid capacity")
+		return m, nil
+	}
+	desired := int32(val)
+	m.scaling.Submitting = true
+	m.scaling.RequestedDesired = desired
+	m.scaling.Error = nil
+	switch m.scaling.TargetView {
+	case ViewASGs:
+		return m, ScaleASGCmd(m.ctx, m.client, m.scaling.ASGName, desired, m.scaling.CurrentMin, m.scaling.CurrentMax)
+	case ViewNodeGroups:
+		return m, ScaleNodeGroupCmd(m.ctx, m.client, m.scaling.ClusterName, m.scaling.NodeGroupName, desired, m.scaling.CurrentMin, m.scaling.CurrentMax)
+	default:
 		m.scaling = nil
 		return m, nil
-	case tea.KeyCtrlU:
-		m.scaling.Input = ""
-		m.scaling.Error = nil
-		return m, nil
-	case tea.KeyBackspace:
-		if len(m.scaling.Input) > 0 {
-			m.scaling.Input = m.scaling.Input[:len(m.scaling.Input)-1]
-		}
-		m.scaling.Error = nil
-		return m, nil
-	case tea.KeyEnter:
-		if strings.TrimSpace(m.scaling.Input) == "" {
-			m.scaling.Error = fmt.Errorf("enter a desired capacity")
-			return m, nil
-		}
-		val, err := strconv.ParseInt(m.scaling.Input, 10, 32)
-		if err != nil || val < 0 {
-			m.scaling.Error = fmt.Errorf("invalid capacity")
-			return m, nil
-		}
-
-		desired := int32(val)
-		m.scaling.Submitting = true
-		m.scaling.RequestedDesired = desired
-		m.scaling.Error = nil
-
-		switch m.scaling.TargetView {
-		case ViewASGs:
-			return m, ScaleASGCmd(m.ctx, m.client, m.scaling.ASGName, desired, m.scaling.CurrentMin, m.scaling.CurrentMax)
-		case ViewNodeGroups:
-			return m, ScaleNodeGroupCmd(m.ctx, m.client, m.scaling.ClusterName, m.scaling.NodeGroupName, desired, m.scaling.CurrentMin, m.scaling.CurrentMax)
-		default:
-			m.scaling = nil
-			return m, nil
-		}
 	}
+}
 
-	input := msg.String()
-	if len(input) == 1 && input[0] >= '0' && input[0] <= '9' {
+func (m Model) appendScalingDigit(msg tea.KeyMsg) Model {
+	s := msg.String()
+	if len(s) == 1 && s[0] >= '0' && s[0] <= '9' {
 		if m.scaling.Input == "0" {
-			m.scaling.Input = input
+			m.scaling.Input = s
 		} else {
-			m.scaling.Input += input
+			m.scaling.Input += s
 		}
 		m.scaling.Error = nil
 	}
-
-	return m, nil
+	return m
 }
 
 // handleScalingResult processes the result of a scaling operation
@@ -187,7 +200,7 @@ func (m Model) renderScalingPrompt(view ViewMode) string {
 	switch view {
 	case ViewASGs:
 		title = "Scale Auto Scaling Group"
-		subtitle = fmt.Sprintf("%s", s.ASGName)
+		subtitle = s.ASGName
 	case ViewNodeGroups:
 		title = "Scale Node Group"
 		subtitle = fmt.Sprintf("%s / %s", s.ClusterName, s.NodeGroupName)
@@ -202,38 +215,38 @@ func (m Model) renderScalingPrompt(view ViewMode) string {
 	}
 
 	var b strings.Builder
-    b.WriteString(ModalTitleStyle().Render(title))
+	b.WriteString(ModalTitleStyle().Render(title))
 	b.WriteString("\n")
-    b.WriteString(SubtitleStyle().Render(subtitle))
+	b.WriteString(SubtitleStyle().Render(subtitle))
 	b.WriteString("\n\n")
 
-    b.WriteString(ModalLabelStyle().Render("Current capacity"))
+	b.WriteString(ModalLabelStyle().Render("Current capacity"))
 	b.WriteString("\n")
 	b.WriteString(fmt.Sprintf("  Desired %d  |  Min %d  |  Max %d  |  Actual %d\n\n",
 		s.CurrentDesired, s.CurrentMin, s.CurrentMax, s.CurrentSize))
 
-    b.WriteString(ModalLabelStyle().Render("New desired capacity"))
+	b.WriteString(ModalLabelStyle().Render("New desired capacity"))
 	b.WriteString("\n")
 
 	if s.Submitting {
-        b.WriteString(LoadingStyle().Render(fmt.Sprintf("  Scaling to %s ...", input)))
+		b.WriteString(LoadingStyle().Render(fmt.Sprintf("  Scaling to %s ...", input)))
 		b.WriteString("\n")
 	} else {
 		b.WriteString("  ")
-        b.WriteString(ModalInputStyle().Render(input))
+		b.WriteString(ModalInputStyle().Render(input))
 		b.WriteString("\n")
-        b.WriteString(ModalHelpStyle().Render("enter:apply   esc:cancel   digits:edit   ctrl+u:clear"))
+		b.WriteString(ModalHelpStyle().Render("enter:apply   esc:cancel   digits:edit   ctrl+u:clear"))
 		b.WriteString("\n")
 	}
 
 	if s.Error != nil {
 		b.WriteString("\n")
-        b.WriteString(ErrorStyle().Render(fmt.Sprintf("Error: %v", s.Error)))
+		b.WriteString(ErrorStyle().Render(fmt.Sprintf("Error: %v", s.Error)))
 		b.WriteString("\n")
 	}
 
 	modalWidth := calculateModalWidth(m.width)
-    modal := ModalStyle().Width(modalWidth).Render(b.String())
+	modal := ModalStyle().Width(modalWidth).Render(b.String())
 	return centerModal(modal, m.width)
 }
 
@@ -242,7 +255,7 @@ func (m Model) renderStatusMessage() string {
 	if strings.TrimSpace(m.statusMessage) == "" {
 		return ""
 	}
-    return SuccessStyle().Render(m.statusMessage)
+	return SuccessStyle().Render(m.statusMessage)
 }
 
 func calculateModalWidth(totalWidth int) int {

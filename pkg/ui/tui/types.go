@@ -70,7 +70,7 @@ type EC2Instance struct {
 	LaunchTime       time.Time
 	InstanceProfile  string
 	SecurityGroups   []string
-	
+
 	// Cached search fields for performance optimization
 	cachedNameLower      string
 	cachedIDLower        string
@@ -124,17 +124,17 @@ type NodeGroup struct {
 	LaunchTemplateName    string
 	LaunchTemplateVersion string
 	Tags                  map[string]string
-	
+
 	// Cached search fields for performance optimization
-	cachedClusterLower           string
-	cachedNameLower              string
-	cachedStatusLower            string
-	cachedVersionLower           string
-	cachedInstanceTypesJoined    string
-	cachedInstanceTypesLower     string
-	cachedLaunchTemplateNameLower string
+	cachedClusterLower               string
+	cachedNameLower                  string
+	cachedStatusLower                string
+	cachedVersionLower               string
+	cachedInstanceTypesJoined        string
+	cachedInstanceTypesLower         string
+	cachedLaunchTemplateNameLower    string
 	cachedLaunchTemplateVersionLower string
-	cachedLaunchTemplateIDLower  string
+	cachedLaunchTemplateIDLower      string
 }
 
 // LoadingMsg is sent when data is being loaded
@@ -207,7 +207,7 @@ func (e *EC2Instance) PrecomputeSearchFields() {
 	e.cachedTypeLower = strings.ToLower(e.InstanceType)
 	e.cachedPrivateIPLower = strings.ToLower(e.PrivateIP)
 	e.cachedPublicIPLower = strings.ToLower(e.PublicIP)
-	
+
 	// Precompute tags string
 	tagPairs := make([]string, 0, len(e.Tags))
 	for k, v := range e.Tags {
@@ -556,27 +556,27 @@ func convertToTUINodeGroup(clusterName string, ng *aws.NodeGroup) NodeGroup {
 		LaunchTemplateVersion: ng.LaunchTemplate.Version,
 		Tags:                  tags,
 	}
-	
+
 	// Precompute search fields for performance
 	nodeGroup.PrecomputeSearchFields()
-	
+
 	return nodeGroup
 }
 
 // ScaleASGCmd scales an Auto Scaling Group without leaving the TUI
 func ScaleASGCmd(ctx context.Context, client *aws.Client, asgName string, desired, currentMin, currentMax int32) tea.Cmd {
 	return func() tea.Msg {
-		min := currentMin
-		max := currentMax
+		minVal := currentMin
+		maxVal := currentMax
 
-		if desired < min {
-			min = desired
+		if desired < minVal {
+			minVal = desired
 		}
-		if desired > max {
-			max = desired
+		if desired > maxVal {
+			maxVal = desired
 		}
 
-		err := client.UpdateAutoScalingGroupCapacity(ctx, asgName, min, max, desired)
+		err := client.UpdateAutoScalingGroupCapacity(ctx, asgName, minVal, maxVal, desired)
 		if err != nil {
 			return ScalingResultMsg{View: ViewASGs, Error: err}
 		}
@@ -588,17 +588,17 @@ func ScaleASGCmd(ctx context.Context, client *aws.Client, asgName string, desire
 // ScaleNodeGroupCmd scales an EKS node group inline
 func ScaleNodeGroupCmd(ctx context.Context, client *aws.Client, clusterName, nodeGroupName string, desired, currentMin, currentMax int32) tea.Cmd {
 	return func() tea.Msg {
-		min := currentMin
-		max := currentMax
+		minVal := currentMin
+		maxVal := currentMax
 
-		if desired < min {
-			min = desired
+		if desired < minVal {
+			minVal = desired
 		}
-		if desired > max {
-			max = desired
+		if desired > maxVal {
+			maxVal = desired
 		}
 
-		err := client.UpdateNodeGroupScaling(ctx, clusterName, nodeGroupName, min, max, desired)
+		err := client.UpdateNodeGroupScaling(ctx, clusterName, nodeGroupName, minVal, maxVal, desired)
 		if err != nil {
 			return ScalingResultMsg{View: ViewNodeGroups, Error: err}
 		}

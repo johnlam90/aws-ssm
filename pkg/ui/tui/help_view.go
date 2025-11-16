@@ -1,10 +1,7 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
-
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 // renderHelp renders the help view with comprehensive keybindings
@@ -63,36 +60,3 @@ func (m Model) renderHelp() string {
 }
 
 // helpItem represents a help item
-type helpItem struct {
-	key  string
-	desc string
-}
-
-// renderHelpSection renders a section of help items
-func (m Model) renderHelpSection(items []helpItem) string {
-	var b strings.Builder
-
-	for _, item := range items {
-        key := HelpKeyStyle().Render(fmt.Sprintf("%-15s", item.key))
-        desc := HelpDescStyle().Render(item.desc)
-		b.WriteString(fmt.Sprintf("  %s  %s\n", key, desc))
-	}
-
-	return b.String()
-}
-
-// handleHelpKeys handles keyboard input for help view
-func (m Model) handleHelpKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc", "?":
-		return m.navigateBack(), nil
-
-	case "up", "k":
-		// Scroll help content (future)
-
-	case "down", "j":
-		// Scroll help content (future)
-	}
-
-	return m, nil
-}

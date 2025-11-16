@@ -7,9 +7,9 @@ import (
 func TestSearchFunctions(t *testing.T) {
 	// Test basic search functionality
 	inst := EC2Instance{
-		Name:       "web-server",
-		InstanceID: "i-1234567890",
-		State:      "running",
+		Name:         "web-server",
+		InstanceID:   "i-1234567890",
+		State:        "running",
 		InstanceType: "t3.micro",
 	}
 

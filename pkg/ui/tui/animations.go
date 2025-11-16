@@ -40,13 +40,13 @@ func (a *AnimationState) Update() bool {
 	if a.Completed {
 		return true
 	}
-	
+
 	elapsed := time.Since(a.StartTime)
 	if elapsed >= a.Duration {
 		a.Completed = true
 		return true
 	}
-	
+
 	return false
 }
 
@@ -55,13 +55,13 @@ func (a *AnimationState) Progress() float64 {
 	if a.Completed {
 		return 1.0
 	}
-	
+
 	elapsed := time.Since(a.StartTime)
 	progress := float64(elapsed) / float64(a.Duration)
 	if progress > 1.0 {
 		progress = 1.0
 	}
-	
+
 	return progress
 }
 
@@ -91,10 +91,10 @@ func StartAnimationCmd(animationType AnimationType, target string) tea.Cmd {
 
 // StatusAnimation provides smooth transitions for status messages
 type StatusAnimation struct {
-	Message      string
-	MessageType  string
-	Animation    *AnimationState
-	FadeOutTime  time.Duration
+	Message     string
+	MessageType string
+	Animation   *AnimationState
+	FadeOutTime time.Duration
 }
 
 // NewStatusAnimation creates a new status animation
@@ -112,7 +112,7 @@ func (s *StatusAnimation) Update() (bool, string) {
 	if s.Animation == nil {
 		return true, ""
 	}
-	
+
 	completed := s.Animation.Update()
 	if completed {
 		// Check if we should start fade out
@@ -121,7 +121,7 @@ func (s *StatusAnimation) Update() (bool, string) {
 		}
 		return false, s.Message
 	}
-	
+
 	// During animation, show the message
 	return false, s.Message
 }
@@ -131,10 +131,10 @@ func GetAnimatedStyle(baseStyle lipgloss.Style, animation *AnimationState) lipgl
 	if animation == nil || animation.Completed {
 		return baseStyle
 	}
-	
+
 	progress := animation.Progress()
 	easedProgress := EaseInOutCubic(progress)
-	
+
 	switch animation.AnimationType {
 	case AnimationFadeIn:
 		// Apply fade-in effect by adjusting foreground color brightness

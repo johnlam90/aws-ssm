@@ -82,26 +82,26 @@ type Theme interface {
 	AccentAmber() lipgloss.Color
 	AccentRed() lipgloss.Color
 	AccentIndigo() lipgloss.Color
-	
+
 	// State colors
 	Running() lipgloss.Color
 	Stopped() lipgloss.Color
 	Pending() lipgloss.Color
 	Terminated() lipgloss.Color
-	
+
 	// UI colors
 	Border() lipgloss.Color
 	Background() lipgloss.Color
 	Foreground() lipgloss.Color
 	Selected() lipgloss.Color
 	Focused() lipgloss.Color
-	
+
 	// Enhanced colors
 	GradientStart() lipgloss.Color
 	GradientEnd() lipgloss.Color
 	Shadow() lipgloss.Color
 	Highlight() lipgloss.Color
-	
+
 	// Utility
 	IsColorEnabled() bool
 }
@@ -481,27 +481,27 @@ func RenderSelectableRow(row string, selected bool) string {
 	}
 
 	// Apply bright blue color to the entire row
-    return ListItemSelectedStyle().Render(row)
+	return ListItemSelectedStyle().Render(row)
 }
 
 // RenderStatusMessage renders a status message with appropriate semantic color
 func RenderStatusMessage(message string, messageType string) string {
-    var style lipgloss.Style
+	var style lipgloss.Style
 
-    switch messageType {
-    case "success":
-        style = SuccessStyle()
-    case "error":
-        style = ErrorStyle()
-    case "warning":
-        style = lipgloss.NewStyle().Foreground(ColorAccentAmber).Bold(true)
-    case "info":
-        style = lipgloss.NewStyle().Foreground(ColorAccentIndigo)
-    default:
-        style = lipgloss.NewStyle().Foreground(ColorForeground)
-    }
+	switch messageType {
+	case "success":
+		style = SuccessStyle()
+	case "error":
+		style = ErrorStyle()
+	case "warning":
+		style = lipgloss.NewStyle().Foreground(ColorAccentAmber).Bold(true)
+	case "info":
+		style = lipgloss.NewStyle().Foreground(ColorAccentIndigo)
+	default:
+		style = lipgloss.NewStyle().Foreground(ColorForeground)
+	}
 
-    return style.Render(message)
+	return style.Render(message)
 }
 
 // RenderMetric renders a key metric with subtle color accent for emphasis

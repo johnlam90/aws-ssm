@@ -92,13 +92,13 @@ func TestRenderStatusMessage(t *testing.T) {
 func TestRenderMetric(t *testing.T) {
 	label := "CPU"
 	value := "75%"
-	
+
 	// Test normal metric
 	result := RenderMetric(label, value, false)
 	if !contains(result, label) || !contains(result, value) {
 		t.Errorf("RenderMetric should contain both label and value")
 	}
-	
+
 	// Test highlighted metric
 	highlighted := RenderMetric(label, value, true)
 	if !contains(highlighted, label) || !contains(highlighted, value) {

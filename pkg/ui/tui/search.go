@@ -1,12 +1,12 @@
 package tui
 
 import (
-    "fmt"
-    "strings"
-    "time"
+	"fmt"
+	"strings"
+	"time"
 
-    tea "github.com/charmbracelet/bubbletea"
-    "github.com/johnlam90/aws-ssm/pkg/aws"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/johnlam90/aws-ssm/pkg/aws"
 )
 
 // beginSearch starts a search session for the current view
@@ -72,7 +72,7 @@ func (m Model) handleSearchInput(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 func (m *Model) scheduleSearchDebounce() tea.Cmd {
 	// Cancel any existing debounce timer
 	m.cancelSearchDebounce()
-	
+
 	// Return a command that will send the debounce message after delay
 	return func() tea.Msg {
 		time.Sleep(150 * time.Millisecond)
@@ -94,71 +94,97 @@ func (m *Model) cancelSearchDebounce() {
 // applyFiltersForView filters data for a specific view using its search query
 func (m Model) applyFiltersForView(view ViewMode) Model {
 	query := strings.ToLower(strings.TrimSpace(m.getSearchQuery(view)))
+	if f, ok := viewFilters()[view]; ok {
+		m = f(m, query)
+	}
+	return m.ensureCursorInBounds(view)
+}
 
-	switch view {
-	case ViewEC2Instances:
-		if query == "" {
-			m.filteredEC2 = nil
-		} else {
-			var filtered []EC2Instance
-			for _, inst := range m.ec2Instances {
-				if ec2MatchesQuery(inst, query) {
-					filtered = append(filtered, inst)
-				}
-			}
-			m.filteredEC2 = filtered
-		}
-	case ViewEKSClusters:
-		if query == "" {
-			m.filteredEKS = nil
-		} else {
-			var filtered []EKSCluster
-			for _, cluster := range m.eksClusters {
-				if eksMatchesQuery(cluster, query) {
-					filtered = append(filtered, cluster)
-				}
-			}
-			m.filteredEKS = filtered
-		}
-	case ViewASGs:
-		if query == "" {
-			m.filteredASGs = nil
-		} else {
-			var filtered []ASG
-			for _, asg := range m.asgs {
-				if asgMatchesQuery(asg, query) {
-					filtered = append(filtered, asg)
-				}
-			}
-			m.filteredASGs = filtered
-		}
-	case ViewNodeGroups:
-		if query == "" {
-			m.filteredNodeGroups = nil
-		} else {
-			var filtered []NodeGroup
-			for _, ng := range m.nodeGroups {
-				if nodeGroupMatchesQuery(ng, query) {
-					filtered = append(filtered, ng)
-				}
-			}
-			m.filteredNodeGroups = filtered
-		}
-	case ViewNetworkInterfaces:
-		if query == "" {
-			m.filteredNetworks = nil
-		} else {
-			var filtered []aws.InstanceInterfaces
-			for _, inst := range m.netInterfaces {
-				if networkMatchesQuery(inst, query) {
-					filtered = append(filtered, inst)
-				}
-			}
-			m.filteredNetworks = filtered
+type filterFn func(Model, string) Model
+
+func viewFilters() map[ViewMode]filterFn {
+	return map[ViewMode]filterFn{
+		ViewEC2Instances:      filterEC2View,
+		ViewEKSClusters:       filterEKSView,
+		ViewASGs:              filterASGView,
+		ViewNodeGroups:        filterNodeGroupView,
+		ViewNetworkInterfaces: filterNetworkView,
+	}
+}
+
+func filterEC2View(m Model, query string) Model {
+	if query == "" {
+		m.filteredEC2 = nil
+		return m
+	}
+	var filtered []EC2Instance
+	for _, inst := range m.ec2Instances {
+		if ec2MatchesQuery(inst, query) {
+			filtered = append(filtered, inst)
 		}
 	}
+	m.filteredEC2 = filtered
+	return m
+}
 
-	return m.ensureCursorInBounds(view)
+func filterEKSView(m Model, query string) Model {
+	if query == "" {
+		m.filteredEKS = nil
+		return m
+	}
+	var filtered []EKSCluster
+	for _, cluster := range m.eksClusters {
+		if eksMatchesQuery(cluster, query) {
+			filtered = append(filtered, cluster)
+		}
+	}
+	m.filteredEKS = filtered
+	return m
+}
+
+func filterASGView(m Model, query string) Model {
+	if query == "" {
+		m.filteredASGs = nil
+		return m
+	}
+	var filtered []ASG
+	for _, asg := range m.asgs {
+		if asgMatchesQuery(asg, query) {
+			filtered = append(filtered, asg)
+		}
+	}
+	m.filteredASGs = filtered
+	return m
+}
+
+func filterNodeGroupView(m Model, query string) Model {
+	if query == "" {
+		m.filteredNodeGroups = nil
+		return m
+	}
+	var filtered []NodeGroup
+	for _, ng := range m.nodeGroups {
+		if nodeGroupMatchesQuery(ng, query) {
+			filtered = append(filtered, ng)
+		}
+	}
+	m.filteredNodeGroups = filtered
+	return m
+}
+
+func filterNetworkView(m Model, query string) Model {
+	if query == "" {
+		m.filteredNetworks = nil
+		return m
+	}
+	var filtered []aws.InstanceInterfaces
+	for _, inst := range m.netInterfaces {
+		if networkMatchesQuery(inst, query) {
+			filtered = append(filtered, inst)
+		}
+	}
+	m.filteredNetworks = filtered
+	return m
 }
 
 // getSearchQuery returns the active search query for a view
@@ -230,7 +256,7 @@ func (m Model) renderSearchBar(view ViewMode) string {
 		display = "(type to filter)"
 	}
 
-    return HelpStyle().Render(fmt.Sprintf("%s › %s", status, display))
+	return HelpStyle().Render(fmt.Sprintf("%s › %s", status, display))
 }
 
 // getEC2Instances returns the visible EC2 instances (filtered or not)
@@ -275,118 +301,108 @@ func (m Model) getNetworkInterfaces() []aws.InstanceInterfaces {
 
 func ec2MatchesQuery(inst EC2Instance, query string) bool {
 	query = strings.ToLower(strings.TrimSpace(query))
-	
-	// Parse tokens for key:value filtering
 	tokens := parseTokens(query)
 	if len(tokens) > 0 {
-		// Token-based filtering
-		for _, token := range tokens {
-			key := strings.ToLower(token[0])
-			value := strings.ToLower(token[1])
-			
-			switch key {
-			case "name":
-				if !strings.Contains(strings.ToLower(inst.Name), value) {
-					return false
-				}
-			case "id", "instance":
-				if !strings.Contains(strings.ToLower(inst.InstanceID), value) {
-					return false
-				}
-			case "privateip", "private":
-				if !strings.Contains(strings.ToLower(inst.PrivateIP), value) {
-					return false
-				}
-			case "publicip", "public", "ip", "pip":
-				if !strings.Contains(strings.ToLower(inst.PublicIP), value) && !strings.Contains(strings.ToLower(inst.PrivateIP), value) {
-					return false
-				}
-			case "type":
-				if !strings.Contains(strings.ToLower(inst.InstanceType), value) {
-					return false
-				}
-			case "state":
-				if !strings.Contains(strings.ToLower(inst.State), value) {
-					return false
-				}
-            case "tag":
-                // Use cached tags string for efficient searching
-                tags := inst.cachedTagsString
-                if tags == "" {
-                    var pairs []string
-                    for k, v := range inst.Tags {
-                        pairs = append(pairs, strings.ToLower(fmt.Sprintf("%s:%s", k, v)))
-                        pairs = append(pairs, strings.ToLower(fmt.Sprintf("%s=%s", k, v)))
-                    }
-                    tags = strings.Join(pairs, " ")
-                }
-                if strings.Contains(value, "=") || strings.Contains(value, ":") {
-                    if !strings.Contains(tags, value) {
-                        return false
-                    }
-                } else {
-                    // No separator: treat as tag key presence
-                    found := false
-                    for k := range inst.Tags {
-                        if strings.Contains(strings.ToLower(k), value) {
-                            found = true
-                            break
-                        }
-                    }
-                    if !found {
-                        return false
-                    }
-                }
-			default:
-				// Unknown key, treat as regular search
-				if !strings.Contains(inst.cachedNameLower, key+":"+value) {
-					return false
-				}
+		return ec2TokensMatch(inst, tokens)
+	}
+	return ec2TextSearch(inst, query)
+}
+
+func ec2TokenMatches(inst EC2Instance, key, value string) bool {
+	switch key {
+	case "name":
+		return strings.Contains(strings.ToLower(inst.Name), value)
+	case "id", "instance":
+		return strings.Contains(strings.ToLower(inst.InstanceID), value)
+	case "privateip", "private":
+		return strings.Contains(strings.ToLower(inst.PrivateIP), value)
+	case "publicip", "public", "ip", "pip":
+		v := strings.ToLower(value)
+		return strings.Contains(strings.ToLower(inst.PublicIP), v) || strings.Contains(strings.ToLower(inst.PrivateIP), v)
+	case "type":
+		return strings.Contains(strings.ToLower(inst.InstanceType), value)
+	case "state":
+		return strings.Contains(strings.ToLower(inst.State), value)
+	case "tag":
+		tags := inst.cachedTagsString
+		if tags == "" {
+			var pairs []string
+			for k, v := range inst.Tags {
+				pairs = append(pairs, strings.ToLower(fmt.Sprintf("%s:%s", k, v)))
+				pairs = append(pairs, strings.ToLower(fmt.Sprintf("%s=%s", k, v)))
+			}
+			tags = strings.Join(pairs, " ")
+		}
+		if strings.Contains(value, "=") || strings.Contains(value, ":") {
+			return strings.Contains(tags, value)
+		}
+		for k := range inst.Tags {
+			if strings.Contains(strings.ToLower(k), value) {
+				return true
 			}
 		}
-		return true
+		return false
+	default:
+		return strings.Contains(inst.cachedNameLower, key+":"+value)
 	}
-	
-    // Fallback to regular text search using cached fields (compute if cache missing)
-    nameLower := inst.cachedNameLower
-    if nameLower == "" { nameLower = strings.ToLower(inst.Name) }
-    idLower := inst.cachedIDLower
-    if idLower == "" { idLower = strings.ToLower(inst.InstanceID) }
-    privLower := inst.cachedPrivateIPLower
-    if privLower == "" { privLower = strings.ToLower(inst.PrivateIP) }
-    pubLower := inst.cachedPublicIPLower
-    if pubLower == "" { pubLower = strings.ToLower(inst.PublicIP) }
-    typeLower := inst.cachedTypeLower
-    if typeLower == "" { typeLower = strings.ToLower(inst.InstanceType) }
-    stateLower := inst.cachedStateLower
-    if stateLower == "" { stateLower = strings.ToLower(inst.State) }
-    tagsLower := inst.cachedTagsString
-    if tagsLower == "" {
-        var pairs []string
-        for k, v := range inst.Tags {
-            pairs = append(pairs, strings.ToLower(fmt.Sprintf("%s:%s", k, v)))
-        }
-        tagsLower = strings.Join(pairs, " ")
-    }
+}
 
-    if strings.Contains(nameLower, query) ||
-        strings.Contains(idLower, query) ||
-        strings.Contains(privLower, query) ||
-        strings.Contains(pubLower, query) ||
-        strings.Contains(typeLower, query) ||
-        strings.Contains(stateLower, query) ||
-        strings.Contains(tagsLower, query) {
-        return true
-    }
+func ec2TokensMatch(inst EC2Instance, tokens [][2]string) bool {
+	for _, t := range tokens {
+		if !ec2TokenMatches(inst, strings.ToLower(t[0]), strings.ToLower(t[1])) {
+			return false
+		}
+	}
+	return true
+}
 
-	return false
+func ec2TextSearch(inst EC2Instance, query string) bool {
+	nameLower := inst.cachedNameLower
+	if nameLower == "" {
+		nameLower = strings.ToLower(inst.Name)
+	}
+	idLower := inst.cachedIDLower
+	if idLower == "" {
+		idLower = strings.ToLower(inst.InstanceID)
+	}
+	privLower := inst.cachedPrivateIPLower
+	if privLower == "" {
+		privLower = strings.ToLower(inst.PrivateIP)
+	}
+	pubLower := inst.cachedPublicIPLower
+	if pubLower == "" {
+		pubLower = strings.ToLower(inst.PublicIP)
+	}
+	typeLower := inst.cachedTypeLower
+	if typeLower == "" {
+		typeLower = strings.ToLower(inst.InstanceType)
+	}
+	stateLower := inst.cachedStateLower
+	if stateLower == "" {
+		stateLower = strings.ToLower(inst.State)
+	}
+	tagsLower := inst.cachedTagsString
+	if tagsLower == "" {
+		var pairs []string
+		for k, v := range inst.Tags {
+			pairs = append(pairs, strings.ToLower(fmt.Sprintf("%s:%s", k, v)))
+		}
+		tagsLower = strings.Join(pairs, " ")
+	}
+	return strings.Contains(nameLower, query) ||
+		strings.Contains(idLower, query) ||
+		strings.Contains(privLower, query) ||
+		strings.Contains(pubLower, query) ||
+		strings.Contains(typeLower, query) ||
+		strings.Contains(stateLower, query) ||
+		strings.Contains(tagsLower, query)
 }
 
 // parseTokens parses key:value pairs from a search query
 func parseTokens(query string) [][2]string {
 	var tokens [][2]string
 	parts := strings.Fields(query)
-	
+
 	for _, part := range parts {
 		if strings.Contains(part, ":") {
 			pair := strings.SplitN(part, ":", 2)
@@ -395,7 +411,7 @@ func parseTokens(query string) [][2]string {
 			}
 		}
 	}
-	
+
 	return tokens
 }
 
@@ -431,96 +447,80 @@ func asgMatchesQuery(asg ASG, query string) bool {
 
 func nodeGroupMatchesQuery(ng NodeGroup, query string) bool {
 	query = strings.ToLower(strings.TrimSpace(query))
-	
-	// Parse tokens for key:value filtering
 	tokens := parseTokens(query)
 	if len(tokens) > 0 {
-		// Token-based filtering
-		for _, token := range tokens {
-			key := strings.ToLower(token[0])
-			value := strings.ToLower(token[1])
-			
-			switch key {
-			case "cluster":
-				if !strings.Contains(strings.ToLower(ng.ClusterName), value) {
-					return false
-				}
-			case "name":
-				if !strings.Contains(strings.ToLower(ng.Name), value) {
-					return false
-				}
-			case "status":
-				if !strings.Contains(strings.ToLower(ng.Status), value) {
-					return false
-				}
-			case "version":
-				if !strings.Contains(strings.ToLower(ng.Version), value) {
-					return false
-				}
-			case "instancetype", "type":
-				instanceTypes := strings.ToLower(strings.Join(ng.InstanceTypes, ","))
-				if !strings.Contains(instanceTypes, value) {
-					return false
-				}
-			case "ltname", "launchtemplatename":
-				if !strings.Contains(strings.ToLower(ng.LaunchTemplateName), value) {
-					return false
-				}
-			case "ltid", "launchtemplateid":
-				if !strings.Contains(strings.ToLower(ng.LaunchTemplateID), value) {
-					return false
-				}
-			case "ltversion", "launchtemplateversion":
-				if !strings.Contains(strings.ToLower(ng.LaunchTemplateVersion), value) {
-					return false
-				}
-			default:
-				// Unknown key, treat as regular search
-				if !strings.Contains(strings.ToLower(ng.Name), key+":"+value) {
-					return false
-				}
-			}
-		}
+		return nodeGroupTokensMatch(ng, tokens)
+	}
+	return nodeGroupTextSearch(ng, query)
+}
+
+func nodeGroupTokenMatches(ng NodeGroup, key, value string) bool {
+	switch key {
+	case "cluster":
+		return strings.Contains(strings.ToLower(ng.ClusterName), value)
+	case "name":
+		return strings.Contains(strings.ToLower(ng.Name), value)
+	case "status":
+		return strings.Contains(strings.ToLower(ng.Status), value)
+	case "version":
+		return strings.Contains(strings.ToLower(ng.Version), value)
+	case "instancetype", "type":
+		inst := strings.ToLower(strings.Join(ng.InstanceTypes, ","))
+		return strings.Contains(inst, value)
+	case "ltname", "launchtemplatename":
+		return strings.Contains(strings.ToLower(ng.LaunchTemplateName), value)
+	case "ltid", "launchtemplateid":
+		return strings.Contains(strings.ToLower(ng.LaunchTemplateID), value)
+	case "ltversion", "launchtemplateversion":
+		return strings.Contains(strings.ToLower(ng.LaunchTemplateVersion), value)
+	default:
+		return strings.Contains(strings.ToLower(ng.Name), key+":"+value)
+	}
+}
+
+func nodeGroupTextSearch(ng NodeGroup, query string) bool {
+	clusterLower := lowerOrCached(ng.cachedClusterLower, ng.ClusterName)
+	nameLower := lowerOrCached(ng.cachedNameLower, ng.Name)
+	statusLower := lowerOrCached(ng.cachedStatusLower, ng.Status)
+	versionLower := lowerOrCached(ng.cachedVersionLower, ng.Version)
+	instTypesLower := lowerOrCached(ng.cachedInstanceTypesLower, strings.Join(ng.InstanceTypes, ","))
+	ltNameLower := lowerOrCached(ng.cachedLaunchTemplateNameLower, ng.LaunchTemplateName)
+	ltVersionLower := lowerOrCached(ng.cachedLaunchTemplateVersionLower, ng.LaunchTemplateVersion)
+	ltIDLower := lowerOrCached(ng.cachedLaunchTemplateIDLower, ng.LaunchTemplateID)
+
+	if strings.Contains(clusterLower, query) ||
+		strings.Contains(nameLower, query) ||
+		strings.Contains(statusLower, query) ||
+		strings.Contains(versionLower, query) ||
+		strings.Contains(instTypesLower, query) ||
+		strings.Contains(ltNameLower, query) ||
+		strings.Contains(ltVersionLower, query) ||
+		strings.Contains(ltIDLower, query) {
 		return true
 	}
-	
-    // Fallback to regular text search using cached fields (compute if cache missing)
-    clusterLower := ng.cachedClusterLower
-    if clusterLower == "" { clusterLower = strings.ToLower(ng.ClusterName) }
-    nameLower := ng.cachedNameLower
-    if nameLower == "" { nameLower = strings.ToLower(ng.Name) }
-    statusLower := ng.cachedStatusLower
-    if statusLower == "" { statusLower = strings.ToLower(ng.Status) }
-    versionLower := ng.cachedVersionLower
-    if versionLower == "" { versionLower = strings.ToLower(ng.Version) }
-    instTypesLower := ng.cachedInstanceTypesLower
-    if instTypesLower == "" { instTypesLower = strings.ToLower(strings.Join(ng.InstanceTypes, ",")) }
-    ltNameLower := ng.cachedLaunchTemplateNameLower
-    if ltNameLower == "" { ltNameLower = strings.ToLower(ng.LaunchTemplateName) }
-    ltVersionLower := ng.cachedLaunchTemplateVersionLower
-    if ltVersionLower == "" { ltVersionLower = strings.ToLower(ng.LaunchTemplateVersion) }
-    ltIDLower := ng.cachedLaunchTemplateIDLower
-    if ltIDLower == "" { ltIDLower = strings.ToLower(ng.LaunchTemplateID) }
-
-    if strings.Contains(clusterLower, query) ||
-        strings.Contains(nameLower, query) ||
-        strings.Contains(statusLower, query) ||
-        strings.Contains(versionLower, query) ||
-        strings.Contains(instTypesLower, query) ||
-        strings.Contains(ltNameLower, query) ||
-        strings.Contains(ltVersionLower, query) ||
-        strings.Contains(ltIDLower, query) {
-        return true
-    }
-
 	sizeFields := []int32{ng.DesiredSize, ng.MinSize, ng.MaxSize, ng.CurrentSize}
 	for _, val := range sizeFields {
 		if strings.Contains(fmt.Sprint(val), query) {
 			return true
 		}
 	}
-
 	return false
+}
+
+func lowerOrCached(cached, raw string) string {
+	if cached == "" {
+		return strings.ToLower(raw)
+	}
+	return cached
+}
+
+func nodeGroupTokensMatch(ng NodeGroup, tokens [][2]string) bool {
+	for _, t := range tokens {
+		if !nodeGroupTokenMatches(ng, strings.ToLower(t[0]), strings.ToLower(t[1])) {
+			return false
+		}
+	}
+	return true
 }
 
 func networkMatchesQuery(inst aws.InstanceInterfaces, query string) bool {

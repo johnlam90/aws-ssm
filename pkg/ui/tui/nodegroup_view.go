@@ -3,73 +3,23 @@ package tui
 import (
 	"fmt"
 	"strings"
-
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 // renderNodeGroups renders the EKS node groups view
 func (m Model) renderNodeGroups() string {
-	var b strings.Builder
-
 	groups := m.getNodeGroups()
-
+	if s := m.renderNodeGroupState(groups); s != "" {
+		return s
+	}
+	var b strings.Builder
 	header := m.renderHeader("EKS Node Groups", fmt.Sprintf("%d node groups", len(groups)))
 	b.WriteString(header)
 	b.WriteString("\n\n")
-
-	if m.loading {
-		b.WriteString(m.renderLoading())
-		b.WriteString("\n")
-        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
-		return b.String()
-	}
-
-	if m.err != nil {
-		b.WriteString(m.renderError())
-		b.WriteString("\n\n")
-        b.WriteString(HelpStyle().Render("esc:back"))
-		b.WriteString("\n")
-        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
-		return b.String()
-	}
-
-	if len(groups) == 0 {
-        b.WriteString(SubtitleStyle().Render("No EKS node groups found"))
-		b.WriteString("\n\n")
-        b.WriteString(HelpStyle().Render("esc:back"))
-		b.WriteString("\n")
-        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
-		return b.String()
-	}
-
-	cursor := clampIndex(m.cursor, len(groups))
-	visibleHeight := m.height - 12
-	if visibleHeight < 5 {
-		visibleHeight = len(groups)
-	}
-
-	startIdx := 0
-	endIdx := len(groups)
-	if len(groups) > visibleHeight && visibleHeight > 0 {
-		startIdx = cursor - visibleHeight/2
-		if startIdx < 0 {
-			startIdx = 0
-		}
-		endIdx = startIdx + visibleHeight
-		if endIdx > len(groups) {
-			endIdx = len(groups)
-			startIdx = endIdx - visibleHeight
-			if startIdx < 0 {
-				startIdx = 0
-			}
-		}
-	}
-
-	headerRow := fmt.Sprintf("  %-24s %-28s %-10s %8s %8s %8s %8s",
-		"CLUSTER", "NODE GROUP", "STATUS", "DESIRED", "MIN", "MAX", "CURRENT")
-    b.WriteString(TableHeaderStyle().Render(headerRow))
+	b.WriteString(TableHeaderStyle().Render(fmt.Sprintf("  %-24s %-28s %-10s %8s %8s %8s %8s",
+		"CLUSTER", "NODE GROUP", "STATUS", "DESIRED", "MIN", "MAX", "CURRENT")))
 	b.WriteString("\n")
-
+	cursor := clampIndex(m.cursor, len(groups))
+	startIdx, endIdx := calculateNodeGroupVisibleRange(len(groups), cursor, m.height-12)
 	for i := startIdx; i < endIdx; i++ {
 		ng := groups[i]
 		cluster := normalizeValue(ng.ClusterName, "unknown", 24)
@@ -77,15 +27,12 @@ func (m Model) renderNodeGroups() string {
 		status := RenderStateCell(ng.Status, 10)
 		row := fmt.Sprintf("  %-24s %-28s %s %8d %8d %8d %8d",
 			cluster, name, status, ng.DesiredSize, ng.MinSize, ng.MaxSize, ng.CurrentSize)
-
 		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
-
 	selected := groups[cursor]
 	b.WriteString("\n")
-	detailTitle := fmt.Sprintf("%s / %s", selected.ClusterName, selected.Name)
-    b.WriteString(SubtitleStyle().Render(detailTitle))
+	b.WriteString(SubtitleStyle().Render(fmt.Sprintf("%s / %s", selected.ClusterName, selected.Name)))
 	b.WriteString("\n")
 
 	instanceTypes := strings.Join(selected.InstanceTypes, ", ")
@@ -134,56 +81,58 @@ func (m Model) renderNodeGroups() string {
 	}
 	b.WriteString(m.renderNodeGroupFooter())
 	b.WriteString("\n")
-    b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
-
+	b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 	return b.String()
 }
 
-// handleNodeGroupKeys manages keybindings for node group view
-func (m Model) handleNodeGroupKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	groups := m.getNodeGroups()
-	switch msg.String() {
-	case "up", "k":
-		if m.cursor > 0 {
-			m.cursor--
-		}
-	case "down", "j":
-		if m.cursor < len(groups)-1 {
-			m.cursor++
-		}
-	case "g":
-		if len(groups) > 0 {
-			m.cursor = 0
-		}
-	case "G":
-		if len(groups) > 0 {
-			m.cursor = len(groups) - 1
-		}
-	case "enter", " ":
-		if m.cursor < len(groups) {
-			ng := groups[m.cursor]
-			m = m.startNodeGroupScaling(ng)
-		}
-	case "u", "U":
-		if m.cursor < len(groups) {
-			ng := groups[m.cursor]
-			var cmd tea.Cmd
-			m, cmd = m.startNodeGroupLaunchTemplateUpdate(ng)
-			if cmd != nil {
-				return m, cmd
-			}
-		}
-	case "r":
-		m.loading = true
-		m.loadingMsg = "Refreshing node groups..."
-		m.err = nil
-		m.statusMessage = ""
-		return m, LoadNodeGroupsCmd(m.ctx, m.client)
-	case "esc":
-		return m.navigateBack(), nil
+// renderNodeGroupState renders loading/error/empty states
+func (m Model) renderNodeGroupState(groups []NodeGroup) string {
+	var b strings.Builder
+	header := m.renderHeader("EKS Node Groups", fmt.Sprintf("%d node groups", len(groups)))
+	b.WriteString(header)
+	b.WriteString("\n\n")
+	if m.loading {
+		b.WriteString(m.renderLoading())
+		b.WriteString("\n")
+		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		return b.String()
 	}
+	if m.err != nil {
+		b.WriteString(m.renderError())
+		b.WriteString("\n\n")
+		b.WriteString(HelpStyle().Render("esc:back"))
+		b.WriteString("\n")
+		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		return b.String()
+	}
+	if len(groups) == 0 {
+		b.WriteString(SubtitleStyle().Render("No EKS node groups found"))
+		b.WriteString("\n\n")
+		b.WriteString(HelpStyle().Render("esc:back"))
+		b.WriteString("\n")
+		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		return b.String()
+	}
+	return ""
+}
 
-	return m, nil
+func calculateNodeGroupVisibleRange(total, cursor, visibleHeight int) (int, int) {
+	if visibleHeight < 5 {
+		return 0, total
+	}
+	start := cursor - visibleHeight/2
+	if start < 0 {
+		start = 0
+	}
+	end := start + visibleHeight
+	if end > total {
+		end = total
+		start = end - visibleHeight
+		if start < 0 {
+			start = 0
+		}
+	}
+	return start, end
 }
 
 // renderNodeGroupFooter renders footer controls for node group view
@@ -204,12 +153,12 @@ func (m Model) renderNodeGroupFooter() string {
 
 	var parts []string
 	for _, k := range keys {
-        keyStyle := StatusBarKeyStyle().Render(k.key)
-        descStyle := StatusBarValueStyle().Render(k.desc)
+		keyStyle := StatusBarKeyStyle().Render(k.key)
+		descStyle := StatusBarValueStyle().Render(k.desc)
 		parts = append(parts, fmt.Sprintf("%s %s", keyStyle, descStyle))
 	}
 
-    return HelpStyle().Render(strings.Join(parts, " • "))
+	return HelpStyle().Render(strings.Join(parts, " • "))
 }
 
 // clampIndex ensures cursor stays within list bounds

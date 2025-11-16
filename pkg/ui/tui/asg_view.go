@@ -3,107 +3,43 @@ package tui
 import (
 	"fmt"
 	"strings"
-
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 // renderASGs renders the Auto Scaling Groups view - minimal design
 func (m Model) renderASGs() string {
-	var b strings.Builder
-
 	asgs := m.getASGs()
-
-	// Header - simple
+	if s := m.renderASGState(asgs); s != "" {
+		return s
+	}
+	var b strings.Builder
 	header := m.renderHeader("Auto Scaling Groups", fmt.Sprintf("%d ASGs", len(asgs)))
 	b.WriteString(header)
 	b.WriteString("\n\n")
-
-	// Show loading or error - minimal
-	if m.loading {
-		b.WriteString(m.renderLoading())
-		b.WriteString("\n")
-        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
-		return b.String()
-	}
-
-	if m.err != nil {
-		b.WriteString(m.renderError())
-		b.WriteString("\n\n")
-        b.WriteString(HelpStyle().Render("esc:back"))
-		b.WriteString("\n")
-        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
-		return b.String()
-	}
-
-	// No ASGs
-	if len(asgs) == 0 {
-        b.WriteString(SubtitleStyle().Render("No Auto Scaling Groups found"))
-		b.WriteString("\n\n")
-        b.WriteString(HelpStyle().Render("esc:back"))
-		b.WriteString("\n")
-        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
-		return b.String()
-	}
-
-	cursor := clampIndex(m.cursor, len(asgs))
-
-	// Table header - clean and aligned
-	headerRow := fmt.Sprintf("  %-50s %8s %8s %8s %8s",
-		"NAME", "DESIRED", "MIN", "MAX", "CURRENT")
-    b.WriteString(TableHeaderStyle().Render(headerRow))
+	b.WriteString(TableHeaderStyle().Render(fmt.Sprintf("  %-50s %8s %8s %8s %8s",
+		"NAME", "DESIRED", "MIN", "MAX", "CURRENT")))
 	b.WriteString("\n")
-
-	visibleHeight := m.height - 14
-	if visibleHeight < 5 {
-		visibleHeight = len(asgs)
-	}
-
-	startIdx := 0
-	endIdx := len(asgs)
-	if len(asgs) > visibleHeight && visibleHeight > 0 {
-		startIdx = cursor - visibleHeight/2
-		if startIdx < 0 {
-			startIdx = 0
-		}
-		endIdx = startIdx + visibleHeight
-		if endIdx > len(asgs) {
-			endIdx = len(asgs)
-			startIdx = endIdx - visibleHeight
-			if startIdx < 0 {
-				startIdx = 0
-			}
-		}
-	}
-
-	// Render ASGs with proper alignment
+	cursor := clampIndex(m.cursor, len(asgs))
+	startIdx, endIdx := m.calculateVisibleRange(len(asgs), cursor, m.height-14)
 	for i := startIdx; i < endIdx; i++ {
 		asg := asgs[i]
-		// Truncate name if too long
 		name := asg.Name
 		if len(name) > 50 {
 			name = name[:47] + "..."
 		}
-
 		row := fmt.Sprintf("  %-50s %8d %8d %8d %8d",
 			name, asg.DesiredCapacity, asg.MinSize, asg.MaxSize, asg.CurrentSize)
-
 		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
-
-	if visibleHeight > 0 && len(asgs) > visibleHeight {
-		pageInfo := fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(asgs))
+	if endIdx-startIdx > 0 && len(asgs) > endIdx-startIdx {
 		b.WriteString("\n")
-        b.WriteString(SubtitleStyle().Render(pageInfo))
+		b.WriteString(SubtitleStyle().Render(fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(asgs))))
 	}
-
 	selected := asgs[cursor]
 	b.WriteString("\n")
-    b.WriteString(SubtitleStyle().Render(selected.Name))
+	b.WriteString(SubtitleStyle().Render(selected.Name))
 	b.WriteString("\n")
 	b.WriteString(m.renderASGDetails(selected))
-
-	// Scaling prompt / search bar
 	b.WriteString("\n")
 	if overlay := m.renderScalingPrompt(ViewASGs); overlay != "" {
 		b.WriteString(overlay)
@@ -118,58 +54,58 @@ func (m Model) renderASGs() string {
 		b.WriteString("\n")
 	}
 	b.WriteString(m.renderASGFooter())
-
-	// Status bar
 	b.WriteString("\n")
-    b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
-
+	b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 	return b.String()
 }
 
-// handleASGKeys handles keyboard input for ASG view
-func (m Model) handleASGKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	asgs := m.getASGs()
-
-	switch msg.String() {
-	case "up", "k":
-		if m.cursor > 0 {
-			m.cursor--
-		}
-
-	case "down", "j":
-		if m.cursor < len(asgs)-1 {
-			m.cursor++
-		}
-
-	case "g":
-		if len(asgs) > 0 {
-			m.cursor = 0
-		}
-
-	case "G":
-		if len(asgs) > 0 {
-			m.cursor = len(asgs) - 1
-		}
-
-	case "enter", " ":
-		if m.cursor < len(asgs) {
-			asg := asgs[m.cursor]
-			m = m.startASGScaling(asg)
-		}
-
-	case "r":
-		// Refresh ASGs
-		m.loading = true
-		m.loadingMsg = "Refreshing Auto Scaling Groups..."
-		m.err = nil
-		m.statusMessage = ""
-		return m, LoadASGsCmd(m.ctx, m.client)
-
-	case "esc":
-		return m.navigateBack(), nil
+func (m Model) renderASGState(asgs []ASG) string {
+	var b strings.Builder
+	header := m.renderHeader("Auto Scaling Groups", fmt.Sprintf("%d ASGs", len(asgs)))
+	b.WriteString(header)
+	b.WriteString("\n\n")
+	if m.loading {
+		b.WriteString(m.renderLoading())
+		b.WriteString("\n")
+		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		return b.String()
 	}
+	if m.err != nil {
+		b.WriteString(m.renderError())
+		b.WriteString("\n\n")
+		b.WriteString(HelpStyle().Render("esc:back"))
+		b.WriteString("\n")
+		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		return b.String()
+	}
+	if len(asgs) == 0 {
+		b.WriteString(SubtitleStyle().Render("No Auto Scaling Groups found"))
+		b.WriteString("\n\n")
+		b.WriteString(HelpStyle().Render("esc:back"))
+		b.WriteString("\n")
+		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		return b.String()
+	}
+	return ""
+}
 
-	return m, nil
+func (m Model) calculateVisibleRange(total, cursor, visibleHeight int) (int, int) {
+	if visibleHeight < 5 {
+		return 0, total
+	}
+	start := cursor - visibleHeight/2
+	if start < 0 {
+		start = 0
+	}
+	end := start + visibleHeight
+	if end > total {
+		end = total
+		start = end - visibleHeight
+		if start < 0 {
+			start = 0
+		}
+	}
+	return start, end
 }
 
 // renderASGFooter renders the footer for ASG view
@@ -189,12 +125,12 @@ func (m Model) renderASGFooter() string {
 
 	var parts []string
 	for _, k := range keys {
-        keyStyle := StatusBarKeyStyle().Render(k.key)
-        descStyle := StatusBarValueStyle().Render(k.desc)
+		keyStyle := StatusBarKeyStyle().Render(k.key)
+		descStyle := StatusBarValueStyle().Render(k.desc)
 		parts = append(parts, fmt.Sprintf("%s %s", keyStyle, descStyle))
 	}
 
-    return HelpStyle().Render(strings.Join(parts, " • "))
+	return HelpStyle().Render(strings.Join(parts, " • "))
 }
 
 func (m Model) renderASGDetails(asg ASG) string {

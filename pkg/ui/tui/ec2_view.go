@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 // renderEC2Instances renders the EC2 instances view
@@ -23,26 +21,26 @@ func (m Model) renderEC2Instances() string {
 	if m.loading {
 		b.WriteString(m.renderLoading())
 		b.WriteString("\n")
-        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
 		return b.String()
 	}
 
 	if m.err != nil {
 		b.WriteString(m.renderError())
 		b.WriteString("\n\n")
-        b.WriteString(HelpStyle().Render("esc:back"))
+		b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
 		return b.String()
 	}
 
 	// No instances
 	if len(instances) == 0 {
-        b.WriteString(SubtitleStyle().Render("No EC2 instances found"))
+		b.WriteString(SubtitleStyle().Render("No EC2 instances found"))
 		b.WriteString("\n\n")
-        b.WriteString(HelpStyle().Render("esc:back"))
+		b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-        b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
 		return b.String()
 	}
 
@@ -51,7 +49,7 @@ func (m Model) renderEC2Instances() string {
 	// Table header - clean and aligned
 	headerRow := fmt.Sprintf("  %-32s %-20s %-15s %-12s %-15s",
 		"NAME", "INSTANCE ID", "PRIVATE IP", "STATE", "TYPE")
-    b.WriteString(TableHeaderStyle().Render(headerRow))
+	b.WriteString(TableHeaderStyle().Render(headerRow))
 	b.WriteString("\n")
 
 	// Calculate visible range for pagination
@@ -101,13 +99,13 @@ func (m Model) renderEC2Instances() string {
 	if visibleHeight > 0 && len(instances) > visibleHeight {
 		pageInfo := fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(instances))
 		b.WriteString("\n")
-        b.WriteString(SubtitleStyle().Render(pageInfo))
+		b.WriteString(SubtitleStyle().Render(pageInfo))
 	}
 
 	selected := instances[cursor]
 	b.WriteString("\n")
 	detailTitle := fmt.Sprintf("%s (%s)", normalizeValue(selected.Name, "(no name)", 0), selected.InstanceID)
-    b.WriteString(SubtitleStyle().Render(detailTitle))
+	b.WriteString(SubtitleStyle().Render(detailTitle))
 	b.WriteString("\n")
 	b.WriteString(m.renderEC2Details(selected))
 
@@ -123,63 +121,9 @@ func (m Model) renderEC2Instances() string {
 
 	// Status bar
 	b.WriteString("\n")
-    b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
+	b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 
 	return b.String()
-}
-
-// handleEC2Keys handles keyboard input for EC2 instances view
-func (m Model) handleEC2Keys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	instances := m.getEC2Instances()
-
-	switch msg.String() {
-	case "up", "k":
-		if m.cursor > 0 {
-			m.cursor--
-		}
-
-	case "down", "j":
-		if m.cursor < len(instances)-1 {
-			m.cursor++
-		}
-
-	case "g":
-		// Go to top
-		m.cursor = 0
-
-	case "G":
-		// Go to bottom
-		if len(instances) > 0 {
-			m.cursor = len(instances) - 1
-		}
-
-	case "enter", " ":
-		// Connect to selected instance via SSM
-		if m.cursor < len(instances) {
-			inst := instances[m.cursor]
-
-			// Check if instance is running
-			if inst.State != "running" {
-				m.err = fmt.Errorf("instance %s is not running (state: %s)", inst.Name, inst.State)
-				return m, nil
-			}
-
-			// Schedule SSM session to start after TUI exits
-			return m, m.scheduleSSMSession(inst.InstanceID)
-		}
-
-	case "r":
-		// Refresh instances
-		m.loading = true
-		m.loadingMsg = "Refreshing EC2 instances..."
-		m.err = nil
-		return m, LoadEC2InstancesCmd(m.ctx, m.client)
-
-	case "esc":
-		return m.navigateBack(), nil
-	}
-
-	return m, nil
 }
 
 // renderEC2Footer renders the footer for EC2 view
@@ -199,12 +143,12 @@ func (m Model) renderEC2Footer() string {
 
 	var parts []string
 	for _, k := range keys {
-        keyStyle := StatusBarKeyStyle().Render(k.key)
-        descStyle := StatusBarValueStyle().Render(k.desc)
+		keyStyle := StatusBarKeyStyle().Render(k.key)
+		descStyle := StatusBarValueStyle().Render(k.desc)
 		parts = append(parts, fmt.Sprintf("%s %s", keyStyle, descStyle))
 	}
 
-    return HelpStyle().Render(strings.Join(parts, " • "))
+	return HelpStyle().Render(strings.Join(parts, " • "))
 }
 
 func (m Model) renderEC2Details(inst EC2Instance) string {

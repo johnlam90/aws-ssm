@@ -133,74 +133,65 @@ func (m Model) Init() tea.Cmd {
 
 // Update handles messages and updates the model
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-
-	// Update status animation
 	m.updateStatusAnimation()
+	switch x := msg.(type) {
+	case tea.KeyMsg:
+		return m.updateKeyMsg(x)
+	default:
+		return m.updateNonKeyMsg(x)
+	}
+}
 
-	switch msg := msg.(type) {
+func (m Model) updateKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.scaling != nil {
+		return m.handleScalingKeys(msg)
+	}
+	if m.ltUpdate != nil {
+		return m.handleLaunchTemplateKeys(msg)
+	}
+	if m.searchActive {
+		updated, searchCmd, handled := m.handleSearchInput(msg)
+		if handled {
+			return updated, searchCmd
+		}
+	}
+	if updated, cmd, handled := m.handleNodeGroupLaunchTemplateShortcut(msg); handled {
+		return updated, cmd
+	}
+	return m.handleKeyPress(msg)
+}
+
+func (m Model) updateNonKeyMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch v := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
+		m.width = v.Width
+		m.height = v.Height
 		m.ready = true
 		return m, nil
-
-	case tea.KeyMsg:
-		if m.scaling != nil {
-			return m.handleScalingKeys(msg)
-		}
-		if m.ltUpdate != nil {
-			return m.handleLaunchTemplateKeys(msg)
-		}
-		if m.searchActive {
-			var handled bool
-			var searchCmd tea.Cmd
-			m, searchCmd, handled = m.handleSearchInput(msg)
-			if handled {
-				return m, searchCmd
-			}
-		}
-
-		// Handle launch template shortcut explicitly so it survives nav refactors
-		if updated, cmd, handled := m.handleNodeGroupLaunchTemplateShortcut(msg); handled {
-			return updated, cmd
-		}
-
-		return m.handleKeyPress(msg)
-
 	case DataLoadedMsg:
-		return m.handleDataLoaded(msg)
-
+		return m.handleDataLoaded(v)
 	case ErrorMsg:
-		m.err = msg.Err
+		m.err = v.Err
 		m.loading = false
 		return m, nil
-
 	case ScalingResultMsg:
-		return m.handleScalingResult(msg)
-
+		return m.handleScalingResult(v)
 	case LaunchTemplateVersionsMsg:
-		return m.handleLaunchTemplateVersions(msg)
-
+		return m.handleLaunchTemplateVersions(v)
 	case LaunchTemplateUpdateResultMsg:
-		return m.handleLaunchTemplateUpdateResult(msg)
-
+		return m.handleLaunchTemplateUpdateResult(v)
 	case SearchDebounceMsg:
-		// Apply filters after debounce delay
 		m.cursor = 0
-		m = m.applyFiltersForView(msg.View)
+		m = m.applyFiltersForView(v.View)
 		return m, nil
-
 	case AnimationMsg:
-		// Handle animation messages
-		m.startAnimation(msg.AnimationType, msg.Target)
+		m.startAnimation(v.AnimationType, v.Target)
 		return m, nil
-
 	case spinner.TickMsg:
-		m.spinner, cmd = m.spinner.Update(msg)
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(v)
 		return m, cmd
 	}
-
 	return m, nil
 }
 
@@ -243,21 +234,14 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch navAction {
 	case NavQuit:
-		// Handle quit with confirmation
 		if m.currentView == ViewDashboard {
-			// From dashboard, quit immediately
 			return m, tea.Quit
-		} else {
-			// From other views, show confirmation on first 'q'
-			if strings.HasPrefix(m.statusMessage, "press q again") {
-				// Second 'q' quits
-				return m, tea.Quit
-			} else {
-				// First 'q' shows confirmation
-				m.statusMessage = "press q again to quit, esc to stay"
-				return m, nil
-			}
 		}
+		if strings.HasPrefix(m.statusMessage, "press q again") {
+			return m, tea.Quit
+		}
+		m.statusMessage = "press q again to quit, esc to stay"
+		return m, nil
 
 	case NavHelp:
 		// Toggle help
@@ -281,25 +265,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleRefresh()
 	}
 
-	// Handle navigation actions based on current view
-	switch m.currentView {
-	case ViewDashboard:
-		return m.handleDashboardNavigation(navAction)
-	case ViewEC2Instances:
-		return m.handleEC2Navigation(navAction)
-	case ViewEKSClusters:
-		return m.handleEKSNavigation(navAction)
-	case ViewASGs:
-		return m.handleASGNavigation(navAction)
-	case ViewNodeGroups:
-		return m.handleNodeGroupNavigation(navAction)
-	case ViewNetworkInterfaces:
-		return m.handleNetworkInterfaceNavigation(navAction)
-	case ViewHelp:
-		return m.handleHelpNavigation(navAction)
-	}
-
-	return m, nil
+	return m.handleNavigation(navAction)
 }
 
 // pushView pushes the current view onto the stack and switches to a new view
@@ -429,10 +395,6 @@ func (m *Model) scheduleSSMSession(instanceID string) tea.Cmd {
 }
 
 // scheduleClusterDetails schedules cluster details display after the TUI exits
-func (m *Model) scheduleClusterDetails(clusterName string) tea.Cmd {
-	m.pendingEKSCluster = &clusterName
-	return tea.Quit
-}
 
 // Navigation handler methods
 
@@ -516,48 +478,72 @@ func (m Model) handleRefresh() (tea.Model, tea.Cmd) {
 // handleEC2Navigation handles navigation actions for EC2 instances
 func (m Model) handleEC2Navigation(action NavigationKey) (tea.Model, tea.Cmd) {
 	instances := m.getEC2Instances()
+	switch action {
+	case NavUp, NavDown, NavHome, NavEnd, NavPageUp, NavPageDown:
+		return m.applyCursorMovement(len(instances), action), nil
+	case NavSSH:
+		return m.ec2Connect(instances)
+	case NavDetails:
+		return m.ec2Details(instances), nil
+	case NavScale:
+		return m.ec2ScaleNotice(), nil
+	case NavFilter:
+		return m.ec2FilterHint(), nil
+	}
+	return m, nil
+}
 
+func (m Model) applyCursorMovement(length int, action NavigationKey) Model {
 	switch action {
 	case NavUp:
 		if m.cursor > 0 {
 			m.cursor--
 		}
 	case NavDown:
-		if m.cursor < len(instances)-1 {
+		if m.cursor < length-1 {
 			m.cursor++
 		}
 	case NavHome:
 		m.cursor = 0
 	case NavEnd:
-		m.cursor = len(instances) - 1
+		m.cursor = length - 1
 	case NavPageUp:
 		m.cursor = max(0, m.cursor-10)
 	case NavPageDown:
-		m.cursor = min(len(instances)-1, m.cursor+10)
-	case NavSSH:
-		if m.cursor < len(instances) {
-			inst := instances[m.cursor]
-			// Check if instance is running
-			if inst.State != "running" {
-				m.err = fmt.Errorf("instance %s is not running (state: %s)", inst.Name, inst.State)
-				return m, nil
-			}
-			// Schedule SSM session to start after TUI exits
-			return m, m.scheduleSSMSession(inst.InstanceID)
-		}
-	case NavDetails:
-		if m.cursor < len(instances) {
-			m.statusMessage = fmt.Sprintf("Instance %s details: %s",
-				instances[m.cursor].InstanceID, instances[m.cursor].State)
-		}
-	case NavScale:
-		if m.cursor < len(instances) {
-			m.statusMessage = "EC2 instance scaling not implemented yet"
-		}
-	case NavFilter:
-		m.statusMessage = "Filter by: running, stopped, terminated"
+		m.cursor = min(length-1, m.cursor+10)
 	}
-	return m, nil
+	return m
+}
+
+func (m Model) ec2Connect(instances []EC2Instance) (tea.Model, tea.Cmd) {
+	if m.cursor >= len(instances) {
+		return m, nil
+	}
+	inst := instances[m.cursor]
+	if inst.State != "running" {
+		m.err = fmt.Errorf("instance %s is not running (state: %s)", inst.Name, inst.State)
+		return m, nil
+	}
+	return m, m.scheduleSSMSession(inst.InstanceID)
+}
+
+func (m Model) ec2Details(instances []EC2Instance) Model {
+	if m.cursor < len(instances) {
+		m.statusMessage = fmt.Sprintf("Instance %s details: %s", instances[m.cursor].InstanceID, instances[m.cursor].State)
+	}
+	return m
+}
+
+func (m Model) ec2ScaleNotice() Model {
+	if m.cursor >= 0 {
+		m.statusMessage = "EC2 instance scaling not implemented yet"
+	}
+	return m
+}
+
+func (m Model) ec2FilterHint() Model {
+	m.statusMessage = "Filter by: running, stopped, terminated"
+	return m
 }
 
 // handleEKSNavigation handles navigation actions for EKS clusters
@@ -739,6 +725,21 @@ func (m Model) handleHelpNavigation(action NavigationKey) (tea.Model, tea.Cmd) {
 		// Future: go to top of help
 	case NavEnd:
 		// Future: go to bottom of help
+	}
+	return m, nil
+}
+func (m Model) handleNavigation(action NavigationKey) (tea.Model, tea.Cmd) {
+	handlers := map[ViewMode]func(Model, NavigationKey) (tea.Model, tea.Cmd){
+		ViewDashboard:         Model.handleDashboardNavigation,
+		ViewEC2Instances:      Model.handleEC2Navigation,
+		ViewEKSClusters:       Model.handleEKSNavigation,
+		ViewASGs:              Model.handleASGNavigation,
+		ViewNodeGroups:        Model.handleNodeGroupNavigation,
+		ViewNetworkInterfaces: Model.handleNetworkInterfaceNavigation,
+		ViewHelp:              Model.handleHelpNavigation,
+	}
+	if h, ok := handlers[m.currentView]; ok {
+		return h(m, action)
 	}
 	return m, nil
 }

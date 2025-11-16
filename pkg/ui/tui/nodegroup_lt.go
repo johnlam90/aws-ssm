@@ -37,7 +37,7 @@ func (m Model) startNodeGroupLaunchTemplateUpdate(ng NodeGroup) (Model, tea.Cmd)
 		return m, nil
 	}
 
-	m.scaling = nil  // Clear any existing scaling state
+	m.scaling = nil // Clear any existing scaling state
 	state := &LaunchTemplateUpdateState{
 		ClusterName:        ng.ClusterName,
 		NodeGroupName:      ng.Name,
@@ -70,44 +70,57 @@ func (m Model) handleLaunchTemplateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch msg.String() {
 	case "esc":
-		m.ltUpdate = nil
+		return m.ltEsc(), nil
 	case "up", "k":
-		if state.Loading || len(state.Options) == 0 {
-			return m, nil
-		}
-		if state.Cursor > 0 {
-			state.Cursor--
-		}
+		return m.ltMove(-1), nil
 	case "down", "j":
-		if state.Loading || len(state.Options) == 0 {
-			return m, nil
-		}
-		if state.Cursor < len(state.Options)-1 {
-			state.Cursor++
-		}
+		return m.ltMove(1), nil
 	case "r":
-		state.Loading = true
-		state.Error = nil
-		return m, LoadLaunchTemplateVersionsCmd(m.ctx, m.client, state.LaunchTemplateID, state.ClusterName, state.NodeGroupName)
+		return m.ltReload()
 	case "enter":
-		if state.Loading || len(state.Options) == 0 {
-			return m, nil
-		}
-		selected := state.Options[state.Cursor]
-		state.Submitting = true
-		state.RequestedVersion = selected.Value
-		state.Error = nil
-		return m, UpdateNodeGroupLaunchTemplateCmd(
-			m.ctx,
-			m.client,
-			state.ClusterName,
-			state.NodeGroupName,
-			state.LaunchTemplateID,
-			selected.Value,
-		)
+		return m.ltApply()
 	}
 
 	return m, nil
+}
+
+func (m Model) ltEsc() Model {
+	m.ltUpdate = nil
+	return m
+}
+
+func (m Model) ltMove(delta int) Model {
+	s := m.ltUpdate
+	if s.Loading || len(s.Options) == 0 {
+		return m
+	}
+	s.Cursor += delta
+	if s.Cursor < 0 {
+		s.Cursor = 0
+	}
+	if s.Cursor >= len(s.Options) {
+		s.Cursor = len(s.Options) - 1
+	}
+	return m
+}
+
+func (m Model) ltReload() (tea.Model, tea.Cmd) {
+	s := m.ltUpdate
+	s.Loading = true
+	s.Error = nil
+	return m, LoadLaunchTemplateVersionsCmd(m.ctx, m.client, s.LaunchTemplateID, s.ClusterName, s.NodeGroupName)
+}
+
+func (m Model) ltApply() (tea.Model, tea.Cmd) {
+	s := m.ltUpdate
+	if s.Loading || len(s.Options) == 0 {
+		return m, nil
+	}
+	selected := s.Options[s.Cursor]
+	s.Submitting = true
+	s.RequestedVersion = selected.Value
+	s.Error = nil
+	return m, UpdateNodeGroupLaunchTemplateCmd(m.ctx, m.client, s.ClusterName, s.NodeGroupName, s.LaunchTemplateID, selected.Value)
 }
 
 // handleLaunchTemplateVersions processes launch template version load results
@@ -241,7 +254,7 @@ func (m Model) renderLaunchTemplatePrompt() string {
 	var b strings.Builder
 
 	title := fmt.Sprintf("Update Launch Template • %s / %s", state.ClusterName, state.NodeGroupName)
-    b.WriteString(TitleStyle().Render(title))
+	b.WriteString(TitleStyle().Render(title))
 	b.WriteString("\n")
 
 	ltName := normalizeValue(state.LaunchTemplateName, "n/a", 0)
@@ -251,13 +264,13 @@ func (m Model) renderLaunchTemplatePrompt() string {
 
 	switch {
 	case state.Submitting:
-        b.WriteString(LoadingStyle().Render(fmt.Sprintf("Updating to %s ...", state.RequestedVersion)))
+		b.WriteString(LoadingStyle().Render(fmt.Sprintf("Updating to %s ...", state.RequestedVersion)))
 		b.WriteString("\n")
 	case state.Loading:
-        b.WriteString(LoadingStyle().Render("Loading launch template versions..."))
+		b.WriteString(LoadingStyle().Render("Loading launch template versions..."))
 		b.WriteString("\n")
 	case len(state.Options) == 0:
-        b.WriteString(ErrorStyle().Render("No launch template versions available"))
+		b.WriteString(ErrorStyle().Render("No launch template versions available"))
 		b.WriteString("\n")
 	default:
 		start := state.Cursor - 3
@@ -284,14 +297,14 @@ func (m Model) renderLaunchTemplatePrompt() string {
 		}
 
 		b.WriteString("\n")
-        b.WriteString(HelpStyle().Render("↑/k ↓/j select  enter:apply  r:reload  esc:cancel"))
+		b.WriteString(HelpStyle().Render("↑/k ↓/j select  enter:apply  r:reload  esc:cancel"))
 		b.WriteString("\n")
 	}
 
 	if state.Error != nil {
-        b.WriteString(ErrorStyle().Render(fmt.Sprintf("Error: %v", state.Error)))
+		b.WriteString(ErrorStyle().Render(fmt.Sprintf("Error: %v", state.Error)))
 		b.WriteString("\n")
 	}
 
-    return PanelStyle().Width(m.width).Render(b.String())
+	return PanelStyle().Width(m.width).Render(b.String())
 }

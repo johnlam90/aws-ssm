@@ -488,12 +488,6 @@ func (c *Client) processAndDisplayInstances(ctx context.Context, result *ec2.Des
 	return instanceCount
 }
 
-// displayInstanceInterfaces displays network interfaces for a single instance
-func (c *Client) displayInstanceInterfaces(ctx context.Context, instance types.Instance) {
-	cache := newSubnetCIDRCache()
-	c.displayInstanceInterfacesWithCache(ctx, instance, cache)
-}
-
 func (c *Client) displayInstanceInterfacesWithCache(ctx context.Context, instance types.Instance, cache *subnetCIDRCache) {
 	instInterfaces, err := c.getInstanceInterfaces(ctx, instance, cache)
 	if err != nil {

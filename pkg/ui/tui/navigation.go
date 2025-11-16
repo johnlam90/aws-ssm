@@ -53,7 +53,6 @@ const (
 type NavigationManager struct {
 	mode           CommandMode
 	commandBuffer  string
-	visualStart    int
 	lastNavigation NavigationKey
 }
 
@@ -113,7 +112,7 @@ var viewKeyBindings = map[ViewMode][]KeyBinding{
 	},
 	ViewNetworkInterfaces: {
 		{Key: "up, k", Description: "Move up", Action: NavUp},
-	{Key: "down, j", Description: "Move down", Action: NavDown},
+		{Key: "down, j", Description: "Move down", Action: NavDown},
 		{Key: "g g", Description: "Go to top", Action: NavHome},
 		{Key: "G", Description: "Go to bottom", Action: NavEnd},
 		{Key: "d", Description: "Show details", Action: NavDetails},
@@ -221,37 +220,37 @@ func (nm *NavigationManager) GetMode() CommandMode {
 // GetKeyBindings returns keybindings for a specific view
 func GetKeyBindings(view ViewMode) []KeyBinding {
 	var bindings []KeyBinding
-	
+
 	// Add view-specific bindings
 	if viewBindings, exists := viewKeyBindings[view]; exists {
 		bindings = append(bindings, viewBindings...)
 	}
-	
+
 	// Add global bindings
 	bindings = append(bindings, globalKeyBindings...)
-	
+
 	return bindings
 }
 
 // FormatKeyBindings formats keybindings for display
 func FormatKeyBindings(bindings []KeyBinding) string {
 	var result strings.Builder
-	
+
 	for _, binding := range bindings {
 		key := HelpKeyStyle().Render(binding.Key)
 		desc := binding.Description
 		result.WriteString(fmt.Sprintf("  %-20s %s\n", key, desc))
 	}
-	
+
 	return result.String()
 }
 
 // GetQuickReference returns a quick reference for common actions
 func GetQuickReference() string {
 	var result strings.Builder
-	
+
 	result.WriteString(TitleStyle().Render("Quick Reference") + "\n\n")
-	
+
 	sections := []struct {
 		title    string
 		bindings []KeyBinding
@@ -287,7 +286,7 @@ func GetQuickReference() string {
 			},
 		},
 	}
-	
+
 	for _, section := range sections {
 		result.WriteString(SubtitleStyle().Render(section.title) + "\n")
 		for _, binding := range section.bindings {
@@ -296,6 +295,6 @@ func GetQuickReference() string {
 		}
 		result.WriteString("\n")
 	}
-	
+
 	return result.String()
 }
