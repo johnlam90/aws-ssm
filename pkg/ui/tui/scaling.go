@@ -32,7 +32,7 @@ func newASGScalingState(asg ASG) *ScalingState {
 		CurrentMax:     asg.MaxSize,
 		CurrentDesired: asg.DesiredCapacity,
 		CurrentSize:    asg.CurrentSize,
-		Input:          fmt.Sprintf("%d", asg.DesiredCapacity),
+		Input:          "",
 	}
 }
 
@@ -45,7 +45,7 @@ func newNodeGroupScalingState(ng NodeGroup) *ScalingState {
 		CurrentMax:     ng.MaxSize,
 		CurrentDesired: ng.DesiredSize,
 		CurrentSize:    ng.CurrentSize,
-		Input:          fmt.Sprintf("%d", ng.DesiredSize),
+		Input:          "",
 	}
 }
 
@@ -209,11 +209,6 @@ func (m Model) renderScalingPrompt(view ViewMode) string {
 		subtitle = s.displayName()
 	}
 
-	input := strings.TrimSpace(s.Input)
-	if input == "" {
-		input = fmt.Sprintf("%d", s.CurrentDesired)
-	}
-
 	var b strings.Builder
 	b.WriteString(ModalTitleStyle().Render(title))
 	b.WriteString("\n")
@@ -228,14 +223,26 @@ func (m Model) renderScalingPrompt(view ViewMode) string {
 	b.WriteString(ModalLabelStyle().Render("New desired capacity"))
 	b.WriteString("\n")
 
+	currentValue := fmt.Sprintf("%d", s.CurrentDesired)
+	target := s.Input
 	if s.Submitting {
-		b.WriteString(LoadingStyle().Render(fmt.Sprintf("  Scaling to %s ...", input)))
+		display := strings.TrimSpace(target)
+		if display == "" {
+			display = currentValue
+		}
+		b.WriteString(LoadingStyle().Render(fmt.Sprintf("  Scaling to %s ...", display)))
 		b.WriteString("\n")
 	} else {
+		var inputField string
+		if target == "" {
+			inputField = ModalPlaceholderStyle().Render(currentValue)
+		} else {
+			inputField = ModalInputStyle().Render(target)
+		}
 		b.WriteString("  ")
-		b.WriteString(ModalInputStyle().Render(input))
+		b.WriteString(inputField)
 		b.WriteString("\n")
-		b.WriteString(ModalHelpStyle().Render("enter:apply   esc:cancel   digits:edit   ctrl+u:clear"))
+		b.WriteString(ModalHelpStyle().Render("enter:apply   esc:cancel   digits:edit   backspace:delete   ctrl+u:clear"))
 		b.WriteString("\n")
 	}
 

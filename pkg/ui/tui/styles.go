@@ -436,6 +436,14 @@ func ModalInputStyle() lipgloss.Style {
 		Bold(true)
 }
 
+func ModalPlaceholderStyle() lipgloss.Style {
+	theme := GetTheme()
+	return ModalInputStyle().
+		Foreground(theme.Secondary()).
+		Faint(true).
+		Italic(true)
+}
+
 func ModalHelpStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
