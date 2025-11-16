@@ -758,38 +758,58 @@ func (m Model) handleNavigation(action NavigationKey) (tea.Model, tea.Cmd) {
 func (m Model) currentSelectionKey(view ViewMode) string {
 	switch view {
 	case ViewEC2Instances:
-		items := m.getEC2Instances()
-		if m.cursor < 0 || m.cursor >= len(items) {
-			return ""
-		}
-		return items[m.cursor].InstanceID
+		return m.getEC2SelectionKey()
 	case ViewEKSClusters:
-		items := m.getEKSClusters()
-		if m.cursor < 0 || m.cursor >= len(items) {
-			return ""
-		}
-		return items[m.cursor].Name
+		return m.getEKSSelectionKey()
 	case ViewASGs:
-		items := m.getASGs()
-		if m.cursor < 0 || m.cursor >= len(items) {
-			return ""
-		}
-		return items[m.cursor].Name
+		return m.getASGSelectionKey()
 	case ViewNodeGroups:
-		items := m.getNodeGroups()
-		if m.cursor < 0 || m.cursor >= len(items) {
-			return ""
-		}
-		return fmt.Sprintf("%s|%s", items[m.cursor].ClusterName, items[m.cursor].Name)
+		return m.getNodeGroupSelectionKey()
 	case ViewNetworkInterfaces:
-		items := m.getNetworkInterfaces()
-		if m.cursor < 0 || m.cursor >= len(items) {
-			return ""
-		}
-		return items[m.cursor].InstanceID
+		return m.getNISelectionKey()
 	default:
 		return ""
 	}
+}
+
+func (m Model) getEC2SelectionKey() string {
+	items := m.getEC2Instances()
+	if m.cursor < 0 || m.cursor >= len(items) {
+		return ""
+	}
+	return items[m.cursor].InstanceID
+}
+
+func (m Model) getEKSSelectionKey() string {
+	items := m.getEKSClusters()
+	if m.cursor < 0 || m.cursor >= len(items) {
+		return ""
+	}
+	return items[m.cursor].Name
+}
+
+func (m Model) getASGSelectionKey() string {
+	items := m.getASGs()
+	if m.cursor < 0 || m.cursor >= len(items) {
+		return ""
+	}
+	return items[m.cursor].Name
+}
+
+func (m Model) getNodeGroupSelectionKey() string {
+	items := m.getNodeGroups()
+	if m.cursor < 0 || m.cursor >= len(items) {
+		return ""
+	}
+	return fmt.Sprintf("%s|%s", items[m.cursor].ClusterName, items[m.cursor].Name)
+}
+
+func (m Model) getNISelectionKey() string {
+	items := m.getNetworkInterfaces()
+	if m.cursor < 0 || m.cursor >= len(items) {
+		return ""
+	}
+	return items[m.cursor].InstanceID
 }
 
 func (m Model) findSelectionIndex(view ViewMode, key string) int {
@@ -799,34 +819,60 @@ func (m Model) findSelectionIndex(view ViewMode, key string) int {
 	}
 	switch view {
 	case ViewEC2Instances:
-		for i, inst := range m.getEC2Instances() {
-			if inst.InstanceID == key {
-				return i
-			}
-		}
+		return m.findEC2Index(key)
 	case ViewEKSClusters:
-		for i, cluster := range m.getEKSClusters() {
-			if cluster.Name == key {
-				return i
-			}
-		}
+		return m.findEKSIndex(key)
 	case ViewASGs:
-		for i, asg := range m.getASGs() {
-			if asg.Name == key {
-				return i
-			}
-		}
+		return m.findASGIndex(key)
 	case ViewNodeGroups:
-		for i, ng := range m.getNodeGroups() {
-			if fmt.Sprintf("%s|%s", ng.ClusterName, ng.Name) == key {
-				return i
-			}
-		}
+		return m.findNodeGroupIndex(key)
 	case ViewNetworkInterfaces:
-		for i, ni := range m.getNetworkInterfaces() {
-			if ni.InstanceID == key {
-				return i
-			}
+		return m.findNIIndex(key)
+	default:
+		return -1
+	}
+}
+
+func (m Model) findEC2Index(key string) int {
+	for i, inst := range m.getEC2Instances() {
+		if inst.InstanceID == key {
+			return i
+		}
+	}
+	return -1
+}
+
+func (m Model) findEKSIndex(key string) int {
+	for i, cluster := range m.getEKSClusters() {
+		if cluster.Name == key {
+			return i
+		}
+	}
+	return -1
+}
+
+func (m Model) findASGIndex(key string) int {
+	for i, asg := range m.getASGs() {
+		if asg.Name == key {
+			return i
+		}
+	}
+	return -1
+}
+
+func (m Model) findNodeGroupIndex(key string) int {
+	for i, ng := range m.getNodeGroups() {
+		if fmt.Sprintf("%s|%s", ng.ClusterName, ng.Name) == key {
+			return i
+		}
+	}
+	return -1
+}
+
+func (m Model) findNIIndex(key string) int {
+	for i, ni := range m.getNetworkInterfaces() {
+		if ni.InstanceID == key {
+			return i
 		}
 	}
 	return -1
