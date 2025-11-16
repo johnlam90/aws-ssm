@@ -257,19 +257,25 @@ func (m Model) renderSearchBar(view ViewMode) string {
 	}
 
 	status := "Search"
-	if m.searchActive && m.currentView == view {
+	active := m.searchActive && m.currentView == view
+	if active {
 		status = "Search (enter to apply, esc to cancel)"
 	}
 
 	display := strings.TrimSpace(query)
-	if m.searchActive && m.currentView == view {
+	if active {
 		display = query + "▍"
 	}
 	if display == "" {
 		display = "(type to filter)"
 	}
 
-	return HelpStyle().Render(fmt.Sprintf("%s › %s", status, display))
+	style := SearchBarStyle()
+	if active {
+		style = SearchBarActiveStyle()
+	}
+
+	return style.Render(fmt.Sprintf("%s › %s", status, display))
 }
 
 // getEC2Instances returns the visible EC2 instances (filtered or not)

@@ -356,6 +356,27 @@ func HelpStyle() lipgloss.Style {
 		Foreground(theme.Muted())
 }
 
+func SearchBarStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Primary()).
+		Background(theme.Selected()).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(theme.Border()).
+		Padding(0, 1)
+}
+
+func SearchBarActiveStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Primary()).
+		Background(theme.Highlight()).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(theme.AccentBlue()).
+		Padding(0, 1).
+		Bold(true)
+}
+
 func HelpKeyStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
