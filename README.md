@@ -15,6 +15,7 @@ Fast, dependency-free CLI for managing AWS EC2 instances, EKS clusters, and Auto
 ## ✨ Key Features
 
 - 🎯 **Pure Go** - Single binary, zero external dependencies
+- 🖥️ **Built-in TUI Dashboard** - Live view of EC2, EKS, ASG, node groups, and ENIs
 - 🔍 **Interactive Fuzzy Finder** - Multi-select with rich search syntax
 - 🚀 **Remote Command Execution** - Run commands without interactive sessions
 - ☸️ **EKS Management** - Scale nodegroups, update launch templates, view cluster details
@@ -97,6 +98,17 @@ aws-ssm asg scale
 aws-ssm list --tag Environment=production
 aws-ssm interfaces web-server  # Network interfaces
 ```
+
+## 🖥️ Terminal UI (TUI)
+
+Launch the dashboard with `aws-ssm tui` (or `aws-ssm` with no subcommand). The TUI streams EC2 instances, EKS clusters, node groups, ASGs, and network interfaces with live controls:
+
+- `r` refreshes the current panel while preserving your selection
+- `/` filters inline; `esc` clears the filter and returns to the full list
+- `enter` connects to SSM sessions or opens contextual actions
+- `s` scales ASGs/node groups via an inline modal with safe editing
+
+Hotkeys are shown in each footer, and the status bar reflects the active AWS region/profile.
 
 ## 📖 Core Commands
 

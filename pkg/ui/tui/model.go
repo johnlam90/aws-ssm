@@ -41,6 +41,7 @@ type Model struct {
 	filteredNodeGroups []NodeGroup
 	netInterfaces      []aws.InstanceInterfaces
 	filteredNetworks   []aws.InstanceInterfaces
+	selectedItems      map[ViewMode]string
 
 	// Dashboard menu items
 	menuItems []MenuItem
@@ -123,6 +124,7 @@ func NewModel(ctx context.Context, client *aws.Client, config Config) Model {
 		spinner:       s,
 		searchQueries: map[ViewMode]string{},
 		navigation:    navigation,
+		selectedItems: map[ViewMode]string{},
 	}
 }
 
@@ -154,6 +156,10 @@ func (m Model) updateKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if handled {
 			return updated, searchCmd
 		}
+	}
+	if msg.Type == tea.KeyEsc && !m.searchActive && strings.TrimSpace(m.getSearchQuery(m.currentView)) != "" {
+		m = m.clearSearchQuery(m.currentView)
+		return m, nil
 	}
 	if updated, cmd, handled := m.handleNodeGroupLaunchTemplateShortcut(msg); handled {
 		return updated, cmd
@@ -343,6 +349,9 @@ func (m Model) handleDataLoaded(msg DataLoadedMsg) (tea.Model, tea.Cmd) {
 	}
 
 	m = m.applyFiltersForView(msg.View)
+	if msg.View == m.currentView {
+		m = m.restoreSelection(msg.View)
+	}
 
 	return m, nil
 }
@@ -446,6 +455,7 @@ func (m Model) handleDashboardNavigation(action NavigationKey) (tea.Model, tea.C
 // handleRefresh handles refresh based on current view
 func (m Model) handleRefresh() (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+	m.captureSelection(m.currentView)
 
 	switch m.currentView {
 	case ViewEC2Instances:
@@ -742,4 +752,112 @@ func (m Model) handleNavigation(action NavigationKey) (tea.Model, tea.Cmd) {
 		return h(m, action)
 	}
 	return m, nil
+}
+
+// Selection helpers
+func (m Model) currentSelectionKey(view ViewMode) string {
+	switch view {
+	case ViewEC2Instances:
+		items := m.getEC2Instances()
+		if m.cursor < 0 || m.cursor >= len(items) {
+			return ""
+		}
+		return items[m.cursor].InstanceID
+	case ViewEKSClusters:
+		items := m.getEKSClusters()
+		if m.cursor < 0 || m.cursor >= len(items) {
+			return ""
+		}
+		return items[m.cursor].Name
+	case ViewASGs:
+		items := m.getASGs()
+		if m.cursor < 0 || m.cursor >= len(items) {
+			return ""
+		}
+		return items[m.cursor].Name
+	case ViewNodeGroups:
+		items := m.getNodeGroups()
+		if m.cursor < 0 || m.cursor >= len(items) {
+			return ""
+		}
+		return fmt.Sprintf("%s|%s", items[m.cursor].ClusterName, items[m.cursor].Name)
+	case ViewNetworkInterfaces:
+		items := m.getNetworkInterfaces()
+		if m.cursor < 0 || m.cursor >= len(items) {
+			return ""
+		}
+		return items[m.cursor].InstanceID
+	default:
+		return ""
+	}
+}
+
+func (m Model) findSelectionIndex(view ViewMode, key string) int {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return -1
+	}
+	switch view {
+	case ViewEC2Instances:
+		for i, inst := range m.getEC2Instances() {
+			if inst.InstanceID == key {
+				return i
+			}
+		}
+	case ViewEKSClusters:
+		for i, cluster := range m.getEKSClusters() {
+			if cluster.Name == key {
+				return i
+			}
+		}
+	case ViewASGs:
+		for i, asg := range m.getASGs() {
+			if asg.Name == key {
+				return i
+			}
+		}
+	case ViewNodeGroups:
+		for i, ng := range m.getNodeGroups() {
+			if fmt.Sprintf("%s|%s", ng.ClusterName, ng.Name) == key {
+				return i
+			}
+		}
+	case ViewNetworkInterfaces:
+		for i, ni := range m.getNetworkInterfaces() {
+			if ni.InstanceID == key {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func (m *Model) captureSelection(view ViewMode) {
+	if m.selectedItems == nil {
+		m.selectedItems = map[ViewMode]string{}
+	}
+	key := strings.TrimSpace(m.currentSelectionKey(view))
+	if key == "" {
+		delete(m.selectedItems, view)
+		return
+	}
+	m.selectedItems[view] = key
+}
+
+func (m Model) restoreSelection(view ViewMode) Model {
+	if m.currentView != view {
+		return m
+	}
+	if m.selectedItems == nil {
+		return m.ensureCursorInBounds(view)
+	}
+	key := strings.TrimSpace(m.selectedItems[view])
+	if key == "" {
+		return m.ensureCursorInBounds(view)
+	}
+	if idx := m.findSelectionIndex(view, key); idx >= 0 {
+		m.cursor = idx
+		return m
+	}
+	return m.ensureCursorInBounds(view)
 }

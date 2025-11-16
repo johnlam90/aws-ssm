@@ -62,7 +62,7 @@ var globalKeyBindings = []KeyBinding{
 	{Key: "q", Description: "Quit (with confirmation)", Action: NavQuit},
 	{Key: "?", Description: "Toggle help", Action: NavHelp},
 	{Key: "/", Description: "Search", Action: NavSearch},
-	{Key: "ctrl+r", Description: "Refresh data", Action: NavRefresh},
+	{Key: "r, ctrl+r", Description: "Refresh data", Action: NavRefresh},
 	{Key: "esc", Description: "Back/Cancel", Action: NavBack},
 }
 
@@ -281,7 +281,7 @@ func GetQuickReference() string {
 			bindings: []KeyBinding{
 				{Key: "?", Description: "Help"},
 				{Key: "esc", Description: "Back/Cancel"},
-				{Key: "ctrl+r", Description: "Refresh"},
+				{Key: "r, ctrl+r", Description: "Refresh"},
 				{Key: "q", Description: "Quit"},
 			},
 		},

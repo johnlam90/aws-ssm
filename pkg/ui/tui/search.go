@@ -19,6 +19,19 @@ func (m Model) beginSearch() Model {
 	return m
 }
 
+// clearSearchQuery removes the saved query for a view and resets filters
+func (m Model) clearSearchQuery(view ViewMode) Model {
+	if m.searchQueries != nil {
+		delete(m.searchQueries, view)
+	}
+	if m.currentView == view {
+		m.searchBuffer = ""
+		m.searchActive = false
+	}
+	m.cancelSearchDebounce()
+	return m.applyFiltersForView(view)
+}
+
 // handleSearchInput processes key events while search is active
 func (m Model) handleSearchInput(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 	if !m.searchActive {
@@ -244,19 +257,25 @@ func (m Model) renderSearchBar(view ViewMode) string {
 	}
 
 	status := "Search"
-	if m.searchActive && m.currentView == view {
+	active := m.searchActive && m.currentView == view
+	if active {
 		status = "Search (enter to apply, esc to cancel)"
 	}
 
 	display := strings.TrimSpace(query)
-	if m.searchActive && m.currentView == view {
+	if active {
 		display = query + "▍"
 	}
 	if display == "" {
 		display = "(type to filter)"
 	}
 
-	return HelpStyle().Render(fmt.Sprintf("%s › %s", status, display))
+	style := SearchBarStyle()
+	if active {
+		style = SearchBarActiveStyle()
+	}
+
+	return style.Render(fmt.Sprintf("%s › %s", status, display))
 }
 
 // getEC2Instances returns the visible EC2 instances (filtered or not)
