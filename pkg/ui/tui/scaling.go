@@ -177,10 +177,16 @@ func (m Model) handleScalingResult(msg ScalingResultMsg) (tea.Model, tea.Cmd) {
 
 	switch msg.View {
 	case ViewASGs:
+		if m.currentView == ViewASGs {
+			m.captureSelection(ViewASGs)
+		}
 		m.loading = true
 		m.loadingMsg = "Refreshing Auto Scaling Groups..."
 		return m, LoadASGsCmd(m.ctx, m.client)
 	case ViewNodeGroups:
+		if m.currentView == ViewNodeGroups {
+			m.captureSelection(ViewNodeGroups)
+		}
 		m.loading = true
 		m.loadingMsg = "Refreshing node groups..."
 		return m, LoadNodeGroupsCmd(m.ctx, m.client)
