@@ -19,6 +19,19 @@ func (m Model) beginSearch() Model {
 	return m
 }
 
+// clearSearchQuery removes the saved query for a view and resets filters
+func (m Model) clearSearchQuery(view ViewMode) Model {
+	if m.searchQueries != nil {
+		delete(m.searchQueries, view)
+	}
+	if m.currentView == view {
+		m.searchBuffer = ""
+		m.searchActive = false
+	}
+	m.cancelSearchDebounce()
+	return m.applyFiltersForView(view)
+}
+
 // handleSearchInput processes key events while search is active
 func (m Model) handleSearchInput(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 	if !m.searchActive {

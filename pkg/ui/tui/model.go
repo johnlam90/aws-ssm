@@ -155,6 +155,10 @@ func (m Model) updateKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return updated, searchCmd
 		}
 	}
+	if msg.Type == tea.KeyEsc && !m.searchActive && strings.TrimSpace(m.getSearchQuery(m.currentView)) != "" {
+		m = m.clearSearchQuery(m.currentView)
+		return m, nil
+	}
 	if updated, cmd, handled := m.handleNodeGroupLaunchTemplateShortcut(msg); handled {
 		return updated, cmd
 	}
