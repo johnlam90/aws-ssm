@@ -548,6 +548,31 @@ func RenderMetric(label string, value string, highlight bool) string {
 
 // Beautiful Dashboard Styling Functions
 
+// DashboardBannerStyle returns the ASCII banner styling
+func DashboardBannerStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.AccentBlue()).
+		Bold(true).
+		Align(lipgloss.Center)
+}
+
+// DashboardWelcomeStyle returns the welcome message styling
+func DashboardWelcomeStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Primary()).
+		Bold(true)
+}
+
+// DashboardInfoStyle returns the system info styling
+func DashboardInfoStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Secondary()).
+		Italic(true)
+}
+
 // DashboardTitleStyle returns the main title styling for the beautiful dashboard
 func DashboardTitleStyle() lipgloss.Style {
 	theme := GetTheme()
@@ -639,8 +664,16 @@ func DashboardSelectedDescStyle() lipgloss.Style {
 func DashboardFooterStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
-		Foreground(theme.Muted()).
+		Foreground(theme.Primary()).
+		Bold(true).
 		MarginTop(1)
+}
+
+// DashboardFooterDetailStyle returns the footer detail styling
+func DashboardFooterDetailStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Secondary())
 }
 
 // DashboardFooterKeyStyle returns the footer key styling
