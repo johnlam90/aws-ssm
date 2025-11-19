@@ -7,10 +7,23 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"regexp"
 	"syscall"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
+)
+
+// SSMAPI defines the interface for SSM operations
+type SSMAPI interface {
+	StartSession(ctx context.Context, params *ssm.StartSessionInput, optFns ...func(*ssm.Options)) (*ssm.StartSessionOutput, error)
+	TerminateSession(ctx context.Context, params *ssm.TerminateSessionInput, optFns ...func(*ssm.Options)) (*ssm.TerminateSessionOutput, error)
+}
+
+// Variables for mocking in tests
+var (
+	execCommand  = exec.Command
+	execLookPath = exec.LookPath
 )
 
 // StartSession initiates an SSM session with the specified instance
@@ -25,19 +38,31 @@ func (c *Client) StartSession(ctx context.Context, instanceID string) error {
 		return fmt.Errorf("circuit breaker open: %w", err)
 	}
 
+	// Use the existing client if available, otherwise create a new one (fallback)
+	var api SSMAPI
+	if c.SSMClient != nil {
+		api = c.SSMClient
+	} else {
+		api = ssm.NewFromConfig(c.Config)
+	}
+
+	return startSession(ctx, api, c.Config.Region, instanceID, c.CircuitBreaker)
+}
+
+func startSession(ctx context.Context, api SSMAPI, region, instanceID string, cb *CircuitBreaker) error {
 	// Start SSM session
 	input := &ssm.StartSessionInput{
 		Target: aws.String(instanceID),
 	}
 
-	result, err := c.SSMClient.StartSession(ctx, input)
+	result, err := api.StartSession(ctx, input)
 	if err != nil {
-		c.CircuitBreaker.RecordFailure()
+		cb.RecordFailure()
 		return fmt.Errorf("failed to start SSM session: %w", err)
 	}
 
 	// Record success
-	c.CircuitBreaker.RecordSuccess()
+	cb.RecordSuccess()
 
 	sessionID := aws.ToString(result.SessionId)
 	defer func() {
@@ -47,7 +72,7 @@ func (c *Client) StartSession(ctx context.Context, instanceID string) error {
 		terminateInput := &ssm.TerminateSessionInput{
 			SessionId: aws.String(sessionID),
 		}
-		if _, terminateErr := c.SSMClient.TerminateSession(ctx, terminateInput); terminateErr != nil {
+		if _, terminateErr := api.TerminateSession(ctx, terminateInput); terminateErr != nil {
 			// Log but don't fail - session might already be terminated
 			fmt.Printf("Warning: failed to terminate session: %v\n", terminateErr)
 		}
@@ -66,9 +91,6 @@ func (c *Client) StartSession(ctx context.Context, instanceID string) error {
 		return fmt.Errorf("failed to marshal session data: %w", marshalErr)
 	}
 
-	// Get region from config
-	region := c.Config.Region
-
 	// Validate region to prevent command injection
 	if !isValidAWSRegion(region) {
 		return fmt.Errorf("invalid AWS region: %s", region)
@@ -85,7 +107,7 @@ func (c *Client) StartSession(ctx context.Context, instanceID string) error {
 
 	// Execute session-manager-plugin
 	// #nosec G204 - region is validated above to prevent command injection
-	cmd := exec.Command(
+	cmd := execCommand(
 		"session-manager-plugin",
 		string(sessionJSON),
 		region,
@@ -122,7 +144,7 @@ func (c *Client) StartSession(ctx context.Context, instanceID string) error {
 
 // checkSessionManagerPlugin verifies that the session-manager-plugin is installed
 func checkSessionManagerPlugin() error {
-	_, err := exec.LookPath("session-manager-plugin")
+	_, err := execLookPath("session-manager-plugin")
 	if err != nil {
 		return fmt.Errorf("session-manager-plugin not found in PATH\n\n" +
 			"The session-manager-plugin is required for plugin-based mode (--native=false).\n" +
@@ -136,18 +158,8 @@ func checkSessionManagerPlugin() error {
 
 // isValidAWSRegion validates that a region string is a valid AWS region format
 func isValidAWSRegion(region string) bool {
-	// AWS regions follow the pattern: [a-z]{2}-[a-z]+-\d
-	// Examples: us-east-1, eu-west-1, ap-southeast-2
-	if len(region) < 5 || len(region) > 20 {
-		return false
-	}
-
-	// Check that region only contains lowercase letters, hyphens, and digits
-	for _, ch := range region {
-		if (ch < 'a' || ch > 'z') && (ch < '0' || ch > '9') && ch != '-' {
-			return false
-		}
-	}
-
-	return true
+	// AWS regions follow the pattern: [a-z]{2}(-[a-z]+)+-\d+[a-z]?
+	// Examples: us-east-1, eu-west-1, ap-southeast-2, us-gov-east-1
+	match, _ := regexp.MatchString(`^[a-z]{2}(-[a-z]+)+-\d+[a-z]?$`, region)
+	return match
 }

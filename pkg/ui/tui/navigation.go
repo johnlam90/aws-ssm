@@ -11,23 +11,41 @@ import (
 type NavigationKey int
 
 const (
+	// NavUp moves selection up
 	NavUp NavigationKey = iota
+	// NavDown moves selection down
 	NavDown
+	// NavLeft moves selection left
 	NavLeft
+	// NavRight moves selection right
 	NavRight
+	// NavPageUp moves selection up by a page
 	NavPageUp
+	// NavPageDown moves selection down by a page
 	NavPageDown
+	// NavHome moves selection to the top
 	NavHome
+	// NavEnd moves selection to the bottom
 	NavEnd
+	// NavBack goes back to the previous view
 	NavBack
+	// NavSelect selects the current item
 	NavSelect
+	// NavSearch opens the search bar
 	NavSearch
+	// NavRefresh refreshes the current view
 	NavRefresh
+	// NavHelp toggles the help view
 	NavHelp
+	// NavQuit quits the application
 	NavQuit
+	// NavScale opens the scaling dialog
 	NavScale
+	// NavSSH connects to the selected instance via SSH
 	NavSSH
+	// NavDetails shows details for the selected item
 	NavDetails
+	// NavFilter opens the filter dialog
 	NavFilter
 )
 
@@ -42,10 +60,15 @@ type KeyBinding struct {
 type CommandMode int
 
 const (
+	// CmdModeNormal is the default command mode
 	CmdModeNormal CommandMode = iota
+	// CmdModeVisual is the visual selection mode
 	CmdModeVisual
+	// CmdModeSearch is the search mode
 	CmdModeSearch
+	// CmdModeFilter is the filter mode
 	CmdModeFilter
+	// CmdModeScale is the scaling mode
 	CmdModeScale
 )
 

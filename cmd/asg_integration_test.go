@@ -688,7 +688,7 @@ func TestASGCommand_Integration_EdgeCases(t *testing.T) {
 			name: "Invalid Configuration",
 			setup: func() error {
 				// Set invalid configuration
-				os.Setenv("AWS_PROFILE", "nonexistent-profile")
+				_ = os.Setenv("AWS_PROFILE", "nonexistent-profile")
 				return nil
 			},
 			execute: func() error {

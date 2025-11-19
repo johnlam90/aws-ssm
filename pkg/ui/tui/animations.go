@@ -1,3 +1,4 @@
+// Package tui provides the terminal user interface components
 package tui
 
 import (
@@ -11,9 +12,13 @@ import (
 type AnimationType int
 
 const (
+	// AnimationFadeIn represents a fade-in animation
 	AnimationFadeIn AnimationType = iota
+	// AnimationSlideIn represents a slide-in animation
 	AnimationSlideIn
+	// AnimationPulse represents a pulsing animation
 	AnimationPulse
+	// AnimationGlow represents a glowing animation
 	AnimationGlow
 )
 

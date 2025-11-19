@@ -39,36 +39,52 @@ import (
 // 5. Contextual highlighting that guides attention naturally
 
 var (
-	// Primary colors - modern monochromatic with depth
-	ColorPrimary   = lipgloss.Color("#E6EDF3") // Soft white - primary text (improved from harsh #FFFFFF)
+	// ColorPrimary is the primary text color (soft white)
+	ColorPrimary = lipgloss.Color("#E6EDF3") // Soft white - primary text (improved from harsh #FFFFFF)
+	// ColorSecondary is the secondary text color (modern gray)
 	ColorSecondary = lipgloss.Color("#8B949E") // Modern gray - secondary text
-	ColorMuted     = lipgloss.Color("#484F58") // Subtle gray - tertiary text
+	// ColorMuted is the tertiary text color (subtle gray)
+	ColorMuted = lipgloss.Color("#484F58") // Subtle gray - tertiary text
 
-	// Functional accent colors - sophisticated and purposeful
-	ColorAccentBlue   = lipgloss.Color("#58A6FF") // Modern blue - interactive elements, focus (GitHub's modern blue)
-	ColorAccentGreen  = lipgloss.Color("#3FB950") // Vibrant green - success, active states
-	ColorAccentAmber  = lipgloss.Color("#D29922") // Sophisticated amber - warnings, pending states
-	ColorAccentRed    = lipgloss.Color("#F85149") // Modern red - errors, stopped states
+	// ColorAccentBlue is the blue accent color for interactive elements
+	ColorAccentBlue = lipgloss.Color("#58A6FF") // Modern blue - interactive elements, focus (GitHub's modern blue)
+	// ColorAccentGreen is the green accent color for success states
+	ColorAccentGreen = lipgloss.Color("#3FB950") // Vibrant green - success, active states
+	// ColorAccentAmber is the amber accent color for warnings
+	ColorAccentAmber = lipgloss.Color("#D29922") // Sophisticated amber - warnings, pending states
+	// ColorAccentRed is the red accent color for errors
+	ColorAccentRed = lipgloss.Color("#F85149") // Modern red - errors, stopped states
+	// ColorAccentIndigo is the indigo accent color for information
 	ColorAccentIndigo = lipgloss.Color("#A371F7") // Rich indigo - information, highlights
 
-	// State colors - clear semantic meaning
-	ColorRunning    = lipgloss.Color("#3FB950") // Green - active, healthy
-	ColorStopped    = lipgloss.Color("#8B949E") // Gray - inactive, neutral
-	ColorPending    = lipgloss.Color("#D29922") // Amber - transitional, attention
+	// ColorRunning indicates a running state (green)
+	ColorRunning = lipgloss.Color("#3FB950") // Green - active, healthy
+	// ColorStopped indicates a stopped state (gray)
+	ColorStopped = lipgloss.Color("#8B949E") // Gray - inactive, neutral
+	// ColorPending indicates a pending state (amber)
+	ColorPending = lipgloss.Color("#D29922") // Amber - transitional, attention
+	// ColorTerminated indicates a terminated state (dark gray)
 	ColorTerminated = lipgloss.Color("#484F58") // Dark gray - ended, archived
 
-	// UI foundation - modern dark theme with depth
-	ColorBorder     = lipgloss.Color("#30363D") // Subtle border - modern dark border
+	// ColorBorder is the border color
+	ColorBorder = lipgloss.Color("#30363D") // Subtle border - modern dark border
+	// ColorBackground is the background color
 	ColorBackground = lipgloss.Color("#0D1117") // Deep dark - modern dark background
+	// ColorForeground is the foreground color
 	ColorForeground = lipgloss.Color("#C9D1D9") // Soft white - readable foreground
-	ColorSelected   = lipgloss.Color("#1F2937") // Modern slate - selection highlight
-	ColorFocused    = lipgloss.Color("#1E3A8A") // Deep blue - focused element background
+	// ColorSelected is the selection highlight color
+	ColorSelected = lipgloss.Color("#1F2937") // Modern slate - selection highlight
+	// ColorFocused is the focused element background color
+	ColorFocused = lipgloss.Color("#1E3A8A") // Deep blue - focused element background
 
-	// Modern CLI enhancement colors
+	// ColorGradientStart is the start color for gradients
 	ColorGradientStart = lipgloss.Color("#58A6FF") // Blue gradient start
-	ColorGradientEnd   = lipgloss.Color("#A371F7") // Purple gradient end
-	ColorShadow        = lipgloss.Color("#161B22") // Subtle shadow color
-	ColorHighlight     = lipgloss.Color("#21262D") // Modern highlight background
+	// ColorGradientEnd is the end color for gradients
+	ColorGradientEnd = lipgloss.Color("#A371F7") // Purple gradient end
+	// ColorShadow is the shadow color
+	ColorShadow = lipgloss.Color("#161B22") // Subtle shadow color
+	// ColorHighlight is the highlight background color
+	ColorHighlight = lipgloss.Color("#21262D") // Modern highlight background
 )
 
 // Theme interface for managing color schemes and no-color support
@@ -116,6 +132,7 @@ func NewModernTheme(colorsEnabled bool) *ModernTheme {
 	return &ModernTheme{colorsEnabled: colorsEnabled}
 }
 
+// Primary returns the primary color
 func (t *ModernTheme) Primary() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -123,6 +140,7 @@ func (t *ModernTheme) Primary() lipgloss.Color {
 	return ColorPrimary
 }
 
+// Secondary returns the secondary color
 func (t *ModernTheme) Secondary() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -130,6 +148,7 @@ func (t *ModernTheme) Secondary() lipgloss.Color {
 	return ColorSecondary
 }
 
+// Muted returns the muted color
 func (t *ModernTheme) Muted() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -137,6 +156,7 @@ func (t *ModernTheme) Muted() lipgloss.Color {
 	return ColorMuted
 }
 
+// AccentBlue returns the blue accent color
 func (t *ModernTheme) AccentBlue() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -144,6 +164,7 @@ func (t *ModernTheme) AccentBlue() lipgloss.Color {
 	return ColorAccentBlue
 }
 
+// AccentGreen returns the green accent color
 func (t *ModernTheme) AccentGreen() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -151,6 +172,7 @@ func (t *ModernTheme) AccentGreen() lipgloss.Color {
 	return ColorAccentGreen
 }
 
+// AccentAmber returns the amber accent color
 func (t *ModernTheme) AccentAmber() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -158,6 +180,7 @@ func (t *ModernTheme) AccentAmber() lipgloss.Color {
 	return ColorAccentAmber
 }
 
+// AccentRed returns the red accent color
 func (t *ModernTheme) AccentRed() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -165,6 +188,7 @@ func (t *ModernTheme) AccentRed() lipgloss.Color {
 	return ColorAccentRed
 }
 
+// AccentIndigo returns the indigo accent color
 func (t *ModernTheme) AccentIndigo() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -172,6 +196,7 @@ func (t *ModernTheme) AccentIndigo() lipgloss.Color {
 	return ColorAccentIndigo
 }
 
+// Running returns the running state color
 func (t *ModernTheme) Running() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -179,6 +204,7 @@ func (t *ModernTheme) Running() lipgloss.Color {
 	return ColorRunning
 }
 
+// Stopped returns the stopped state color
 func (t *ModernTheme) Stopped() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -186,6 +212,7 @@ func (t *ModernTheme) Stopped() lipgloss.Color {
 	return ColorStopped
 }
 
+// Pending returns the pending state color
 func (t *ModernTheme) Pending() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -193,6 +220,7 @@ func (t *ModernTheme) Pending() lipgloss.Color {
 	return ColorPending
 }
 
+// Terminated returns the terminated state color
 func (t *ModernTheme) Terminated() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -200,6 +228,7 @@ func (t *ModernTheme) Terminated() lipgloss.Color {
 	return ColorTerminated
 }
 
+// Border returns the border color
 func (t *ModernTheme) Border() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -207,6 +236,7 @@ func (t *ModernTheme) Border() lipgloss.Color {
 	return ColorBorder
 }
 
+// Background returns the background color
 func (t *ModernTheme) Background() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -214,6 +244,7 @@ func (t *ModernTheme) Background() lipgloss.Color {
 	return ColorBackground
 }
 
+// Foreground returns the foreground color
 func (t *ModernTheme) Foreground() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -221,6 +252,7 @@ func (t *ModernTheme) Foreground() lipgloss.Color {
 	return ColorForeground
 }
 
+// Selected returns the selected color
 func (t *ModernTheme) Selected() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -228,6 +260,7 @@ func (t *ModernTheme) Selected() lipgloss.Color {
 	return ColorSelected
 }
 
+// Focused returns the focused color
 func (t *ModernTheme) Focused() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -235,6 +268,7 @@ func (t *ModernTheme) Focused() lipgloss.Color {
 	return ColorFocused
 }
 
+// GradientStart returns the gradient start color
 func (t *ModernTheme) GradientStart() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -242,6 +276,7 @@ func (t *ModernTheme) GradientStart() lipgloss.Color {
 	return ColorGradientStart
 }
 
+// GradientEnd returns the gradient end color
 func (t *ModernTheme) GradientEnd() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -249,6 +284,7 @@ func (t *ModernTheme) GradientEnd() lipgloss.Color {
 	return ColorGradientEnd
 }
 
+// Shadow returns the shadow color
 func (t *ModernTheme) Shadow() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -256,6 +292,7 @@ func (t *ModernTheme) Shadow() lipgloss.Color {
 	return ColorShadow
 }
 
+// Highlight returns the highlight color
 func (t *ModernTheme) Highlight() lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
@@ -263,6 +300,7 @@ func (t *ModernTheme) Highlight() lipgloss.Color {
 	return ColorHighlight
 }
 
+// IsColorEnabled returns whether colors are enabled
 func (t *ModernTheme) IsColorEnabled() bool {
 	return t.colorsEnabled
 }
@@ -280,6 +318,7 @@ func GetTheme() Theme {
 	return globalTheme
 }
 
+// TitleStyle returns the style for titles
 // Modern style functions that respect theme settings
 func TitleStyle() lipgloss.Style {
 	theme := GetTheme()
@@ -288,18 +327,21 @@ func TitleStyle() lipgloss.Style {
 		Bold(true)
 }
 
+// SubtitleStyle returns the style for subtitles
 func SubtitleStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
 		Foreground(theme.Muted())
 }
 
+// MenuItemStyle returns the style for menu items
 func MenuItemStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
 		Foreground(theme.Foreground())
 }
 
+// MenuItemSelectedStyle returns the style for selected menu items
 func MenuItemSelectedStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
@@ -308,12 +350,14 @@ func MenuItemSelectedStyle() lipgloss.Style {
 		Bold(true)
 }
 
+// ListItemStyle returns the style for list items
 func ListItemStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
 		Foreground(theme.Foreground())
 }
 
+// ListItemSelectedStyle returns the style for selected list items
 func ListItemSelectedStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
@@ -321,6 +365,7 @@ func ListItemSelectedStyle() lipgloss.Style {
 		Bold(true)
 }
 
+// TableHeaderStyle returns the style for table headers
 func TableHeaderStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
@@ -331,12 +376,14 @@ func TableHeaderStyle() lipgloss.Style {
 		Bold(true)
 }
 
+// StatusBarStyle returns the style for the status bar
 func StatusBarStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
 		Foreground(theme.Muted())
 }
 
+// StatusBarKeyStyle returns the style for status bar keys
 func StatusBarKeyStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
@@ -344,18 +391,21 @@ func StatusBarKeyStyle() lipgloss.Style {
 		Bold(true)
 }
 
+// StatusBarValueStyle returns the style for status bar values
 func StatusBarValueStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
 		Foreground(theme.Foreground())
 }
 
+// HelpStyle returns the style for help text
 func HelpStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
 		Foreground(theme.Muted())
 }
 
+// SearchBarStyle returns the style for the search bar
 func SearchBarStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
@@ -366,6 +416,7 @@ func SearchBarStyle() lipgloss.Style {
 		Padding(0, 1)
 }
 
+// SearchBarActiveStyle returns the style for the active search bar
 func SearchBarActiveStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
@@ -377,6 +428,7 @@ func SearchBarActiveStyle() lipgloss.Style {
 		Bold(true)
 }
 
+// HelpKeyStyle returns the style for help keys
 func HelpKeyStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
@@ -384,12 +436,14 @@ func HelpKeyStyle() lipgloss.Style {
 		Bold(true)
 }
 
+// HelpDescStyle returns the style for help descriptions
 func HelpDescStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
 		Foreground(theme.Secondary())
 }
 
+// BorderStyle returns the style for borders
 func BorderStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
@@ -397,6 +451,7 @@ func BorderStyle() lipgloss.Style {
 		BorderForeground(theme.Border())
 }
 
+// ErrorStyle returns the style for error messages
 func ErrorStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
@@ -404,6 +459,7 @@ func ErrorStyle() lipgloss.Style {
 		Bold(true)
 }
 
+// SuccessStyle returns the style for success messages
 func SuccessStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
@@ -411,12 +467,14 @@ func SuccessStyle() lipgloss.Style {
 		Bold(true)
 }
 
+// LoadingStyle returns the style for loading text
 func LoadingStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
 		Foreground(theme.Secondary())
 }
 
+// PanelStyle returns the style for panels
 func PanelStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
@@ -424,6 +482,7 @@ func PanelStyle() lipgloss.Style {
 		BorderForeground(theme.Border())
 }
 
+// ModalStyle returns the style for modals
 func ModalStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
@@ -434,6 +493,7 @@ func ModalStyle() lipgloss.Style {
 		Padding(1, 2)
 }
 
+// ModalTitleStyle returns the style for modal titles
 func ModalTitleStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
@@ -441,6 +501,7 @@ func ModalTitleStyle() lipgloss.Style {
 		Bold(true)
 }
 
+// ModalLabelStyle returns the style for modal labels
 func ModalLabelStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
@@ -448,6 +509,7 @@ func ModalLabelStyle() lipgloss.Style {
 		Bold(true)
 }
 
+// ModalInputStyle returns the style for modal inputs
 func ModalInputStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
@@ -457,6 +519,7 @@ func ModalInputStyle() lipgloss.Style {
 		Bold(true)
 }
 
+// ModalPlaceholderStyle returns the style for modal placeholders
 func ModalPlaceholderStyle() lipgloss.Style {
 	theme := GetTheme()
 	return ModalInputStyle().
@@ -465,6 +528,7 @@ func ModalPlaceholderStyle() lipgloss.Style {
 		Italic(true)
 }
 
+// ModalHelpStyle returns the style for modal help text
 func ModalHelpStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().

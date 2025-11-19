@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	appconfig "github.com/johnlam90/aws-ssm/pkg/config"
 )
@@ -20,6 +21,7 @@ var _ fuzzyClientInterface = (*Client)(nil)
 type Client struct {
 	EC2Client      *ec2.Client
 	SSMClient      *ssm.Client
+	EKSClient      *eks.Client
 	Config         aws.Config
 	AppConfig      *appconfig.Config // Cached application config for performance
 	CircuitBreaker *CircuitBreaker   // Circuit breaker for AWS API calls
@@ -99,6 +101,7 @@ func NewClient(ctx context.Context, region, profile, configPath string) (*Client
 	return &Client{
 		EC2Client:             ec2.NewFromConfig(cfg),
 		SSMClient:             ssm.NewFromConfig(cfg),
+		EKSClient:             eks.NewFromConfig(cfg),
 		Config:                cfg,
 		AppConfig:             appCfg,
 		CircuitBreaker:        NewCircuitBreaker(DefaultCircuitBreakerConfig()),

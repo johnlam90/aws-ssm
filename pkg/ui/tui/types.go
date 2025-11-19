@@ -16,12 +16,19 @@ import (
 type ViewMode int
 
 const (
+	// ViewDashboard shows the main dashboard
 	ViewDashboard ViewMode = iota
+	// ViewEC2Instances shows the EC2 instances list
 	ViewEC2Instances
+	// ViewEKSClusters shows the EKS clusters list
 	ViewEKSClusters
+	// ViewASGs shows the Auto Scaling Groups list
 	ViewASGs
+	// ViewNodeGroups shows the EKS Node Groups list
 	ViewNodeGroups
+	// ViewNetworkInterfaces shows the Network Interfaces list
 	ViewNetworkInterfaces
+	// ViewHelp shows the help screen
 	ViewHelp
 )
 

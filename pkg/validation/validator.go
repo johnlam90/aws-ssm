@@ -56,19 +56,19 @@ var (
 	profilePattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 	// Safe command pattern (alphanumeric, common symbols, no dangerous characters)
-	safeCommandPattern = regexp.MustCompile(`^[a-zA-Z0-9_\-\s\|\.\/\\:@]+$`)
+	safeCommandPattern = regexp.MustCompile(`^[a-zA-Z0-9_\-\s\|\.\/\\:@']+$`)
 
 	// Dangerous command patterns to reject
 	dangerousPatterns = []*regexp.Regexp{
-		regexp.MustCompile(`[\$\(\)]+`), // Command substitution
-		regexp.MustCompile(`;\s*rm\s+`), // rm command injection
-		regexp.MustCompile(`\|\|\s*`),   // Command chaining
-		regexp.MustCompile(`&&\s*`),     // Command chaining
-		regexp.MustCompile(`>\s*\/`),    // Output redirection
-		regexp.MustCompile(`<\s*\/`),    // Input redirection
-		regexp.MustCompile(`\$\{`),      // Variable expansion
-		regexp.MustCompile(`\$\w+`),     // Variable expansion
-		regexp.MustCompile(`\` + "`"),   // Backtick command execution
+		regexp.MustCompile(`[\$\(\)]+`),             // Command substitution
+		regexp.MustCompile(`(;|\|\||&&|^)\s*rm\s+`), // rm command injection (start of line or chained)
+		regexp.MustCompile(`\|\|\s*`),               // Command chaining
+		regexp.MustCompile(`&&\s*`),                 // Command chaining
+		regexp.MustCompile(`>\s*\/`),                // Output redirection
+		regexp.MustCompile(`<\s*\/`),                // Input redirection
+		regexp.MustCompile(`\$\{`),                  // Variable expansion
+		regexp.MustCompile(`\$\w+`),                 // Variable expansion
+		regexp.MustCompile(`\` + "`"),               // Backtick command execution
 	}
 )
 
@@ -618,6 +618,7 @@ func (vc *Chain) Validate(value interface{}) *Result {
 	for _, validator := range vc.validators {
 		validationResult := validator.Validate(value)
 		if !validationResult.Valid {
+			result.Valid = false
 			result.Errors = append(result.Errors, validationResult.Errors...)
 		}
 		result.Fields = mergeMaps(result.Fields, validationResult.Fields)

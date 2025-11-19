@@ -8,12 +8,32 @@ import (
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 )
 
+// EKSAPI defines the interface for EKS operations
+type EKSAPI interface {
+	ListClusters(ctx context.Context, params *eks.ListClustersInput, optFns ...func(*eks.Options)) (*eks.ListClustersOutput, error)
+	DescribeCluster(ctx context.Context, params *eks.DescribeClusterInput, optFns ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
+	ListNodegroups(ctx context.Context, params *eks.ListNodegroupsInput, optFns ...func(*eks.Options)) (*eks.ListNodegroupsOutput, error)
+	DescribeNodegroup(ctx context.Context, params *eks.DescribeNodegroupInput, optFns ...func(*eks.Options)) (*eks.DescribeNodegroupOutput, error)
+	ListFargateProfiles(ctx context.Context, params *eks.ListFargateProfilesInput, optFns ...func(*eks.Options)) (*eks.ListFargateProfilesOutput, error)
+	DescribeFargateProfile(ctx context.Context, params *eks.DescribeFargateProfileInput, optFns ...func(*eks.Options)) (*eks.DescribeFargateProfileOutput, error)
+	UpdateNodegroupConfig(ctx context.Context, params *eks.UpdateNodegroupConfigInput, optFns ...func(*eks.Options)) (*eks.UpdateNodegroupConfigOutput, error)
+	UpdateNodegroupVersion(ctx context.Context, params *eks.UpdateNodegroupVersionInput, optFns ...func(*eks.Options)) (*eks.UpdateNodegroupVersionOutput, error)
+}
+
 // ListClusters retrieves all EKS clusters in the current region
 func (c *Client) ListClusters(ctx context.Context) ([]string, error) {
-	eksClient := eks.NewFromConfig(c.Config)
+	var api EKSAPI
+	if c.EKSClient != nil {
+		api = c.EKSClient
+	} else {
+		api = eks.NewFromConfig(c.Config)
+	}
+	return listClusters(ctx, api)
+}
 
+func listClusters(ctx context.Context, api EKSAPI) ([]string, error) {
 	var clusterNames []string
-	paginator := eks.NewListClustersPaginator(eksClient, &eks.ListClustersInput{})
+	paginator := eks.NewListClustersPaginator(api, &eks.ListClustersInput{})
 
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
@@ -29,9 +49,17 @@ func (c *Client) ListClusters(ctx context.Context) ([]string, error) {
 // DescribeClusterBasic retrieves basic cluster information (without node groups/Fargate profiles)
 // This is faster for initial loading in the fuzzy finder
 func (c *Client) DescribeClusterBasic(ctx context.Context, clusterName string) (*Cluster, error) {
-	eksClient := eks.NewFromConfig(c.Config)
+	var api EKSAPI
+	if c.EKSClient != nil {
+		api = c.EKSClient
+	} else {
+		api = eks.NewFromConfig(c.Config)
+	}
+	return describeClusterBasic(ctx, api, clusterName)
+}
 
-	output, err := eksClient.DescribeCluster(ctx, &eks.DescribeClusterInput{
+func describeClusterBasic(ctx context.Context, api EKSAPI, clusterName string) (*Cluster, error) {
+	output, err := api.DescribeCluster(ctx, &eks.DescribeClusterInput{
 		Name: &clusterName,
 	})
 	if err != nil {
@@ -49,9 +77,17 @@ func (c *Client) DescribeClusterBasic(ctx context.Context, clusterName string) (
 // DescribeCluster retrieves detailed information about an EKS cluster
 // This includes node groups and Fargate profiles (slower but complete)
 func (c *Client) DescribeCluster(ctx context.Context, clusterName string) (*Cluster, error) {
-	eksClient := eks.NewFromConfig(c.Config)
+	var api EKSAPI
+	if c.EKSClient != nil {
+		api = c.EKSClient
+	} else {
+		api = eks.NewFromConfig(c.Config)
+	}
+	return describeCluster(ctx, api, clusterName)
+}
 
-	output, err := eksClient.DescribeCluster(ctx, &eks.DescribeClusterInput{
+func describeCluster(ctx context.Context, api EKSAPI, clusterName string) (*Cluster, error) {
+	output, err := api.DescribeCluster(ctx, &eks.DescribeClusterInput{
 		Name: &clusterName,
 	})
 	if err != nil {
@@ -65,7 +101,7 @@ func (c *Client) DescribeCluster(ctx context.Context, clusterName string) (*Clus
 	cluster := convertEKSCluster(output.Cluster)
 
 	// Fetch node groups
-	nodeGroups, err := c.listNodeGroups(ctx, eksClient, clusterName)
+	nodeGroups, err := listNodeGroups(ctx, api, clusterName)
 	if err != nil {
 		// Log warning but continue
 		fmt.Printf("Warning: failed to fetch node groups for cluster %s: %v\n", clusterName, err)
@@ -73,7 +109,7 @@ func (c *Client) DescribeCluster(ctx context.Context, clusterName string) (*Clus
 	cluster.NodeGroups = nodeGroups
 
 	// Fetch Fargate profiles
-	fargateProfiles, err := c.listFargateProfiles(ctx, eksClient, clusterName)
+	fargateProfiles, err := listFargateProfiles(ctx, api, clusterName)
 	if err != nil {
 		// Log warning but continue
 		fmt.Printf("Warning: failed to fetch Fargate profiles for cluster %s: %v\n", clusterName, err)
@@ -83,15 +119,14 @@ func (c *Client) DescribeCluster(ctx context.Context, clusterName string) (*Clus
 	return cluster, nil
 }
 
-// listNodeGroups retrieves all node groups for a cluster
-func (c *Client) listNodeGroups(ctx context.Context, eksClient *eks.Client, clusterName string) ([]NodeGroup, error) {
+func listNodeGroups(ctx context.Context, api EKSAPI, clusterName string) ([]NodeGroup, error) {
 	var nodeGroups []NodeGroup
 
 	input := &eks.ListNodegroupsInput{
 		ClusterName: &clusterName,
 	}
 
-	paginator := eks.NewListNodegroupsPaginator(eksClient, input)
+	paginator := eks.NewListNodegroupsPaginator(api, input)
 
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
@@ -100,7 +135,7 @@ func (c *Client) listNodeGroups(ctx context.Context, eksClient *eks.Client, clus
 		}
 
 		for _, ngName := range page.Nodegroups {
-			ng, err := c.describeNodeGroup(ctx, eksClient, clusterName, ngName)
+			ng, err := describeNodeGroup(ctx, api, clusterName, ngName)
 			if err != nil {
 				fmt.Printf("Warning: failed to describe node group %s: %v\n", ngName, err)
 				continue
@@ -112,9 +147,8 @@ func (c *Client) listNodeGroups(ctx context.Context, eksClient *eks.Client, clus
 	return nodeGroups, nil
 }
 
-// describeNodeGroup retrieves details about a specific node group
-func (c *Client) describeNodeGroup(ctx context.Context, eksClient *eks.Client, clusterName, nodeGroupName string) (*NodeGroup, error) {
-	output, err := eksClient.DescribeNodegroup(ctx, &eks.DescribeNodegroupInput{
+func describeNodeGroup(ctx context.Context, api EKSAPI, clusterName, nodeGroupName string) (*NodeGroup, error) {
+	output, err := api.DescribeNodegroup(ctx, &eks.DescribeNodegroupInput{
 		ClusterName:   &clusterName,
 		NodegroupName: &nodeGroupName,
 	})
@@ -129,10 +163,9 @@ func (c *Client) describeNodeGroup(ctx context.Context, eksClient *eks.Client, c
 	return convertNodeGroup(output.Nodegroup), nil
 }
 
-// listFargateProfiles retrieves all Fargate profiles for a cluster
-func (c *Client) listFargateProfiles(ctx context.Context, eksClient *eks.Client, clusterName string) ([]FargateProfile, error) {
+func listFargateProfiles(ctx context.Context, api EKSAPI, clusterName string) ([]FargateProfile, error) {
 	var fargateProfiles []FargateProfile
-	paginator := eks.NewListFargateProfilesPaginator(eksClient, &eks.ListFargateProfilesInput{
+	paginator := eks.NewListFargateProfilesPaginator(api, &eks.ListFargateProfilesInput{
 		ClusterName: &clusterName,
 	})
 
@@ -143,7 +176,7 @@ func (c *Client) listFargateProfiles(ctx context.Context, eksClient *eks.Client,
 		}
 
 		for _, fpName := range page.FargateProfileNames {
-			fp, err := c.describeFargateProfile(ctx, eksClient, clusterName, fpName)
+			fp, err := describeFargateProfile(ctx, api, clusterName, fpName)
 			if err != nil {
 				fmt.Printf("Warning: failed to describe Fargate profile %s: %v\n", fpName, err)
 				continue
@@ -155,9 +188,8 @@ func (c *Client) listFargateProfiles(ctx context.Context, eksClient *eks.Client,
 	return fargateProfiles, nil
 }
 
-// describeFargateProfile retrieves details about a specific Fargate profile
-func (c *Client) describeFargateProfile(ctx context.Context, eksClient *eks.Client, clusterName, fargateProfileName string) (*FargateProfile, error) {
-	output, err := eksClient.DescribeFargateProfile(ctx, &eks.DescribeFargateProfileInput{
+func describeFargateProfile(ctx context.Context, api EKSAPI, clusterName, fargateProfileName string) (*FargateProfile, error) {
+	output, err := api.DescribeFargateProfile(ctx, &eks.DescribeFargateProfileInput{
 		ClusterName:        &clusterName,
 		FargateProfileName: &fargateProfileName,
 	})
@@ -364,14 +396,22 @@ func convertTaints(ng *ekstypes.Nodegroup, nodeGroup *NodeGroup) {
 
 // ListNodeGroupsForCluster retrieves all node group names for a cluster (public method)
 func (c *Client) ListNodeGroupsForCluster(ctx context.Context, clusterName string) ([]string, error) {
-	eksClient := eks.NewFromConfig(c.Config)
+	var api EKSAPI
+	if c.EKSClient != nil {
+		api = c.EKSClient
+	} else {
+		api = eks.NewFromConfig(c.Config)
+	}
+	return listNodeGroupsForCluster(ctx, api, clusterName)
+}
 
+func listNodeGroupsForCluster(ctx context.Context, api EKSAPI, clusterName string) ([]string, error) {
 	var nodeGroupNames []string
 	input := &eks.ListNodegroupsInput{
 		ClusterName: &clusterName,
 	}
 
-	paginator := eks.NewListNodegroupsPaginator(eksClient, input)
+	paginator := eks.NewListNodegroupsPaginator(api, input)
 
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
@@ -386,14 +426,27 @@ func (c *Client) ListNodeGroupsForCluster(ctx context.Context, clusterName strin
 
 // DescribeNodeGroupPublic retrieves details about a specific node group (public method)
 func (c *Client) DescribeNodeGroupPublic(ctx context.Context, clusterName, nodeGroupName string) (*NodeGroup, error) {
-	eksClient := eks.NewFromConfig(c.Config)
-	return c.describeNodeGroup(ctx, eksClient, clusterName, nodeGroupName)
+	var api EKSAPI
+	if c.EKSClient != nil {
+		api = c.EKSClient
+	} else {
+		api = eks.NewFromConfig(c.Config)
+	}
+	return describeNodeGroup(ctx, api, clusterName, nodeGroupName)
 }
 
 // UpdateNodeGroupScaling updates the scaling configuration of a node group
 func (c *Client) UpdateNodeGroupScaling(ctx context.Context, clusterName, nodeGroupName string, minSize, maxSize, desiredSize int32) error {
-	eksClient := eks.NewFromConfig(c.Config)
+	var api EKSAPI
+	if c.EKSClient != nil {
+		api = c.EKSClient
+	} else {
+		api = eks.NewFromConfig(c.Config)
+	}
+	return updateNodeGroupScaling(ctx, api, clusterName, nodeGroupName, minSize, maxSize, desiredSize)
+}
 
+func updateNodeGroupScaling(ctx context.Context, api EKSAPI, clusterName, nodeGroupName string, minSize, maxSize, desiredSize int32) error {
 	// Validate scaling parameters
 	if minSize < 0 {
 		return fmt.Errorf("min size cannot be negative")
@@ -415,7 +468,7 @@ func (c *Client) UpdateNodeGroupScaling(ctx context.Context, clusterName, nodeGr
 		},
 	}
 
-	_, err := eksClient.UpdateNodegroupConfig(ctx, input)
+	_, err := api.UpdateNodegroupConfig(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed to update node group scaling: %w", err)
 	}
@@ -425,8 +478,16 @@ func (c *Client) UpdateNodeGroupScaling(ctx context.Context, clusterName, nodeGr
 
 // UpdateNodeGroupLaunchTemplate updates the launch template version of a node group
 func (c *Client) UpdateNodeGroupLaunchTemplate(ctx context.Context, clusterName, nodeGroupName, launchTemplateID, version string) error {
-	eksClient := eks.NewFromConfig(c.Config)
+	var api EKSAPI
+	if c.EKSClient != nil {
+		api = c.EKSClient
+	} else {
+		api = eks.NewFromConfig(c.Config)
+	}
+	return updateNodeGroupLaunchTemplate(ctx, api, clusterName, nodeGroupName, launchTemplateID, version)
+}
 
+func updateNodeGroupLaunchTemplate(ctx context.Context, api EKSAPI, clusterName, nodeGroupName, launchTemplateID, version string) error {
 	// Validate parameters
 	if version == "" {
 		return fmt.Errorf("launch template version cannot be empty")
@@ -444,7 +505,7 @@ func (c *Client) UpdateNodeGroupLaunchTemplate(ctx context.Context, clusterName,
 		},
 	}
 
-	_, err := eksClient.UpdateNodegroupVersion(ctx, input)
+	_, err := api.UpdateNodegroupVersion(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed to update node group launch template: %w", err)
 	}

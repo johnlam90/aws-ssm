@@ -9,14 +9,32 @@ import (
 	"github.com/mmmorris1975/ssm-session-client/ssmclient"
 )
 
+// Variables for mocking in tests
+var (
+	ssmShellSession          = ssmclient.ShellSession
+	ssmPortForwardingSession = ssmclient.PortForwardingSession
+)
+
 // StartNativeSession initiates an SSM session using pure Go implementation (no plugin required)
 func (c *Client) StartNativeSession(ctx context.Context, instanceID string) error {
+	// Use the existing client if available, otherwise create a new one (fallback)
+	var api SSMAPI
+	if c.SSMClient != nil {
+		api = c.SSMClient
+	} else {
+		api = ssm.NewFromConfig(c.Config)
+	}
+
+	return startNativeSession(ctx, api, c.Config, instanceID, c.CircuitBreaker)
+}
+
+func startNativeSession(ctx context.Context, api SSMAPI, config awsSdk.Config, instanceID string, cb *CircuitBreaker) error {
 	fmt.Printf("Starting native SSM session with instance %s...\n", instanceID)
 	fmt.Println("(Using pure Go implementation - no session-manager-plugin required)")
 	fmt.Println()
 
 	// Check circuit breaker before making API call
-	if err := c.CircuitBreaker.Allow(); err != nil {
+	if err := cb.Allow(); err != nil {
 		return fmt.Errorf("circuit breaker open (too many recent failures), please retry in a few moments: %w", err)
 	}
 
@@ -27,22 +45,22 @@ func (c *Client) StartNativeSession(ctx context.Context, instanceID string) erro
 		DocumentName: nil,
 	}
 
-	result, err := c.SSMClient.StartSession(ctx, input)
+	result, err := api.StartSession(ctx, input)
 	if err != nil {
-		c.CircuitBreaker.RecordFailure()
+		cb.RecordFailure()
 		return fmt.Errorf("failed to start SSM session: %w", err)
 	}
 
 	// Record success
-	c.CircuitBreaker.RecordSuccess()
+	cb.RecordSuccess()
 
 	sessionID := *result.SessionId
 
 	// Use the ssm-session-client library for shell session
 	// It accepts AWS SDK v2 config directly
-	if sessionErr := ssmclient.ShellSession(c.Config, instanceID); sessionErr != nil {
+	if sessionErr := ssmShellSession(config, instanceID); sessionErr != nil {
 		// Attempt to terminate the session even if it failed
-		terminateErr := c.terminateSessionSilently(ctx, sessionID)
+		terminateErr := terminateSessionSilently(ctx, api, sessionID)
 		if terminateErr != nil {
 			fmt.Printf("Warning: failed to terminate session after error: %v\n", terminateErr)
 		}
@@ -50,7 +68,7 @@ func (c *Client) StartNativeSession(ctx context.Context, instanceID string) erro
 	}
 
 	// Terminate the session after it completes
-	if terminateErr := c.terminateSessionSilently(ctx, sessionID); terminateErr != nil {
+	if terminateErr := terminateSessionSilently(ctx, api, sessionID); terminateErr != nil {
 		// Log but don't fail - session might already be terminated
 		fmt.Printf("Warning: failed to terminate session: %v\n", terminateErr)
 	}
@@ -60,6 +78,18 @@ func (c *Client) StartNativeSession(ctx context.Context, instanceID string) erro
 
 // StartPortForwardingSession starts a port forwarding session using pure Go
 func (c *Client) StartPortForwardingSession(ctx context.Context, instanceID string, remotePort, localPort int) error {
+	// Use the existing client if available, otherwise create a new one (fallback)
+	var api SSMAPI
+	if c.SSMClient != nil {
+		api = c.SSMClient
+	} else {
+		api = ssm.NewFromConfig(c.Config)
+	}
+
+	return startPortForwardingSession(ctx, api, c.Config, instanceID, remotePort, localPort, c.CircuitBreaker)
+}
+
+func startPortForwardingSession(ctx context.Context, api SSMAPI, config awsSdk.Config, instanceID string, remotePort, localPort int, cb *CircuitBreaker) error {
 	fmt.Printf("Starting port forwarding session...\n")
 	fmt.Printf("  Instance:    %s\n", instanceID)
 	fmt.Printf("  Remote Port: %d\n", remotePort)
@@ -68,7 +98,7 @@ func (c *Client) StartPortForwardingSession(ctx context.Context, instanceID stri
 	fmt.Println()
 
 	// Check circuit breaker before making API call
-	if err := c.CircuitBreaker.Allow(); err != nil {
+	if err := cb.Allow(); err != nil {
 		return fmt.Errorf("circuit breaker open (too many recent failures), please retry in a few moments: %w", err)
 	}
 
@@ -79,14 +109,14 @@ func (c *Client) StartPortForwardingSession(ctx context.Context, instanceID stri
 		DocumentName: awsSdk.String("AWS-StartPortForwardingSession"),
 	}
 
-	result, err := c.SSMClient.StartSession(ctx, input)
+	result, err := api.StartSession(ctx, input)
 	if err != nil {
-		c.CircuitBreaker.RecordFailure()
+		cb.RecordFailure()
 		return fmt.Errorf("failed to start SSM session: %w", err)
 	}
 
 	// Record success
-	c.CircuitBreaker.RecordSuccess()
+	cb.RecordSuccess()
 
 	sessionID := *result.SessionId
 
@@ -96,9 +126,9 @@ func (c *Client) StartPortForwardingSession(ctx context.Context, instanceID stri
 		LocalPort:  localPort,
 	}
 
-	if sessionErr := ssmclient.PortForwardingSession(c.Config, portForwardingInput); sessionErr != nil {
+	if sessionErr := ssmPortForwardingSession(config, portForwardingInput); sessionErr != nil {
 		// Attempt to terminate the session even if it failed
-		terminateErr := c.terminateSessionSilently(ctx, sessionID)
+		terminateErr := terminateSessionSilently(ctx, api, sessionID)
 		if terminateErr != nil {
 			fmt.Printf("Warning: failed to terminate session after error: %v\n", terminateErr)
 		}
@@ -106,7 +136,7 @@ func (c *Client) StartPortForwardingSession(ctx context.Context, instanceID stri
 	}
 
 	// Terminate the session after it completes
-	if terminateErr := c.terminateSessionSilently(ctx, sessionID); terminateErr != nil {
+	if terminateErr := terminateSessionSilently(ctx, api, sessionID); terminateErr != nil {
 		// Log but don't fail - session might already be terminated
 		fmt.Printf("Warning: failed to terminate session: %v\n", terminateErr)
 	}
@@ -114,11 +144,10 @@ func (c *Client) StartPortForwardingSession(ctx context.Context, instanceID stri
 	return nil
 }
 
-// terminateSessionSilently terminates an SSM session without failing
-func (c *Client) terminateSessionSilently(ctx context.Context, sessionID string) error {
+func terminateSessionSilently(ctx context.Context, api SSMAPI, sessionID string) error {
 	terminateInput := &ssm.TerminateSessionInput{
 		SessionId: &sessionID,
 	}
-	_, err := c.SSMClient.TerminateSession(ctx, terminateInput)
+	_, err := api.TerminateSession(ctx, terminateInput)
 	return err
 }

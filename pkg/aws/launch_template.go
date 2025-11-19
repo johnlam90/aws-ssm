@@ -56,16 +56,30 @@ func (v *LaunchTemplateVersion) GetDefaultVersion() bool {
 	return v.DefaultVersion
 }
 
+// EC2LaunchTemplateAPI defines the interface for EC2 launch template operations
+type EC2LaunchTemplateAPI interface {
+	DescribeLaunchTemplateVersions(ctx context.Context, params *ec2.DescribeLaunchTemplateVersionsInput, optFns ...func(*ec2.Options)) (*ec2.DescribeLaunchTemplateVersionsOutput, error)
+}
+
 // ListLaunchTemplateVersions retrieves all versions for a launch template
 func (c *Client) ListLaunchTemplateVersions(ctx context.Context, launchTemplateID string) ([]LaunchTemplateVersion, error) {
-	ec2Client := ec2.NewFromConfig(c.Config)
+	// Use the existing client if available, otherwise create a new one (fallback)
+	var api EC2LaunchTemplateAPI
+	if c.EC2Client != nil {
+		api = c.EC2Client
+	} else {
+		api = ec2.NewFromConfig(c.Config)
+	}
+	return listLaunchTemplateVersions(ctx, api, launchTemplateID)
+}
 
+func listLaunchTemplateVersions(ctx context.Context, api EC2LaunchTemplateAPI, launchTemplateID string) ([]LaunchTemplateVersion, error) {
 	input := &ec2.DescribeLaunchTemplateVersionsInput{
 		LaunchTemplateId: &launchTemplateID,
 	}
 
 	var versions []LaunchTemplateVersion
-	paginator := ec2.NewDescribeLaunchTemplateVersionsPaginator(ec2Client, input)
+	paginator := ec2.NewDescribeLaunchTemplateVersionsPaginator(api, input)
 
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
@@ -84,14 +98,23 @@ func (c *Client) ListLaunchTemplateVersions(ctx context.Context, launchTemplateI
 
 // GetLaunchTemplateVersion retrieves a specific version of a launch template
 func (c *Client) GetLaunchTemplateVersion(ctx context.Context, launchTemplateID, version string) (*LaunchTemplateVersion, error) {
-	ec2Client := ec2.NewFromConfig(c.Config)
+	// Use the existing client if available, otherwise create a new one (fallback)
+	var api EC2LaunchTemplateAPI
+	if c.EC2Client != nil {
+		api = c.EC2Client
+	} else {
+		api = ec2.NewFromConfig(c.Config)
+	}
+	return getLaunchTemplateVersion(ctx, api, launchTemplateID, version)
+}
 
+func getLaunchTemplateVersion(ctx context.Context, api EC2LaunchTemplateAPI, launchTemplateID, version string) (*LaunchTemplateVersion, error) {
 	input := &ec2.DescribeLaunchTemplateVersionsInput{
 		LaunchTemplateId: &launchTemplateID,
 		Versions:         []string{version},
 	}
 
-	output, err := ec2Client.DescribeLaunchTemplateVersions(ctx, input)
+	output, err := api.DescribeLaunchTemplateVersions(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get launch template version: %w", err)
 	}

@@ -20,7 +20,7 @@ func TestCacheCommand_Integration_BasicOperations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	testCases := []struct {
 		name      string
@@ -197,7 +197,7 @@ func TestCacheCommand_Integration_ExpirationAndCleanup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	testCases := []struct {
 		name      string
@@ -359,7 +359,7 @@ func TestCacheCommand_Integration_MultiRegionCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	testCases := []struct {
 		name      string
@@ -585,8 +585,8 @@ func TestCacheCommand_Integration_ErrorHandling(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to create temp directory: %v", err)
 			}
-			defer os.Chmod(tmpDir, 0755) // Restore permissions before cleanup
-			defer os.RemoveAll(tmpDir)
+			defer func() { _ = os.Chmod(tmpDir, 0755) }() // Restore permissions before cleanup
+			defer func() { _ = os.RemoveAll(tmpDir) }()
 
 			// Create cache service
 			cacheService, err := cache.NewCacheService(tmpDir, 60) // 60 minutes TTL
@@ -633,7 +633,7 @@ func TestCacheCommand_Integration_Performance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	testCases := []struct {
 		name      string

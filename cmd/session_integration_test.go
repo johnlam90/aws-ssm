@@ -522,7 +522,7 @@ func TestSessionCommand_Integration_EdgeCases(t *testing.T) {
 			name: "Invalid Configuration",
 			setup: func() error {
 				// Set invalid configuration
-				os.Setenv("AWS_PROFILE", "nonexistent-profile")
+				_ = os.Setenv("AWS_PROFILE", "nonexistent-profile")
 				return nil
 			},
 			execute: func() error {
@@ -694,8 +694,8 @@ func TestSessionCommand_Integration_ConfigurationValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Set up environment variables
 			for k, v := range tc.envVars {
-				os.Setenv(k, v)
-				defer os.Unsetenv(k)
+				_ = os.Setenv(k, v)
+				defer func() { _ = os.Unsetenv(k) }()
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

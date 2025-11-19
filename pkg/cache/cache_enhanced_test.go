@@ -13,7 +13,7 @@ func TestEnhancedService_StaleWhileRevalidate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	cfg := DefaultEnhancedCacheConfig()
 	cfg.CacheDir = tmpDir
@@ -81,7 +81,7 @@ func TestEnhancedService_BackgroundRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	cfg := DefaultEnhancedCacheConfig()
 	cfg.CacheDir = tmpDir
@@ -147,7 +147,7 @@ func TestEnhancedCache_Metrics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("should create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	cfg := DefaultEnhancedCacheConfig()
 	cfg.CacheDir = tmpDir
@@ -168,7 +168,7 @@ func TestEnhancedCache_Metrics(t *testing.T) {
 	}
 
 	// Store some data
-	cache.Set("stored-key", map[string]string{"stored": "value"}, "us-east-1", "test")
+	_ = cache.Set("stored-key", map[string]string{"stored": "value"}, "us-east-1", "test")
 
 	// Access stored data
 	for i := 0; i < 5; i++ {
