@@ -39,8 +39,8 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v4
         with:
-          version: latest
-          args: --config=.golangci.yml --timeout=5m
+          version: v1.64.8
+          args: --config=.golangci.ci.yml --timeout=5m
 
       - name: Run go vet
         run: |
