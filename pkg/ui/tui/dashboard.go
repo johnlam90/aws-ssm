@@ -9,14 +9,14 @@ import (
 func (m Model) renderDashboard() string {
 	var b strings.Builder
 
+	// ASCII art banner for production-grade feel
+	banner := m.renderDashboardBanner()
+	b.WriteString(banner)
+	b.WriteString("\n")
+
 	// Top header bar with context information
 	headerBar := m.renderDashboardHeaderBar()
 	b.WriteString(headerBar)
-	b.WriteString("\n")
-
-	// Main title
-	title := DashboardTitleStyle().Render("AWS SSM Manager")
-	b.WriteString(title)
 	b.WriteString("\n")
 
 	// Horizontal separator
@@ -42,8 +42,13 @@ func (m Model) renderDashboard() string {
 		return b.String()
 	}
 
-	// Section title
-	sectionTitle := DashboardSectionTitleStyle().Render("Services")
+	// Welcome message and system info
+	welcomeMsg := m.renderWelcomeMessage()
+	b.WriteString(welcomeMsg)
+	b.WriteString("\n\n")
+
+	// Section title with visual enhancement
+	sectionTitle := DashboardSectionTitleStyle().Render("┌─ Services ─────────────────────────────────────────────────┐")
 	b.WriteString(sectionTitle)
 	b.WriteString("\n")
 
@@ -53,6 +58,11 @@ func (m Model) renderDashboard() string {
 		b.WriteString(menuItem)
 		b.WriteString("\n")
 	}
+
+	// Close the services box
+	boxFooter := DashboardSectionTitleStyle().Render("└────────────────────────────────────────────────────────────┘")
+	b.WriteString(boxFooter)
+	b.WriteString("\n")
 
 	// Horizontal separator before footer
 	b.WriteString("\n")
@@ -134,6 +144,39 @@ func (m Model) renderDashboardSeparator() string {
 	return DashboardSeparatorStyle().Render(separator)
 }
 
+// renderDashboardBanner renders a minimal, elegant ASCII banner
+func (m Model) renderDashboardBanner() string {
+	banner := `
+   ╔═══════════════════════════════════════════════════════════╗
+   ║                                                           ║
+   ║           AWS SSM Manager                                 ║
+   ║           Terminal User Interface                         ║
+   ║                                                           ║
+   ╚═══════════════════════════════════════════════════════════╝`
+
+	return DashboardBannerStyle().Render(banner)
+}
+
+// renderWelcomeMessage renders a welcoming message with system info
+func (m Model) renderWelcomeMessage() string {
+	region := m.getRegion()
+	profile := m.getProfile()
+
+	var b strings.Builder
+
+	// Welcome message
+	welcome := DashboardWelcomeStyle().Render("Welcome to AWS SSM Manager")
+	b.WriteString(welcome)
+	b.WriteString("\n")
+
+	// System info in minimal format
+	info := fmt.Sprintf("Connected to %s using profile '%s'", region, profile)
+	infoStyled := DashboardInfoStyle().Render(info)
+	b.WriteString(infoStyled)
+
+	return b.String()
+}
+
 // renderDashboardMenuItem renders a beautiful two-column menu item
 func (m Model) renderDashboardMenuItem(_ int, item MenuItem, isSelected bool) string {
 	// Normalize descriptions for consistency
@@ -143,11 +186,11 @@ func (m Model) renderDashboardMenuItem(_ int, item MenuItem, isSelected bool) st
 		selectionBar := DashboardSelectionBarStyle().Render("▌")
 		name := DashboardSelectedNameStyle().Render(item.Title)
 		desc := DashboardSelectedDescStyle().Render(normalizedDesc)
-		return fmt.Sprintf("%s %s %s", selectionBar, name, desc)
+		return fmt.Sprintf("│ %s %s %s │", selectionBar, name, desc)
 	}
 	name := DashboardServiceNameStyle().Render(item.Title)
 	desc := DashboardServiceDescStyle().Render(normalizedDesc)
-	return fmt.Sprintf("  %s %s", name, desc)
+	return fmt.Sprintf("│   %s %s │", name, desc)
 }
 
 // normalizeServiceDescription normalizes service descriptions for consistency
@@ -174,8 +217,8 @@ func (m Model) renderDashboardFooter() string {
 		key  string
 		desc string
 	}{
-		{"↑/k", "Up"},
-		{"↓/j", "Down"},
+		{"↑/k", "Navigate Up"},
+		{"↓/j", "Navigate Down"},
 		{"enter", "Select"},
 		{"?", "Help"},
 		{"q", "Quit"},
@@ -188,7 +231,12 @@ func (m Model) renderDashboardFooter() string {
 		parts = append(parts, fmt.Sprintf("%s %s", keyStyle, descStyle))
 	}
 
-	return DashboardFooterStyle().Render(fmt.Sprintf("Navigation: %s", strings.Join(parts, "  ")))
+	var b strings.Builder
+	b.WriteString(DashboardFooterStyle().Render("Keyboard Shortcuts"))
+	b.WriteString("\n")
+	b.WriteString(DashboardFooterDetailStyle().Render(strings.Join(parts, "  •  ")))
+
+	return b.String()
 }
 
 // getRegion returns the current AWS region
