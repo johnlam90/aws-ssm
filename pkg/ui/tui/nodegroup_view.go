@@ -58,6 +58,9 @@ func (m Model) renderNodeGroups() string {
 	if ltOverlay := m.renderLaunchTemplatePrompt(); ltOverlay != "" {
 		rb.WriteLine(ltOverlay)
 	}
+	if overlay := m.renderConfirmationDialog(); overlay != "" {
+		rb.WriteLine(overlay)
+	}
 	if searchBar := m.renderSearchBar(ViewNodeGroups); searchBar != "" {
 		rb.WriteLine(searchBar)
 	}

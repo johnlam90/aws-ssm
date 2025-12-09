@@ -86,6 +86,9 @@ var globalKeyBindings = []KeyBinding{
 	{Key: "?", Description: "Toggle help", Action: NavHelp},
 	{Key: "/", Description: "Search", Action: NavSearch},
 	{Key: "r, ctrl+r", Description: "Refresh data", Action: NavRefresh},
+	{Key: "y", Description: "Copy to clipboard", Action: NavBack}, // Note: handled specially
+	{Key: "Y", Description: "Copy IP (EC2)", Action: NavBack},     // Note: handled specially
+	{Key: "ctrl+a", Description: "Toggle auto-refresh", Action: NavBack},
 	{Key: "esc", Description: "Back/Cancel", Action: NavBack},
 }
 
@@ -297,6 +300,8 @@ func GetQuickReference() string {
 				{Key: "s", Description: "Scale"},
 				{Key: "/", Description: "Search"},
 				{Key: "f", Description: "Filter"},
+				{Key: "y", Description: "Copy to clipboard"},
+				{Key: "Y", Description: "Copy IP (EC2)"},
 			},
 		},
 		{
@@ -305,6 +310,7 @@ func GetQuickReference() string {
 				{Key: "?", Description: "Help"},
 				{Key: "esc", Description: "Back/Cancel"},
 				{Key: "r, ctrl+r", Description: "Refresh"},
+				{Key: "ctrl+a", Description: "Auto-refresh toggle"},
 				{Key: "q", Description: "Quit"},
 			},
 		},

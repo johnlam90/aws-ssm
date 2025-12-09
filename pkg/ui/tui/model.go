@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/johnlam90/aws-ssm/pkg/aws"
 )
 
@@ -59,6 +60,13 @@ type Model struct {
 	ltUpdate        *LaunchTemplateUpdateState
 	statusMessage   string
 	statusAnimation *StatusAnimation
+
+	// Auto-refresh state
+	autoRefreshEnabled  bool
+	autoRefreshInterval time.Duration
+
+	// Confirmation dialog state
+	confirmation *ConfirmationState
 }
 
 // NewModel creates a new TUI model
@@ -145,6 +153,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Handle confirmation dialogs first (highest priority)
+	if m.confirmation != nil {
+		return m.handleConfirmationKeys(msg)
+	}
 	if m.scaling != nil {
 		return m.handleScalingKeys(msg)
 	}
@@ -157,6 +169,17 @@ func (m Model) updateKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return updated, searchCmd
 		}
 	}
+
+	// Handle clipboard copy (y to yank, Y to copy IP for EC2)
+	switch msg.String() {
+	case "y":
+		return m.handleCopy(), nil
+	case "Y":
+		return m.handleCopyIP(), nil
+	case "ctrl+a":
+		return m.toggleAutoRefresh()
+	}
+
 	if msg.Type == tea.KeyEsc && !m.searchActive && strings.TrimSpace(m.getSearchQuery(m.currentView)) != "" {
 		m = m.clearSearchQuery(m.currentView)
 		return m, nil
@@ -190,6 +213,8 @@ func (m Model) updateNonKeyMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.cursor = 0
 		m = m.applyFiltersForView(v.View)
 		return m, nil
+	case AutoRefreshMsg:
+		return m.handleAutoRefresh(v)
 	case AnimationMsg:
 		m.startAnimation(v.AnimationType, v.Target)
 		return m, nil
@@ -212,25 +237,28 @@ func (m Model) View() string {
 		return fmt.Sprintf("\n\n   %s %s\n\n", m.spinner.View(), m.loadingMsg)
 	}
 
-	// Render based on current view
+	// Render the base view first
+	var baseView string
 	switch m.currentView {
 	case ViewDashboard:
-		return m.renderDashboard()
+		baseView = m.renderDashboard()
 	case ViewEC2Instances:
-		return m.renderEC2Instances()
+		baseView = m.renderEC2Instances()
 	case ViewEKSClusters:
-		return m.renderEKSClusters()
+		baseView = m.renderEKSClusters()
 	case ViewASGs:
-		return m.renderASGs()
+		baseView = m.renderASGs()
 	case ViewNodeGroups:
-		return m.renderNodeGroups()
+		baseView = m.renderNodeGroups()
 	case ViewNetworkInterfaces:
-		return m.renderNetworkInterfaces()
+		baseView = m.renderNetworkInterfaces()
 	case ViewHelp:
-		return m.renderHelp()
+		baseView = m.renderHelp()
 	default:
-		return "Unknown view"
+		baseView = "Unknown view"
 	}
+
+	return baseView
 }
 
 // handleKeyPress handles keyboard input using the navigation manager
@@ -368,8 +396,18 @@ func (m Model) getStatusBar() string {
 		profile = "default"
 	}
 
-	return fmt.Sprintf("%s | %s | %s",
-		region, profile, m.currentView.String())
+	// Add auto-refresh indicator if enabled - styled to match the TUI aesthetic
+	autoRefresh := ""
+	if m.autoRefreshEnabled {
+		// Use a subtle styled indicator that blends with the minimalist design
+		autoRefresh = " │ " + lipgloss.NewStyle().
+			Foreground(ColorAccentGreen).
+			Bold(true).
+			Render("● auto")
+	}
+
+	return fmt.Sprintf("%s │ %s │ %s%s",
+		region, profile, m.currentView.String(), autoRefresh)
 }
 
 // GetError returns the current error (for external access)

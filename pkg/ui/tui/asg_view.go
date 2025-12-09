@@ -47,6 +47,9 @@ func (m Model) renderASGs() string {
 	if overlay := m.renderScalingPrompt(ViewASGs); overlay != "" {
 		rb.WriteLine(overlay)
 	}
+	if overlay := m.renderConfirmationDialog(); overlay != "" {
+		rb.WriteLine(overlay)
+	}
 	if searchBar := m.renderSearchBar(ViewASGs); searchBar != "" {
 		rb.WriteLine(searchBar)
 	}

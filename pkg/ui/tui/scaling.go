@@ -132,6 +132,23 @@ func (m Model) submitScaling() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	desired := int32(val)
+
+	// Check if scaling to 0 requires confirmation
+	if requiresScalingConfirmation(desired) {
+		// Create confirmation dialog and close scaling modal
+		s := m.scaling
+		m.confirmation = newScaleToZeroConfirmation(
+			s.TargetView,
+			s.ASGName,
+			s.ClusterName,
+			s.NodeGroupName,
+			s.CurrentMin,
+			s.CurrentMax,
+		)
+		m.scaling = nil
+		return m, nil
+	}
+
 	m.scaling.Submitting = true
 	m.scaling.RequestedDesired = desired
 	m.scaling.Error = nil
