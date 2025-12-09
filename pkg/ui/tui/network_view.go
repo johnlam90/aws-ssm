@@ -17,29 +17,47 @@ func (m Model) renderNetworkInterfaces() string {
 	header := m.renderHeader("Network Interfaces", fmt.Sprintf("%d instances", len(instances)))
 	b.WriteString(header)
 	b.WriteString("\n\n")
-	headerRow := fmt.Sprintf("  %-28s %-20s %-32s %6s", "NAME", "INSTANCE ID", "DNS NAME", "IFACES")
+
+	// Get responsive column widths based on terminal width
+	nameW, idW, dnsW, ifacesW := NetworkColumnWidths(m.width)
+
+	headerRow := fmt.Sprintf("  %-*s %-*s %-*s %*s", nameW, "NAME", idW, "INSTANCE ID", dnsW, "DNS NAME", ifacesW, "IFACES")
 	b.WriteString(TableHeaderStyle().Render(headerRow))
 	b.WriteString("\n")
 	cursor := clampIndex(m.cursor, len(instances))
-	startIdx, endIdx := calculateNetworkVisibleRange(len(instances), cursor, m.height-15)
+
+	// Calculate responsive vertical layout
+	layout := NetworkLayout(m.height)
+	startIdx, endIdx := calculateNetworkVisibleRange(len(instances), cursor, layout.TableHeight)
+
 	for i := startIdx; i < endIdx; i++ {
 		inst := instances[i]
-		name := normalizeValue(inst.InstanceName, "(no name)", 28)
+		name := normalizeValue(inst.InstanceName, "(no name)", nameW)
 		id := inst.InstanceID
 		if id == "" {
 			id = "unknown"
 		}
-		dns := normalizeValue(inst.DNSName, "n/a", 32)
-		row := fmt.Sprintf("  %-28s %-20s %-32s %6d", name, id, dns, len(inst.Interfaces))
+		dns := normalizeValue(inst.DNSName, "n/a", dnsW)
+		row := fmt.Sprintf("  %-*s %-*s %-*s %*d", nameW, name, idW, id, dnsW, dns, ifacesW, len(inst.Interfaces))
 		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
+
+	// Pagination indicator
+	if len(instances) > endIdx-startIdx {
+		b.WriteString(SubtitleStyle().Render(fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(instances))))
+		b.WriteString("\n")
+	}
+
 	selected := instances[cursor]
 	b.WriteString("\n")
 	b.WriteString(SubtitleStyle().Render(fmt.Sprintf("Interfaces for %s (%s)", normalizeValue(selected.InstanceName, "(no name)", 0), selected.InstanceID)))
 	b.WriteString("\n")
 	b.WriteString(fmt.Sprintf("  DNS Name:   %s\n", normalizeValue(selected.DNSName, "n/a", 0)))
 	b.WriteString(fmt.Sprintf("  Interfaces: %d\n\n", len(selected.Interfaces)))
+
+	// Render interface details with responsive height
+	interfaceDetailHeight := layout.DetailHeight - 4 // Subtract header lines
 	if len(selected.Interfaces) == 0 {
 		b.WriteString(HelpStyle().Render("No interfaces found for this instance"))
 		b.WriteString("\n")
@@ -47,7 +65,16 @@ func (m Model) renderNetworkInterfaces() string {
 		widths := calculateInterfaceColumnWidths(selected.Interfaces, m.width)
 		b.WriteString(TableHeaderStyle().Render(formatInterfaceHeader(widths)))
 		b.WriteString("\n")
-		for _, iface := range selected.Interfaces {
+		maxInterfaces := interfaceDetailHeight
+		if maxInterfaces < 1 {
+			maxInterfaces = 1
+		}
+		for i, iface := range selected.Interfaces {
+			if i >= maxInterfaces {
+				b.WriteString(HelpStyle().Render(fmt.Sprintf("    ... and %d more interfaces", len(selected.Interfaces)-i)))
+				b.WriteString("\n")
+				break
+			}
 			b.WriteString(ListItemStyle().Render(formatInterfaceRow(iface, widths)))
 			b.WriteString("\n")
 		}
@@ -71,7 +98,7 @@ func (m Model) renderNetworkState(instances []aws.InstanceInterfaces) string {
 	if m.loading {
 		b.WriteString(m.renderLoading())
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 		return b.String()
 	}
 	if m.err != nil {
@@ -79,7 +106,7 @@ func (m Model) renderNetworkState(instances []aws.InstanceInterfaces) string {
 		b.WriteString("\n\n")
 		b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 		return b.String()
 	}
 	if len(instances) == 0 {
@@ -87,7 +114,7 @@ func (m Model) renderNetworkState(instances []aws.InstanceInterfaces) string {
 		b.WriteString("\n\n")
 		b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 		return b.String()
 	}
 	return ""

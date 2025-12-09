@@ -21,7 +21,7 @@ func (m Model) renderEC2Instances() string {
 	if m.loading {
 		b.WriteString(m.renderLoading())
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 		return b.String()
 	}
 
@@ -30,7 +30,7 @@ func (m Model) renderEC2Instances() string {
 		b.WriteString("\n\n")
 		b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 		return b.String()
 	}
 
@@ -40,63 +40,46 @@ func (m Model) renderEC2Instances() string {
 		b.WriteString("\n\n")
 		b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 		return b.String()
 	}
 
 	cursor := clampIndex(m.cursor, len(instances))
 
-	// Table header - clean and aligned
-	headerRow := fmt.Sprintf("  %-32s %-20s %-15s %-12s %-15s",
-		"NAME", "INSTANCE ID", "PRIVATE IP", "STATE", "TYPE")
+	// Get responsive column widths based on terminal width
+	nameW, idW, ipW, stateW, typeW := EC2ColumnWidths(m.width)
+
+	// Table header - clean and aligned with responsive widths
+	headerRow := fmt.Sprintf("  %-*s %-*s %-*s %-*s %-*s",
+		nameW, "NAME", idW, "INSTANCE ID", ipW, "PRIVATE IP", stateW, "STATE", typeW, "TYPE")
 	b.WriteString(TableHeaderStyle().Render(headerRow))
 	b.WriteString("\n")
 
-	// Calculate visible range for pagination
-	visibleHeight := m.height - 14 // Reserve space for header, footer, status, details
-	if visibleHeight < 5 {
-		visibleHeight = len(instances)
-	}
-	startIdx := 0
-	endIdx := len(instances)
+	// Calculate responsive vertical layout
+	layout := EC2Layout(m.height)
+	startIdx, endIdx := calculateEC2VisibleRange(len(instances), cursor, layout.TableHeight)
 
-	if len(instances) > visibleHeight {
-		// Center the cursor in the visible area
-		startIdx = cursor - visibleHeight/2
-		if startIdx < 0 {
-			startIdx = 0
-		}
-		endIdx = startIdx + visibleHeight
-		if endIdx > len(instances) {
-			endIdx = len(instances)
-			startIdx = endIdx - visibleHeight
-			if startIdx < 0 {
-				startIdx = 0
-			}
-		}
-	}
-
-	// Render instances with proper alignment
+	// Render instances with proper alignment using responsive widths
 	for i := startIdx; i < endIdx; i++ {
 		inst := instances[i]
 		name := inst.Name
 		if name == "" {
 			name = "(no name)"
 		}
-		if len(name) > 32 {
-			name = name[:29] + "..."
+		if len(name) > nameW {
+			name = TruncateWithEllipsis(name, nameW)
 		}
 
-		state := RenderStateCell(inst.State, 12)
-		row := fmt.Sprintf("  %-32s %-20s %-15s %s %-15s",
-			name, inst.InstanceID, inst.PrivateIP, state, inst.InstanceType)
+		state := RenderStateCell(inst.State, stateW)
+		row := fmt.Sprintf("  %-*s %-*s %-*s %s %-*s",
+			nameW, name, idW, inst.InstanceID, ipW, inst.PrivateIP, state, typeW, inst.InstanceType)
 
 		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
 
 	// Pagination indicator
-	if visibleHeight > 0 && len(instances) > visibleHeight {
+	if len(instances) > endIdx-startIdx {
 		pageInfo := fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(instances))
 		b.WriteString("\n")
 		b.WriteString(SubtitleStyle().Render(pageInfo))
@@ -107,7 +90,7 @@ func (m Model) renderEC2Instances() string {
 	detailTitle := fmt.Sprintf("%s (%s)", normalizeValue(selected.Name, "(no name)", 0), selected.InstanceID)
 	b.WriteString(SubtitleStyle().Render(detailTitle))
 	b.WriteString("\n")
-	b.WriteString(m.renderEC2Details(selected))
+	b.WriteString(m.renderEC2DetailsResponsive(selected, layout.DetailHeight))
 
 	if searchBar := m.renderSearchBar(ViewEC2Instances); searchBar != "" {
 		b.WriteString("\n")
@@ -151,45 +134,99 @@ func (m Model) renderEC2Footer() string {
 	return HelpStyle().Render(strings.Join(parts, " • "))
 }
 
-func (m Model) renderEC2Details(inst EC2Instance) string {
-	var b strings.Builder
-
-	b.WriteString("  Basic Info:\n")
-	b.WriteString(fmt.Sprintf("    State:       %s\n", StateStyle(strings.ToLower(inst.State))))
-	b.WriteString(fmt.Sprintf("    Type:        %s\n", normalizeValue(inst.InstanceType, "unknown", 0)))
-	b.WriteString(fmt.Sprintf("    AZ:          %s\n", normalizeValue(inst.AvailabilityZone, "unknown", 0)))
-	if !inst.LaunchTime.IsZero() {
-		b.WriteString(fmt.Sprintf("    Launch:      %s\n", formatRelativeTimestamp(inst.LaunchTime)))
-		b.WriteString(fmt.Sprintf("    Uptime:      %s\n", humanDuration(time.Since(inst.LaunchTime))))
+// calculateEC2VisibleRange calculates the visible range for EC2 instances
+func calculateEC2VisibleRange(total, cursor, visibleHeight int) (int, int) {
+	if visibleHeight < 3 || total <= visibleHeight {
+		return 0, total
 	}
-
-	b.WriteString("\n  Network:\n")
-	b.WriteString(fmt.Sprintf("    Private IP:  %s\n", normalizeValue(inst.PrivateIP, "n/a", 0)))
-	b.WriteString(fmt.Sprintf("    Private DNS: %s\n", normalizeValue(inst.PrivateDNS, "n/a", 0)))
-	b.WriteString(fmt.Sprintf("    Public IP:   %s\n", normalizeValue(inst.PublicIP, "n/a", 0)))
-	b.WriteString(fmt.Sprintf("    Public DNS:  %s\n", normalizeValue(inst.PublicDNS, "n/a", 0)))
-
-	b.WriteString("\n  Security:\n")
-	if inst.InstanceProfile != "" {
-		b.WriteString(fmt.Sprintf("    IAM Role:    %s\n", inst.InstanceProfile))
-	} else {
-		b.WriteString("    IAM Role:    n/a\n")
+	start := cursor - visibleHeight/2
+	if start < 0 {
+		start = 0
 	}
-	if len(inst.SecurityGroups) > 0 {
-		for _, sg := range inst.SecurityGroups {
-			b.WriteString(fmt.Sprintf("    • %s\n", sg))
+	end := start + visibleHeight
+	if end > total {
+		end = total
+		start = end - visibleHeight
+		if start < 0 {
+			start = 0
 		}
-	} else {
-		b.WriteString("    • no security groups detected\n")
 	}
+	return start, end
+}
 
-	if lines := renderTagLines(inst.Tags, "Name"); len(lines) > 0 {
-		b.WriteString("\n  Tags:\n")
-		for _, line := range lines {
-			b.WriteString(line)
-			b.WriteString("\n")
+// renderEC2DetailsResponsive renders EC2 details with responsive height
+func (m Model) renderEC2DetailsResponsive(inst EC2Instance, maxLines int) string {
+	var lines []string
+
+	// Basic info section (always show core info)
+	lines = append(lines, "  Basic Info:")
+	lines = append(lines, fmt.Sprintf("    State:       %s", StateStyle(strings.ToLower(inst.State))))
+	lines = append(lines, fmt.Sprintf("    Type:        %s", normalizeValue(inst.InstanceType, "unknown", 0)))
+	lines = append(lines, fmt.Sprintf("    AZ:          %s", normalizeValue(inst.AvailabilityZone, "unknown", 0)))
+
+	if maxLines > 5 && !inst.LaunchTime.IsZero() {
+		lines = append(lines, fmt.Sprintf("    Launch:      %s", formatRelativeTimestamp(inst.LaunchTime)))
+		if maxLines > 6 {
+			lines = append(lines, fmt.Sprintf("    Uptime:      %s", humanDuration(time.Since(inst.LaunchTime))))
 		}
 	}
 
-	return b.String()
+	// Network section (show if space available)
+	if maxLines > 8 {
+		lines = append(lines, "")
+		lines = append(lines, "  Network:")
+		lines = append(lines, fmt.Sprintf("    Private IP:  %s", normalizeValue(inst.PrivateIP, "n/a", 0)))
+		if maxLines > 10 {
+			lines = append(lines, fmt.Sprintf("    Private DNS: %s", normalizeValue(inst.PrivateDNS, "n/a", 0)))
+		}
+		if maxLines > 11 {
+			lines = append(lines, fmt.Sprintf("    Public IP:   %s", normalizeValue(inst.PublicIP, "n/a", 0)))
+		}
+		if maxLines > 12 {
+			lines = append(lines, fmt.Sprintf("    Public DNS:  %s", normalizeValue(inst.PublicDNS, "n/a", 0)))
+		}
+	}
+
+	// Security section (show if space available)
+	if maxLines > 14 {
+		lines = append(lines, "")
+		lines = append(lines, "  Security:")
+		if inst.InstanceProfile != "" {
+			lines = append(lines, fmt.Sprintf("    IAM Role:    %s", inst.InstanceProfile))
+		} else {
+			lines = append(lines, "    IAM Role:    n/a")
+		}
+		// Security groups
+		remainingLines := maxLines - len(lines) - 2 // Reserve space for tags header if needed
+		if len(inst.SecurityGroups) > 0 {
+			for i, sg := range inst.SecurityGroups {
+				if i >= remainingLines {
+					lines = append(lines, "    ...")
+					break
+				}
+				lines = append(lines, fmt.Sprintf("    • %s", sg))
+			}
+		} else {
+			lines = append(lines, "    • no security groups detected")
+		}
+	}
+
+	// Tags section (show if space available)
+	if maxLines > 18 {
+		tagLines := renderTagLines(inst.Tags, "Name")
+		if len(tagLines) > 0 {
+			lines = append(lines, "")
+			lines = append(lines, "  Tags:")
+			remainingLines := maxLines - len(lines)
+			for i, line := range tagLines {
+				if i >= remainingLines-1 {
+					lines = append(lines, "    ...")
+					break
+				}
+				lines = append(lines, line)
+			}
+		}
+	}
+
+	return strings.Join(lines, "\n")
 }

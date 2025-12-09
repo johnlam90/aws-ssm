@@ -15,23 +15,31 @@ func (m Model) renderASGs() string {
 	header := m.renderHeader("Auto Scaling Groups", fmt.Sprintf("%d ASGs", len(asgs)))
 	b.WriteString(header)
 	b.WriteString("\n\n")
-	b.WriteString(TableHeaderStyle().Render(fmt.Sprintf("  %-50s %8s %8s %8s %8s",
-		"NAME", "DESIRED", "MIN", "MAX", "CURRENT")))
+
+	// Get responsive column widths based on terminal width
+	nameW, desiredW, minW, maxW, currentW := ASGColumnWidths(m.width)
+
+	b.WriteString(TableHeaderStyle().Render(fmt.Sprintf("  %-*s %*s %*s %*s %*s",
+		nameW, "NAME", desiredW, "DESIRED", minW, "MIN", maxW, "MAX", currentW, "CURRENT")))
 	b.WriteString("\n")
 	cursor := clampIndex(m.cursor, len(asgs))
-	startIdx, endIdx := m.calculateVisibleRange(len(asgs), cursor, m.height-14)
+
+	// Calculate responsive vertical layout
+	layout := ASGLayout(m.height)
+	startIdx, endIdx := m.calculateVisibleRange(len(asgs), cursor, layout.TableHeight)
+
 	for i := startIdx; i < endIdx; i++ {
 		asg := asgs[i]
 		name := asg.Name
-		if len(name) > 50 {
-			name = name[:47] + "..."
+		if len(name) > nameW {
+			name = TruncateWithEllipsis(name, nameW)
 		}
-		row := fmt.Sprintf("  %-50s %8d %8d %8d %8d",
-			name, asg.DesiredCapacity, asg.MinSize, asg.MaxSize, asg.CurrentSize)
+		row := fmt.Sprintf("  %-*s %*d %*d %*d %*d",
+			nameW, name, desiredW, asg.DesiredCapacity, minW, asg.MinSize, maxW, asg.MaxSize, currentW, asg.CurrentSize)
 		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
-	if endIdx-startIdx > 0 && len(asgs) > endIdx-startIdx {
+	if len(asgs) > endIdx-startIdx {
 		b.WriteString("\n")
 		b.WriteString(SubtitleStyle().Render(fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(asgs))))
 	}
@@ -39,7 +47,7 @@ func (m Model) renderASGs() string {
 	b.WriteString("\n")
 	b.WriteString(SubtitleStyle().Render(selected.Name))
 	b.WriteString("\n")
-	b.WriteString(m.renderASGDetails(selected))
+	b.WriteString(m.renderASGDetailsResponsive(selected, layout.DetailHeight))
 	b.WriteString("\n")
 	if overlay := m.renderScalingPrompt(ViewASGs); overlay != "" {
 		b.WriteString(overlay)
@@ -67,7 +75,7 @@ func (m Model) renderASGState(asgs []ASG) string {
 	if m.loading {
 		b.WriteString(m.renderLoading())
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 		return b.String()
 	}
 	if m.err != nil {
@@ -75,7 +83,7 @@ func (m Model) renderASGState(asgs []ASG) string {
 		b.WriteString("\n\n")
 		b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 		return b.String()
 	}
 	if len(asgs) == 0 {
@@ -83,7 +91,7 @@ func (m Model) renderASGState(asgs []ASG) string {
 		b.WriteString("\n\n")
 		b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 		return b.String()
 	}
 	return ""
@@ -133,64 +141,101 @@ func (m Model) renderASGFooter() string {
 	return HelpStyle().Render(strings.Join(parts, " • "))
 }
 
-func (m Model) renderASGDetails(asg ASG) string {
-	var b strings.Builder
+// renderASGDetailsResponsive renders ASG details with responsive height
+func (m Model) renderASGDetailsResponsive(asg ASG, maxLines int) string {
+	var lines []string
 
-	b.WriteString("  Scaling:\n")
-	b.WriteString(fmt.Sprintf("    Desired: %d  Min: %d  Max: %d  Current: %d\n",
+	// Scaling info (always show)
+	lines = append(lines, "  Scaling:")
+	lines = append(lines, fmt.Sprintf("    Desired: %d  Min: %d  Max: %d  Current: %d",
 		asg.DesiredCapacity, asg.MinSize, asg.MaxSize, asg.CurrentSize))
-	if asg.Status != "" {
-		b.WriteString(fmt.Sprintf("    Status:  %s\n", StateStyle(strings.ToLower(asg.Status))))
+
+	if maxLines > 3 && asg.Status != "" {
+		lines = append(lines, fmt.Sprintf("    Status:  %s", StateStyle(strings.ToLower(asg.Status))))
 	}
-	if asg.HealthCheckType != "" {
-		b.WriteString(fmt.Sprintf("    Health Check: %s\n", asg.HealthCheckType))
+	if maxLines > 4 && asg.HealthCheckType != "" {
+		lines = append(lines, fmt.Sprintf("    Health Check: %s", asg.HealthCheckType))
 	}
-	if !asg.CreatedAt.IsZero() {
-		b.WriteString(fmt.Sprintf("    Created: %s\n", formatRelativeTimestamp(asg.CreatedAt)))
+	if maxLines > 5 && !asg.CreatedAt.IsZero() {
+		lines = append(lines, fmt.Sprintf("    Created: %s", formatRelativeTimestamp(asg.CreatedAt)))
 	}
 
-	b.WriteString("\n  Launch Configuration:\n")
-	switch {
-	case strings.TrimSpace(asg.LaunchTemplateName) != "":
-		b.WriteString(fmt.Sprintf("    Template: %s", asg.LaunchTemplateName))
-		if strings.TrimSpace(asg.LaunchTemplateVersion) != "" {
-			b.WriteString(fmt.Sprintf(" (version %s)", asg.LaunchTemplateVersion))
-		}
-		b.WriteString("\n")
-	case strings.TrimSpace(asg.LaunchConfigurationName) != "":
-		b.WriteString(fmt.Sprintf("    Configuration: %s\n", asg.LaunchConfigurationName))
-	default:
-		b.WriteString("    Configuration: n/a\n")
-	}
-
-	if len(asg.AvailabilityZones) > 0 {
-		b.WriteString("\n  Availability Zones:\n")
-		for _, az := range asg.AvailabilityZones {
-			b.WriteString(fmt.Sprintf("    • %s\n", az))
+	// Launch Configuration (show if space available)
+	if maxLines > 7 {
+		lines = append(lines, "")
+		lines = append(lines, "  Launch Configuration:")
+		switch {
+		case strings.TrimSpace(asg.LaunchTemplateName) != "":
+			ltLine := fmt.Sprintf("    Template: %s", asg.LaunchTemplateName)
+			if strings.TrimSpace(asg.LaunchTemplateVersion) != "" {
+				ltLine += fmt.Sprintf(" (version %s)", asg.LaunchTemplateVersion)
+			}
+			lines = append(lines, ltLine)
+		case strings.TrimSpace(asg.LaunchConfigurationName) != "":
+			lines = append(lines, fmt.Sprintf("    Configuration: %s", asg.LaunchConfigurationName))
+		default:
+			lines = append(lines, "    Configuration: n/a")
 		}
 	}
 
-	if len(asg.LoadBalancerNames) > 0 {
-		b.WriteString("\n  Load Balancers:\n")
-		for _, lb := range asg.LoadBalancerNames {
-			b.WriteString(fmt.Sprintf("    • %s\n", lb))
+	// Availability Zones (show if space available)
+	if maxLines > 11 && len(asg.AvailabilityZones) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, "  Availability Zones:")
+		remainingLines := maxLines - len(lines) - 4 // Reserve space for other sections
+		for i, az := range asg.AvailabilityZones {
+			if i >= remainingLines {
+				lines = append(lines, "    ...")
+				break
+			}
+			lines = append(lines, fmt.Sprintf("    • %s", az))
 		}
 	}
 
-	if len(asg.TargetGroupARNs) > 0 {
-		b.WriteString("\n  Target Groups:\n")
-		for _, tg := range asg.TargetGroupARNs {
-			b.WriteString(fmt.Sprintf("    • %s\n", tg))
+	// Load Balancers (show if space available)
+	if maxLines > 15 && len(asg.LoadBalancerNames) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, "  Load Balancers:")
+		remainingLines := maxLines - len(lines) - 3
+		for i, lb := range asg.LoadBalancerNames {
+			if i >= remainingLines {
+				lines = append(lines, "    ...")
+				break
+			}
+			lines = append(lines, fmt.Sprintf("    • %s", lb))
 		}
 	}
 
-	if lines := renderTagLines(asg.Tags); len(lines) > 0 {
-		b.WriteString("\n  Tags:\n")
-		for _, line := range lines {
-			b.WriteString(line)
-			b.WriteString("\n")
+	// Target Groups (show if space available)
+	if maxLines > 18 && len(asg.TargetGroupARNs) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, "  Target Groups:")
+		remainingLines := maxLines - len(lines) - 2
+		for i, tg := range asg.TargetGroupARNs {
+			if i >= remainingLines {
+				lines = append(lines, "    ...")
+				break
+			}
+			lines = append(lines, fmt.Sprintf("    • %s", tg))
 		}
 	}
 
-	return b.String()
+	// Tags (show if space available)
+	if maxLines > 20 {
+		tagLines := renderTagLines(asg.Tags)
+		if len(tagLines) > 0 {
+			lines = append(lines, "")
+			lines = append(lines, "  Tags:")
+			remainingLines := maxLines - len(lines)
+			for i, line := range tagLines {
+				if i >= remainingLines-1 {
+					lines = append(lines, "    ...")
+					break
+				}
+				lines = append(lines, line)
+			}
+		}
+	}
+
+	return strings.Join(lines, "\n")
 }

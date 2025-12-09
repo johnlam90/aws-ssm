@@ -20,7 +20,7 @@ func (m Model) renderEKSClusters() string {
 	if m.loading {
 		b.WriteString(m.renderLoading())
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 		return b.String()
 	}
 
@@ -29,7 +29,7 @@ func (m Model) renderEKSClusters() string {
 		b.WriteString("\n\n")
 		b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 		return b.String()
 	}
 
@@ -39,28 +39,43 @@ func (m Model) renderEKSClusters() string {
 		b.WriteString("\n\n")
 		b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 		return b.String()
 	}
 
-	// Table header - clean and aligned
-	headerRow := fmt.Sprintf("  %-45s %-15s %-10s", "NAME", "STATUS", "VERSION")
+	// Get responsive column widths based on terminal width
+	nameW, statusW, versionW := EKSColumnWidths(m.width)
+
+	// Table header - clean and aligned with responsive widths
+	headerRow := fmt.Sprintf("  %-*s %-*s %-*s", nameW, "NAME", statusW, "STATUS", versionW, "VERSION")
 	b.WriteString(TableHeaderStyle().Render(headerRow))
 	b.WriteString("\n")
 
-	// Render clusters with proper alignment
-	for i, cluster := range clusters {
+	// Calculate responsive vertical layout
+	layout := EKSLayout(m.height)
+	cursor := clampIndex(m.cursor, len(clusters))
+	startIdx, endIdx := calculateEKSVisibleRange(len(clusters), cursor, layout.TableHeight)
+
+	// Render clusters with proper alignment using responsive widths
+	for i := startIdx; i < endIdx; i++ {
+		cluster := clusters[i]
 		// Truncate name if too long
 		name := cluster.Name
-		if len(name) > 45 {
-			name = name[:42] + "..."
+		if len(name) > nameW {
+			name = TruncateWithEllipsis(name, nameW)
 		}
 
 		status := StateStyle(cluster.Status)
-		row := fmt.Sprintf("  %-45s %-15s %-10s", name, status, cluster.Version)
+		row := fmt.Sprintf("  %-*s %-*s %-*s", nameW, name, statusW, status, versionW, cluster.Version)
 
-		b.WriteString(RenderSelectableRow(row, i == m.cursor))
+		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
+	}
+
+	// Pagination indicator
+	if len(clusters) > endIdx-startIdx {
+		b.WriteString("\n")
+		b.WriteString(SubtitleStyle().Render(fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(clusters))))
 	}
 
 	// Footer
@@ -76,6 +91,26 @@ func (m Model) renderEKSClusters() string {
 	b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 
 	return b.String()
+}
+
+// calculateEKSVisibleRange calculates the visible range for EKS clusters
+func calculateEKSVisibleRange(total, cursor, visibleHeight int) (int, int) {
+	if visibleHeight < 3 || total <= visibleHeight {
+		return 0, total
+	}
+	start := cursor - visibleHeight/2
+	if start < 0 {
+		start = 0
+	}
+	end := start + visibleHeight
+	if end > total {
+		end = total
+		start = end - visibleHeight
+		if start < 0 {
+			start = 0
+		}
+	}
+	return start, end
 }
 
 // renderEKSFooter renders the footer for EKS view

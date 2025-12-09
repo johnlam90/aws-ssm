@@ -130,7 +130,12 @@ func (m Model) renderDashboardHeaderBar() string {
 
 // renderDashboardSeparator renders a horizontal separator line
 func (m Model) renderDashboardSeparator() string {
-	separator := strings.Repeat("─", m.width)
+	// Use available width, but clamp to reasonable max for readability
+	separatorWidth := m.width
+	if separatorWidth <= 0 {
+		separatorWidth = 80
+	}
+	separator := strings.Repeat("─", separatorWidth)
 	return DashboardSeparatorStyle().Render(separator)
 }
 

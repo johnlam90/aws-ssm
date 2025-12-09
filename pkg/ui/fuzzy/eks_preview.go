@@ -48,9 +48,12 @@ func (r *EKSPreviewRenderer) RenderWithLazyLoad(ctx context.Context, cluster *EK
 func (r *EKSPreviewRenderer) renderBasicWithError(cluster *EKSCluster, width int, err error) string {
 	var preview strings.Builder
 
+	// Calculate responsive separator width
+	separatorWidth := responsiveSeparatorWidth(width)
+
 	preview.WriteString(r.colors.HeaderColor("EKS Cluster Details"))
 	preview.WriteString("\n")
-	preview.WriteString(strings.Repeat("─", minimum(width, 60)))
+	preview.WriteString(strings.Repeat("─", separatorWidth))
 	preview.WriteString("\n\n")
 
 	preview.WriteString(r.colors.BoldColor("Basic Information:"))
@@ -72,10 +75,13 @@ func (r *EKSPreviewRenderer) Render(cluster *EKSCluster, width, _ int) string {
 
 	var preview strings.Builder
 
+	// Calculate responsive separator width
+	separatorWidth := responsiveSeparatorWidth(width)
+
 	// Header
 	preview.WriteString(r.colors.HeaderColor("EKS Cluster Details"))
 	preview.WriteString("\n")
-	preview.WriteString(strings.Repeat("─", minimum(width, 60)))
+	preview.WriteString(strings.Repeat("─", separatorWidth))
 	preview.WriteString("\n\n")
 
 	// Basic Information
@@ -129,10 +135,13 @@ func (r *EKSPreviewRenderer) RenderDetailed(cluster *EKSCluster, nodeGroups []st
 
 	var preview strings.Builder
 
+	// Calculate responsive separator width
+	separatorWidth := responsiveSeparatorWidth(width)
+
 	// Header
 	preview.WriteString(r.colors.HeaderColor("EKS Cluster Details"))
 	preview.WriteString("\n")
-	preview.WriteString(strings.Repeat("─", minimum(width, 60)))
+	preview.WriteString(strings.Repeat("─", separatorWidth))
 	preview.WriteString("\n\n")
 
 	// Basic Information

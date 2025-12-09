@@ -15,52 +15,46 @@ func (m Model) renderNodeGroups() string {
 	header := m.renderHeader("EKS Node Groups", fmt.Sprintf("%d node groups", len(groups)))
 	b.WriteString(header)
 	b.WriteString("\n\n")
-	b.WriteString(TableHeaderStyle().Render(fmt.Sprintf("  %-24s %-28s %-10s %8s %8s %8s %8s",
-		"CLUSTER", "NODE GROUP", "STATUS", "DESIRED", "MIN", "MAX", "CURRENT")))
+
+	// Get responsive column widths based on terminal width
+	clusterW, nodeGroupW, statusW, desiredW, minW, maxW, currentW := NodeGroupColumnWidths(m.width)
+
+	b.WriteString(TableHeaderStyle().Render(fmt.Sprintf("  %-*s %-*s %-*s %*s %*s %*s %*s",
+		clusterW, "CLUSTER", nodeGroupW, "NODE GROUP", statusW, "STATUS",
+		desiredW, "DESIRED", minW, "MIN", maxW, "MAX", currentW, "CURRENT")))
 	b.WriteString("\n")
 	cursor := clampIndex(m.cursor, len(groups))
-	startIdx, endIdx := calculateNodeGroupVisibleRange(len(groups), cursor, m.height-12)
+
+	// Calculate responsive vertical layout
+	layout := NodeGroupLayout(m.height)
+	startIdx, endIdx := calculateNodeGroupVisibleRange(len(groups), cursor, layout.TableHeight)
+
 	for i := startIdx; i < endIdx; i++ {
 		ng := groups[i]
-		cluster := normalizeValue(ng.ClusterName, "unknown", 24)
-		name := normalizeValue(ng.Name, "n/a", 28)
-		status := RenderStateCell(ng.Status, 10)
-		row := fmt.Sprintf("  %-24s %-28s %s %8d %8d %8d %8d",
-			cluster, name, status, ng.DesiredSize, ng.MinSize, ng.MaxSize, ng.CurrentSize)
+		cluster := normalizeValue(ng.ClusterName, "unknown", clusterW)
+		name := normalizeValue(ng.Name, "n/a", nodeGroupW)
+		status := RenderStateCell(ng.Status, statusW)
+		row := fmt.Sprintf("  %-*s %-*s %s %*d %*d %*d %*d",
+			clusterW, cluster, nodeGroupW, name, status,
+			desiredW, ng.DesiredSize, minW, ng.MinSize, maxW, ng.MaxSize, currentW, ng.CurrentSize)
 		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
+
+	// Pagination indicator when not showing all items
+	if len(groups) > endIdx-startIdx {
+		b.WriteString(SubtitleStyle().Render(fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(groups))))
+		b.WriteString("\n")
+	}
+
 	selected := groups[cursor]
 	b.WriteString("\n")
 	b.WriteString(SubtitleStyle().Render(fmt.Sprintf("%s / %s", selected.ClusterName, selected.Name)))
 	b.WriteString("\n")
 
-	instanceTypes := strings.Join(selected.InstanceTypes, ", ")
-	if instanceTypes == "" {
-		instanceTypes = "n/a"
-	}
-
-	b.WriteString(fmt.Sprintf("  Version: %s\n", normalizeValue(selected.Version, "unknown", 0)))
-	b.WriteString(fmt.Sprintf("  Status:  %s\n", StateStyle(strings.ToLower(selected.Status))))
-	b.WriteString(fmt.Sprintf("  Scaling: desired %d | min %d | max %d | current %d\n",
-		selected.DesiredSize, selected.MinSize, selected.MaxSize, selected.CurrentSize))
-	b.WriteString(fmt.Sprintf("  Instances: %s\n", instanceTypes))
-	if strings.TrimSpace(selected.LaunchTemplateID) != "" || strings.TrimSpace(selected.LaunchTemplateName) != "" {
-		ltName := normalizeValue(selected.LaunchTemplateName, "n/a", 0)
-		ltVersion := normalizeValue(selected.LaunchTemplateVersion, "n/a", 0)
-		b.WriteString(fmt.Sprintf("  Launch template: %s (version %s)\n", ltName, ltVersion))
-		b.WriteString(fmt.Sprintf("  Launch template ID: %s\n", normalizeValue(selected.LaunchTemplateID, "n/a", 0)))
-	} else {
-		b.WriteString("  Launch template: n/a\n")
-	}
-	b.WriteString(fmt.Sprintf("  Created:   %s\n", normalizeValue(selected.CreatedAt, "unknown", 0)))
-	if lines := renderTagLines(selected.Tags); len(lines) > 0 {
-		b.WriteString("  Tags:\n")
-		for _, line := range lines {
-			b.WriteString(line)
-			b.WriteString("\n")
-		}
-	}
+	// Render detail section with responsive height
+	detailLines := m.renderNodeGroupDetails(selected, layout.DetailHeight)
+	b.WriteString(detailLines)
 
 	b.WriteString("\n")
 	if overlay := m.renderScalingPrompt(ViewNodeGroups); overlay != "" {
@@ -85,6 +79,60 @@ func (m Model) renderNodeGroups() string {
 	return b.String()
 }
 
+// renderNodeGroupDetails renders the detail section with responsive height
+func (m Model) renderNodeGroupDetails(selected NodeGroup, maxLines int) string {
+	var lines []string
+
+	instanceTypes := strings.Join(selected.InstanceTypes, ", ")
+	if instanceTypes == "" {
+		instanceTypes = "n/a"
+	}
+
+	// Core details (always shown)
+	lines = append(lines, fmt.Sprintf("  Version: %s", normalizeValue(selected.Version, "unknown", 0)))
+	lines = append(lines, fmt.Sprintf("  Status:  %s", StateStyle(strings.ToLower(selected.Status))))
+	lines = append(lines, fmt.Sprintf("  Scaling: desired %d | min %d | max %d | current %d",
+		selected.DesiredSize, selected.MinSize, selected.MaxSize, selected.CurrentSize))
+	lines = append(lines, fmt.Sprintf("  Instances: %s", instanceTypes))
+
+	// Launch template info (show if space available)
+	if maxLines > 5 {
+		if strings.TrimSpace(selected.LaunchTemplateID) != "" || strings.TrimSpace(selected.LaunchTemplateName) != "" {
+			ltName := normalizeValue(selected.LaunchTemplateName, "n/a", 0)
+			ltVersion := normalizeValue(selected.LaunchTemplateVersion, "n/a", 0)
+			lines = append(lines, fmt.Sprintf("  Launch template: %s (version %s)", ltName, ltVersion))
+			if maxLines > 6 {
+				lines = append(lines, fmt.Sprintf("  Launch template ID: %s", normalizeValue(selected.LaunchTemplateID, "n/a", 0)))
+			}
+		} else {
+			lines = append(lines, "  Launch template: n/a")
+		}
+	}
+
+	// Created timestamp (show if space available)
+	if maxLines > 7 {
+		lines = append(lines, fmt.Sprintf("  Created:   %s", normalizeValue(selected.CreatedAt, "unknown", 0)))
+	}
+
+	// Tags (show if space available and we have room for at least header + 1 tag)
+	if maxLines > 9 {
+		tagLines := renderTagLines(selected.Tags)
+		if len(tagLines) > 0 {
+			lines = append(lines, "  Tags:")
+			remainingLines := maxLines - len(lines) - 1 // Reserve 1 for potential "..."
+			for i, line := range tagLines {
+				if i >= remainingLines {
+					lines = append(lines, "    ...")
+					break
+				}
+				lines = append(lines, line)
+			}
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
 // renderNodeGroupState renders loading/error/empty states
 func (m Model) renderNodeGroupState(groups []NodeGroup) string {
 	var b strings.Builder
@@ -94,7 +142,7 @@ func (m Model) renderNodeGroupState(groups []NodeGroup) string {
 	if m.loading {
 		b.WriteString(m.renderLoading())
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 		return b.String()
 	}
 	if m.err != nil {
@@ -102,7 +150,7 @@ func (m Model) renderNodeGroupState(groups []NodeGroup) string {
 		b.WriteString("\n\n")
 		b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 		return b.String()
 	}
 	if len(groups) == 0 {
@@ -110,7 +158,7 @@ func (m Model) renderNodeGroupState(groups []NodeGroup) string {
 		b.WriteString("\n\n")
 		b.WriteString(HelpStyle().Render("esc:back"))
 		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 		return b.String()
 	}
 	return ""

@@ -24,10 +24,13 @@ func (r *ASGPreviewRenderer) Render(asg *ASGInfo, width, _ int) string {
 
 	var preview strings.Builder
 
+	// Calculate responsive separator width
+	separatorWidth := responsiveSeparatorWidth(width)
+
 	// Header
 	preview.WriteString(r.colors.HeaderColor("Auto Scaling Group Details"))
 	preview.WriteString("\n")
-	preview.WriteString(strings.Repeat("─", minimum(width, 60)))
+	preview.WriteString(strings.Repeat("─", separatorWidth))
 	preview.WriteString("\n\n")
 
 	// Basic information

@@ -49,8 +49,8 @@ func (m bubbleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		// Split screen: 60% list, 40% preview
-		listWidth := int(float64(msg.Width) * 0.6)
+		// Calculate responsive split based on terminal width
+		listWidth, _ := calculateResponsiveSplit(msg.Width)
 		m.list.SetSize(listWidth, msg.Height-4)
 		return m, nil
 
@@ -79,9 +79,8 @@ func (m bubbleModel) View() string {
 		return "Loading..."
 	}
 
-	// Split screen layout
-	listWidth := int(float64(m.width) * 0.6)
-	previewWidth := m.width - listWidth - 2
+	// Calculate responsive split based on terminal width
+	_, previewWidth := calculateResponsiveSplit(m.width)
 
 	listView := m.list.View()
 
@@ -93,7 +92,7 @@ func (m bubbleModel) View() string {
 		}
 	}
 
-	// Render side-by-side
+	// Render side-by-side with responsive preview width
 	previewStyle := lipgloss.NewStyle().
 		Width(previewWidth).
 		Height(m.height-4).
@@ -106,6 +105,40 @@ func (m bubbleModel) View() string {
 		listView,
 		previewStyle.Render(preview),
 	)
+}
+
+// calculateResponsiveSplit calculates responsive list/preview widths based on terminal width
+func calculateResponsiveSplit(totalWidth int) (listWidth, previewWidth int) {
+	if totalWidth <= 0 {
+		return 40, 30
+	}
+
+	// For narrow terminals, give more space to the list
+	// For wider terminals, balance the preview
+	switch {
+	case totalWidth >= 160:
+		// Extra wide: 55% list, 45% preview
+		listWidth = int(float64(totalWidth) * 0.55)
+	case totalWidth >= 120:
+		// Wide: 58% list, 42% preview
+		listWidth = int(float64(totalWidth) * 0.58)
+	case totalWidth >= 100:
+		// Medium: 60% list, 40% preview
+		listWidth = int(float64(totalWidth) * 0.60)
+	case totalWidth >= 80:
+		// Narrow: 65% list, 35% preview
+		listWidth = int(float64(totalWidth) * 0.65)
+	default:
+		// Very narrow: 70% list, 30% preview
+		listWidth = int(float64(totalWidth) * 0.70)
+	}
+
+	previewWidth = totalWidth - listWidth - 2 // 2 for border
+	if previewWidth < 20 {
+		previewWidth = 20
+	}
+
+	return listWidth, previewWidth
 }
 
 // NewBubblesFinder creates a new fuzzy finder using bubbles/list

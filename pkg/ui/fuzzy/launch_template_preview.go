@@ -22,9 +22,12 @@ func NewLaunchTemplateVersionPreviewRenderer(colors *DefaultColorManager) *Launc
 func (r *LaunchTemplateVersionPreviewRenderer) Render(v *LaunchTemplateVersionInfo, width, _ int) string {
 	var b strings.Builder
 
+	// Calculate responsive separator width
+	separatorWidth := responsiveSeparatorWidth(width)
+
 	// Header
 	b.WriteString(r.colors.HeaderColor("Launch Template Version Details\n"))
-	b.WriteString(strings.Repeat("─", minInt(width, 80)))
+	b.WriteString(strings.Repeat("─", separatorWidth))
 	b.WriteString("\n\n")
 
 	// Version information
@@ -98,11 +101,4 @@ func (r *LaunchTemplateVersionPreviewRenderer) formatVersionNumber(v *LaunchTemp
 		return fmt.Sprintf("%s (Default)", versionStr)
 	}
 	return versionStr
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

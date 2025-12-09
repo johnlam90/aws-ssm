@@ -306,5 +306,8 @@ func (m Model) renderLaunchTemplatePrompt() string {
 		b.WriteString("\n")
 	}
 
-	return PanelStyle().Width(m.width).Render(b.String())
+	// Calculate responsive modal width
+	modalWidth := calculateModalWidth(m.width)
+	modal := PanelStyle().Width(modalWidth).Render(b.String())
+	return centerModal(modal, m.width)
 }
