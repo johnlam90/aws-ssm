@@ -132,172 +132,110 @@ func NewModernTheme(colorsEnabled bool) *ModernTheme {
 	return &ModernTheme{colorsEnabled: colorsEnabled}
 }
 
-// Primary returns the primary color
-func (t *ModernTheme) Primary() lipgloss.Color {
+// color is a helper that returns the color if colors are enabled, otherwise empty
+func (t *ModernTheme) color(c lipgloss.Color) lipgloss.Color {
 	if !t.colorsEnabled {
 		return lipgloss.Color("")
 	}
-	return ColorPrimary
+	return c
+}
+
+// Primary returns the primary color
+func (t *ModernTheme) Primary() lipgloss.Color {
+	return t.color(ColorPrimary)
 }
 
 // Secondary returns the secondary color
 func (t *ModernTheme) Secondary() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorSecondary
+	return t.color(ColorSecondary)
 }
 
 // Muted returns the muted color
 func (t *ModernTheme) Muted() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorMuted
+	return t.color(ColorMuted)
 }
 
 // AccentBlue returns the blue accent color
 func (t *ModernTheme) AccentBlue() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorAccentBlue
+	return t.color(ColorAccentBlue)
 }
 
 // AccentGreen returns the green accent color
 func (t *ModernTheme) AccentGreen() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorAccentGreen
+	return t.color(ColorAccentGreen)
 }
 
 // AccentAmber returns the amber accent color
 func (t *ModernTheme) AccentAmber() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorAccentAmber
+	return t.color(ColorAccentAmber)
 }
 
 // AccentRed returns the red accent color
 func (t *ModernTheme) AccentRed() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorAccentRed
+	return t.color(ColorAccentRed)
 }
 
 // AccentIndigo returns the indigo accent color
 func (t *ModernTheme) AccentIndigo() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorAccentIndigo
+	return t.color(ColorAccentIndigo)
 }
 
 // Running returns the running state color
 func (t *ModernTheme) Running() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorRunning
+	return t.color(ColorRunning)
 }
 
 // Stopped returns the stopped state color
 func (t *ModernTheme) Stopped() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorStopped
+	return t.color(ColorStopped)
 }
 
 // Pending returns the pending state color
 func (t *ModernTheme) Pending() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorPending
+	return t.color(ColorPending)
 }
 
 // Terminated returns the terminated state color
 func (t *ModernTheme) Terminated() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorTerminated
+	return t.color(ColorTerminated)
 }
 
 // Border returns the border color
 func (t *ModernTheme) Border() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorBorder
+	return t.color(ColorBorder)
 }
-
 // Background returns the background color
 func (t *ModernTheme) Background() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorBackground
+	return t.color(ColorBackground)
 }
-
 // Foreground returns the foreground color
 func (t *ModernTheme) Foreground() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorForeground
+	return t.color(ColorForeground)
 }
-
 // Selected returns the selected color
 func (t *ModernTheme) Selected() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorSelected
+	return t.color(ColorSelected)
 }
-
 // Focused returns the focused color
 func (t *ModernTheme) Focused() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorFocused
+	return t.color(ColorFocused)
 }
-
 // GradientStart returns the gradient start color
 func (t *ModernTheme) GradientStart() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorGradientStart
+	return t.color(ColorGradientStart)
 }
-
 // GradientEnd returns the gradient end color
 func (t *ModernTheme) GradientEnd() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorGradientEnd
+	return t.color(ColorGradientEnd)
 }
-
 // Shadow returns the shadow color
 func (t *ModernTheme) Shadow() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorShadow
+	return t.color(ColorShadow)
 }
 
 // Highlight returns the highlight color
 func (t *ModernTheme) Highlight() lipgloss.Color {
-	if !t.colorsEnabled {
-		return lipgloss.Color("")
-	}
-	return ColorHighlight
+	return t.color(ColorHighlight)
 }
 
 // IsColorEnabled returns whether colors are enabled

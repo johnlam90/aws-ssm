@@ -435,3 +435,44 @@ func ListPanelWidth(terminalWidth int) int {
 	// List panel takes remaining space after preview
 	return terminalWidth - PreviewPanelWidth(terminalWidth) - 2 // 2 for border
 }
+
+// CalculateVisibleRange computes the visible start and end indices for a scrollable list.
+// This is a consolidated function that replaces the view-specific implementations.
+// Parameters:
+//   - total: total number of items in the list
+//   - cursor: current cursor position (0-indexed)
+//   - visibleHeight: number of rows available for display
+//   - minHeight: minimum height threshold below which we show all items (default 3)
+//
+// Returns:
+//   - start: index of the first visible item
+//   - end: index after the last visible item (for use in slice [start:end])
+func CalculateVisibleRange(total, cursor, visibleHeight int) (start, end int) {
+	return CalculateVisibleRangeWithThreshold(total, cursor, visibleHeight, 3)
+}
+
+// CalculateVisibleRangeWithThreshold is like CalculateVisibleRange but with a custom minimum height threshold.
+func CalculateVisibleRangeWithThreshold(total, cursor, visibleHeight, minHeight int) (start, end int) {
+	// If visibleHeight is too small or we can show everything, show all items
+	if visibleHeight < minHeight || total <= visibleHeight {
+		return 0, total
+	}
+
+	// Center the cursor in the visible area
+	start = cursor - visibleHeight/2
+	if start < 0 {
+		start = 0
+	}
+
+	end = start + visibleHeight
+	if end > total {
+		end = total
+		// Adjust start to fill the visible area if we're at the end
+		start = end - visibleHeight
+		if start < 0 {
+			start = 0
+		}
+	}
+
+	return start, end
+}

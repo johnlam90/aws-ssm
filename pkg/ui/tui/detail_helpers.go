@@ -73,3 +73,41 @@ func renderTagLines(tags map[string]string, skipKeys ...string) []string {
 	}
 	return lines
 }
+
+// KeyBinding represents a key-description pair for footer rendering
+type FooterKey struct {
+	Key  string
+	Desc string
+}
+
+// RenderFooter creates a styled footer from a slice of key bindings.
+// This consolidates the common footer rendering pattern used across all views.
+func RenderFooter(keys []FooterKey) string {
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		keyStyle := StatusBarKeyStyle().Render(k.Key)
+		descStyle := StatusBarValueStyle().Render(k.Desc)
+		parts = append(parts, fmt.Sprintf("%s %s", keyStyle, descStyle))
+	}
+	return HelpStyle().Render(strings.Join(parts, " • "))
+}
+
+// CommonNavigationKeys returns the standard navigation keybindings
+func CommonNavigationKeys() []FooterKey {
+	return []FooterKey{
+		{"↑/k", "up"},
+		{"↓/j", "down"},
+		{"g/G", "top/bottom"},
+	}
+}
+
+// CommonFooterKeys returns the standard footer keys appended with common actions
+func CommonFooterKeys(enterAction string) []FooterKey {
+	keys := CommonNavigationKeys()
+	return append(keys,
+		FooterKey{"enter", enterAction},
+		FooterKey{"r", "refresh"},
+		FooterKey{"/", "search"},
+		FooterKey{"esc", "back"},
+	)
+}

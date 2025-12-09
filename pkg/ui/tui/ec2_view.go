@@ -50,7 +50,7 @@ func (m Model) renderEC2Instances() string {
 
 	// Calculate responsive vertical layout
 	layout := EC2Layout(m.height)
-	startIdx, endIdx := calculateEC2VisibleRange(len(instances), cursor, layout.TableHeight)
+	startIdx, endIdx := CalculateVisibleRange(len(instances), cursor, layout.TableHeight)
 
 	// Render instances with proper alignment using responsive widths
 	for i := startIdx; i < endIdx; i++ {
@@ -97,48 +97,9 @@ func (m Model) renderEC2Instances() string {
 
 // renderEC2Footer renders the footer for EC2 view
 func (m Model) renderEC2Footer() string {
-	keys := []struct {
-		key  string
-		desc string
-	}{
-		{"↑/k", "up"},
-		{"↓/j", "down"},
-		{"g/G", "top/bottom"},
-		{"enter", "connect"},
-		{"r", "refresh"},
-		{"/", "search"},
-		{"esc", "back"},
-	}
-
-	var parts []string
-	for _, k := range keys {
-		keyStyle := StatusBarKeyStyle().Render(k.key)
-		descStyle := StatusBarValueStyle().Render(k.desc)
-		parts = append(parts, fmt.Sprintf("%s %s", keyStyle, descStyle))
-	}
-
-	return HelpStyle().Render(strings.Join(parts, " • "))
+	return RenderFooter(CommonFooterKeys("connect"))
 }
 
-// calculateEC2VisibleRange calculates the visible range for EC2 instances
-func calculateEC2VisibleRange(total, cursor, visibleHeight int) (int, int) {
-	if visibleHeight < 3 || total <= visibleHeight {
-		return 0, total
-	}
-	start := cursor - visibleHeight/2
-	if start < 0 {
-		start = 0
-	}
-	end := start + visibleHeight
-	if end > total {
-		end = total
-		start = end - visibleHeight
-		if start < 0 {
-			start = 0
-		}
-	}
-	return start, end
-}
 
 // renderEC2DetailsResponsive renders EC2 details with responsive height
 func (m Model) renderEC2DetailsResponsive(inst EC2Instance, maxLines int) string {

@@ -24,7 +24,7 @@ func (m Model) renderASGs() string {
 
 	// Calculate responsive vertical layout
 	layout := ASGLayout(m.height)
-	startIdx, endIdx := m.calculateVisibleRange(len(asgs), cursor, layout.TableHeight)
+	startIdx, endIdx := CalculateVisibleRangeWithThreshold(len(asgs), cursor, layout.TableHeight, 5)
 
 	for i := startIdx; i < endIdx; i++ {
 		asg := asgs[i]
@@ -87,49 +87,9 @@ func (m Model) renderASGState(asgs []ASG) string {
 	}
 	return ""
 }
-
-func (m Model) calculateVisibleRange(total, cursor, visibleHeight int) (int, int) {
-	if visibleHeight < 5 {
-		return 0, total
-	}
-	start := cursor - visibleHeight/2
-	if start < 0 {
-		start = 0
-	}
-	end := start + visibleHeight
-	if end > total {
-		end = total
-		start = end - visibleHeight
-		if start < 0 {
-			start = 0
-		}
-	}
-	return start, end
-}
-
 // renderASGFooter renders the footer for ASG view
 func (m Model) renderASGFooter() string {
-	keys := []struct {
-		key  string
-		desc string
-	}{
-		{"↑/k", "up"},
-		{"↓/j", "down"},
-		{"g/G", "top/bottom"},
-		{"enter", "scale"},
-		{"r", "refresh"},
-		{"/", "search"},
-		{"esc", "back"},
-	}
-
-	var parts []string
-	for _, k := range keys {
-		keyStyle := StatusBarKeyStyle().Render(k.key)
-		descStyle := StatusBarValueStyle().Render(k.desc)
-		parts = append(parts, fmt.Sprintf("%s %s", keyStyle, descStyle))
-	}
-
-	return HelpStyle().Render(strings.Join(parts, " • "))
+	return RenderFooter(CommonFooterKeys("scale"))
 }
 
 // renderASGDetailsResponsive renders ASG details with responsive height

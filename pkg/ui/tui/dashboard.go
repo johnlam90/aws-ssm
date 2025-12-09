@@ -77,18 +77,14 @@ func (m Model) renderHeader(title, subtitle string) string {
 	return b.String()
 }
 
-// renderLoading renders an enhanced loading message with modern styling
+// renderLoading renders an enhanced loading message with animated spinner
 func (m Model) renderLoading() string {
 	if !m.loading {
 		return ""
 	}
 
-	// Use the same sophisticated spinner as other views
-	spinner := "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" // Braille spinner
-	// In a real implementation, we'd animate this
-	frame := string(spinner[0])
-
-	msg := fmt.Sprintf("%s %s", frame, m.loadingMsg)
+	// Use the animated spinner from the model
+	msg := fmt.Sprintf("%s %s", m.spinner.View(), m.loadingMsg)
 	return LoadingStyle().Render(msg)
 }
 

@@ -263,12 +263,19 @@ func (m Model) renderScalingPrompt(view ViewMode) string {
 	return centerModal(modal, m.width)
 }
 
-// renderStatusMessage renders the transient status message, if present
+// renderStatusMessage renders the transient status message with appropriate semantic color
 func (m Model) renderStatusMessage() string {
 	if strings.TrimSpace(m.statusMessage) == "" {
 		return ""
 	}
-	return SuccessStyle().Render(m.statusMessage)
+
+	// Determine message type from status animation if available
+	messageType := "success" // Default to success
+	if m.statusAnimation != nil && m.statusAnimation.MessageType != "" {
+		messageType = m.statusAnimation.MessageType
+	}
+
+	return RenderStatusMessage(m.statusMessage, messageType)
 }
 
 func calculateModalWidth(totalWidth int) int {
