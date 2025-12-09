@@ -5,24 +5,22 @@ import (
 	"strings"
 )
 
-// renderNodeGroups renders the EKS node groups view
+// renderNodeGroups renders the EKS node groups view using pooled string builder
 func (m Model) renderNodeGroups() string {
 	groups := m.getNodeGroups()
 	if s := m.renderNodeGroupState(groups); s != "" {
 		return s
 	}
-	var b strings.Builder
+	rb := NewRenderBuffer()
 	header := m.renderHeader("EKS Node Groups", fmt.Sprintf("%d node groups", len(groups)))
-	b.WriteString(header)
-	b.WriteString("\n\n")
+	rb.WriteLine(header).Newline()
 
 	// Get responsive column widths based on terminal width
 	clusterW, nodeGroupW, statusW, desiredW, minW, maxW, currentW := NodeGroupColumnWidths(m.width)
 
-	b.WriteString(TableHeaderStyle().Render(fmt.Sprintf("  %-*s %-*s %-*s %*s %*s %*s %*s",
+	rb.WriteLine(TableHeaderStyle().Render(fmt.Sprintf("  %-*s %-*s %-*s %*s %*s %*s %*s",
 		clusterW, "CLUSTER", nodeGroupW, "NODE GROUP", statusW, "STATUS",
 		desiredW, "DESIRED", minW, "MIN", maxW, "MAX", currentW, "CURRENT")))
-	b.WriteString("\n")
 	cursor := clampIndex(m.cursor, len(groups))
 
 	// Calculate responsive vertical layout
@@ -37,46 +35,38 @@ func (m Model) renderNodeGroups() string {
 		row := fmt.Sprintf("  %-*s %-*s %s %*d %*d %*d %*d",
 			clusterW, cluster, nodeGroupW, name, status,
 			desiredW, ng.DesiredSize, minW, ng.MinSize, maxW, ng.MaxSize, currentW, ng.CurrentSize)
-		b.WriteString(RenderSelectableRow(row, i == cursor))
-		b.WriteString("\n")
+		rb.WriteLine(RenderSelectableRow(row, i == cursor))
 	}
 
 	// Pagination indicator when not showing all items
 	if len(groups) > endIdx-startIdx {
-		b.WriteString(SubtitleStyle().Render(fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(groups))))
-		b.WriteString("\n")
+		rb.WriteLine(SubtitleStyle().Render(fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(groups))))
 	}
 
 	selected := groups[cursor]
-	b.WriteString("\n")
-	b.WriteString(SubtitleStyle().Render(fmt.Sprintf("%s / %s", selected.ClusterName, selected.Name)))
-	b.WriteString("\n")
+	rb.Newline()
+	rb.WriteLine(SubtitleStyle().Render(fmt.Sprintf("%s / %s", selected.ClusterName, selected.Name)))
 
 	// Render detail section with responsive height
 	detailLines := m.renderNodeGroupDetails(selected, layout.DetailHeight)
-	b.WriteString(detailLines)
+	rb.WriteString(detailLines)
 
-	b.WriteString("\n")
+	rb.Newline()
 	if overlay := m.renderScalingPrompt(ViewNodeGroups); overlay != "" {
-		b.WriteString(overlay)
-		b.WriteString("\n")
+		rb.WriteLine(overlay)
 	}
 	if ltOverlay := m.renderLaunchTemplatePrompt(); ltOverlay != "" {
-		b.WriteString(ltOverlay)
-		b.WriteString("\n")
+		rb.WriteLine(ltOverlay)
 	}
 	if searchBar := m.renderSearchBar(ViewNodeGroups); searchBar != "" {
-		b.WriteString(searchBar)
-		b.WriteString("\n")
+		rb.WriteLine(searchBar)
 	}
 	if status := m.renderStatusMessage(); status != "" {
-		b.WriteString(status)
-		b.WriteString("\n")
+		rb.WriteLine(status)
 	}
-	b.WriteString(m.renderNodeGroupFooter())
-	b.WriteString("\n")
-	b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
-	return b.String()
+	rb.WriteLine(m.renderNodeGroupFooter())
+	rb.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
+	return rb.String()
 }
 
 // renderNodeGroupDetails renders the detail section with responsive height

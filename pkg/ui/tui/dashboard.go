@@ -5,69 +5,59 @@ import (
 	"strings"
 )
 
-// renderDashboard renders the main dashboard view with beautiful aesthetics
+// renderDashboard renders the main dashboard view with beautiful aesthetics using pooled string builder
 func (m Model) renderDashboard() string {
-	var b strings.Builder
+	rb := NewRenderBuffer()
 
 	// Top header bar with context information
 	headerBar := m.renderDashboardHeaderBar()
-	b.WriteString(headerBar)
-	b.WriteString("\n")
+	rb.WriteLine(headerBar)
 
 	// Main title
 	title := DashboardTitleStyle().Render("AWS SSM Manager")
-	b.WriteString(title)
-	b.WriteString("\n")
+	rb.WriteLine(title)
 
 	// Horizontal separator
 	separator := m.renderDashboardSeparator()
-	b.WriteString(separator)
-	b.WriteString("\n")
+	rb.WriteLine(separator)
 
 	// Show loading state with beautiful styling
 	if m.loading {
-		b.WriteString(m.renderLoading())
-		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
-		return b.String()
+		rb.WriteLine(m.renderLoading())
+		rb.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
+		return rb.String()
 	}
 
 	// Show error state with beautiful styling
 	if m.err != nil {
-		b.WriteString(m.renderError())
-		b.WriteString("\n\n")
-		b.WriteString(HelpStyle().Render("esc:back"))
-		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
-		return b.String()
+		rb.WriteLine(m.renderError()).Newline()
+		rb.WriteLine(HelpStyle().Render("esc:back"))
+		rb.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
+		return rb.String()
 	}
 
 	// Section title
 	sectionTitle := DashboardSectionTitleStyle().Render("Services")
-	b.WriteString(sectionTitle)
-	b.WriteString("\n")
+	rb.WriteLine(sectionTitle)
 
 	// Menu items with beautiful two-column layout
 	for i, item := range m.menuItems {
 		menuItem := m.renderDashboardMenuItem(i, item, i == m.cursor)
-		b.WriteString(menuItem)
-		b.WriteString("\n")
+		rb.WriteLine(menuItem)
 	}
 
 	// Horizontal separator before footer
-	b.WriteString("\n")
-	b.WriteString(separator)
-	b.WriteString("\n")
+	rb.Newline().WriteLine(separator)
 
 	// Beautiful footer with concise keyboard hints
 	footer := m.renderDashboardFooter()
-	b.WriteString(footer)
+	rb.WriteString(footer)
 
 	// Status bar with consistent styling
-	b.WriteString("\n")
-	b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
+	rb.Newline()
+	rb.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 
-	return b.String()
+	return rb.String()
 }
 
 // renderHeader renders an enhanced header with modern styling

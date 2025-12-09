@@ -1,62 +1,48 @@
 package tui
 
-import (
-	"strings"
-)
-
-// renderHelp renders the help view with comprehensive keybindings
+// renderHelp renders the help view with comprehensive keybindings using pooled string builder
 func (m Model) renderHelp() string {
-	var b strings.Builder
+	rb := NewRenderBuffer()
 
 	// Header
 	header := m.renderHeader("Help & Keybindings", "Navigate and manage AWS resources")
-	b.WriteString(header)
-	b.WriteString("\n\n")
+	rb.WriteLine(header).Newline()
 
 	// Show quick reference first
-	b.WriteString(GetQuickReference())
-	b.WriteString("\n")
+	rb.WriteLine(GetQuickReference())
 
 	// View-specific keybindings
 	if m.currentView != ViewHelp {
 		bindings := GetKeyBindings(m.currentView)
 		if len(bindings) > 0 {
-			b.WriteString(TitleStyle().Render("Current View Keybindings"))
-			b.WriteString("\n\n")
-			b.WriteString(FormatKeyBindings(bindings))
-			b.WriteString("\n")
+			rb.WriteLine(TitleStyle().Render("Current View Keybindings")).Newline()
+			rb.WriteLine(FormatKeyBindings(bindings))
 		}
 	}
 
 	// Global keybindings
-	b.WriteString(TitleStyle().Render("Global Keybindings"))
-	b.WriteString("\n\n")
-	b.WriteString(FormatKeyBindings(globalKeyBindings))
-	b.WriteString("\n")
+	rb.WriteLine(TitleStyle().Render("Global Keybindings")).Newline()
+	rb.WriteLine(FormatKeyBindings(globalKeyBindings))
 
 	// Navigation tips
-	b.WriteString(TitleStyle().Render("Navigation Tips"))
-	b.WriteString("\n\n")
-	b.WriteString(SubtitleStyle().Render("Vim-style navigation:"))
-	b.WriteString("\n")
-	b.WriteString("  • Use j/k for up/down movement\n")
-	b.WriteString("  • Use g g to jump to top, G to jump to bottom\n")
-	b.WriteString("  • Use ctrl+d/ctrl+u for page navigation\n")
-	b.WriteString("\n")
-	b.WriteString(SubtitleStyle().Render("Command chaining:"))
-	b.WriteString("\n")
-	b.WriteString("  • Press keys in sequence for advanced commands\n")
-	b.WriteString("  • Press esc to cancel current command\n")
-	b.WriteString("\n")
+	rb.WriteLine(TitleStyle().Render("Navigation Tips")).Newline()
+	rb.WriteLine(SubtitleStyle().Render("Vim-style navigation:"))
+	rb.WriteString("  • Use j/k for up/down movement\n")
+	rb.WriteString("  • Use g g to jump to top, G to jump to bottom\n")
+	rb.WriteString("  • Use ctrl+d/ctrl+u for page navigation\n")
+	rb.Newline()
+	rb.WriteLine(SubtitleStyle().Render("Command chaining:"))
+	rb.WriteString("  • Press keys in sequence for advanced commands\n")
+	rb.WriteString("  • Press esc to cancel current command\n")
+	rb.Newline()
 
 	// Footer
-	b.WriteString(HelpStyle().Render("Press ESC or ? to close help"))
-	b.WriteString("\n")
+	rb.WriteLine(HelpStyle().Render("Press ESC or ? to close help"))
 
 	// Status bar
-	b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
+	rb.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 
-	return b.String()
+	return rb.String()
 }
 
 // helpItem represents a help item

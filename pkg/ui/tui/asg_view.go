@@ -5,23 +5,21 @@ import (
 	"strings"
 )
 
-// renderASGs renders the Auto Scaling Groups view - minimal design
+// renderASGs renders the Auto Scaling Groups view using pooled string builder
 func (m Model) renderASGs() string {
 	asgs := m.getASGs()
 	if s := m.renderASGState(asgs); s != "" {
 		return s
 	}
-	var b strings.Builder
+	rb := NewRenderBuffer()
 	header := m.renderHeader("Auto Scaling Groups", fmt.Sprintf("%d ASGs", len(asgs)))
-	b.WriteString(header)
-	b.WriteString("\n\n")
+	rb.WriteLine(header).Newline()
 
 	// Get responsive column widths based on terminal width
 	nameW, desiredW, minW, maxW, currentW := ASGColumnWidths(m.width)
 
-	b.WriteString(TableHeaderStyle().Render(fmt.Sprintf("  %-*s %*s %*s %*s %*s",
+	rb.WriteLine(TableHeaderStyle().Render(fmt.Sprintf("  %-*s %*s %*s %*s %*s",
 		nameW, "NAME", desiredW, "DESIRED", minW, "MIN", maxW, "MAX", currentW, "CURRENT")))
-	b.WriteString("\n")
 	cursor := clampIndex(m.cursor, len(asgs))
 
 	// Calculate responsive vertical layout
@@ -36,35 +34,28 @@ func (m Model) renderASGs() string {
 		}
 		row := fmt.Sprintf("  %-*s %*d %*d %*d %*d",
 			nameW, name, desiredW, asg.DesiredCapacity, minW, asg.MinSize, maxW, asg.MaxSize, currentW, asg.CurrentSize)
-		b.WriteString(RenderSelectableRow(row, i == cursor))
-		b.WriteString("\n")
+		rb.WriteLine(RenderSelectableRow(row, i == cursor))
 	}
 	if len(asgs) > endIdx-startIdx {
-		b.WriteString("\n")
-		b.WriteString(SubtitleStyle().Render(fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(asgs))))
+		rb.Newline()
+		rb.WriteString(SubtitleStyle().Render(fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(asgs))))
 	}
 	selected := asgs[cursor]
-	b.WriteString("\n")
-	b.WriteString(SubtitleStyle().Render(selected.Name))
-	b.WriteString("\n")
-	b.WriteString(m.renderASGDetailsResponsive(selected, layout.DetailHeight))
-	b.WriteString("\n")
+	rb.Newline()
+	rb.WriteLine(SubtitleStyle().Render(selected.Name))
+	rb.WriteLine(m.renderASGDetailsResponsive(selected, layout.DetailHeight))
 	if overlay := m.renderScalingPrompt(ViewASGs); overlay != "" {
-		b.WriteString(overlay)
-		b.WriteString("\n")
+		rb.WriteLine(overlay)
 	}
 	if searchBar := m.renderSearchBar(ViewASGs); searchBar != "" {
-		b.WriteString(searchBar)
-		b.WriteString("\n")
+		rb.WriteLine(searchBar)
 	}
 	if status := m.renderStatusMessage(); status != "" {
-		b.WriteString(status)
-		b.WriteString("\n")
+		rb.WriteLine(status)
 	}
-	b.WriteString(m.renderASGFooter())
-	b.WriteString("\n")
-	b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
-	return b.String()
+	rb.WriteLine(m.renderASGFooter())
+	rb.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
+	return rb.String()
 }
 
 func (m Model) renderASGState(asgs []ASG) string {

@@ -308,9 +308,11 @@ func (t *ModernTheme) IsColorEnabled() bool {
 // Global theme instance
 var globalTheme Theme = NewModernTheme(true)
 
-// SetTheme sets the global theme
+// SetTheme sets the global theme and refreshes the style cache
 func SetTheme(theme Theme) {
 	globalTheme = theme
+	// Refresh cached styles when theme changes
+	initStyleCache(theme)
 }
 
 // GetTheme returns the global theme
@@ -318,221 +320,134 @@ func GetTheme() Theme {
 	return globalTheme
 }
 
-// TitleStyle returns the style for titles
-// Modern style functions that respect theme settings
+// TitleStyle returns the style for titles (cached for performance)
 func TitleStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Primary()).
-		Bold(true)
+	return GetCachedStyles().Title
 }
 
-// SubtitleStyle returns the style for subtitles
+// SubtitleStyle returns the style for subtitles (cached for performance)
 func SubtitleStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Muted())
+	return GetCachedStyles().Subtitle
 }
 
-// MenuItemStyle returns the style for menu items
+// MenuItemStyle returns the style for menu items (cached for performance)
 func MenuItemStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Foreground())
+	return GetCachedStyles().MenuItem
 }
 
-// MenuItemSelectedStyle returns the style for selected menu items
+// MenuItemSelectedStyle returns the style for selected menu items (cached for performance)
 func MenuItemSelectedStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.AccentBlue()).
-		Background(theme.Focused()).
-		Bold(true)
+	return GetCachedStyles().MenuItemSelected
 }
 
-// ListItemStyle returns the style for list items
+// ListItemStyle returns the style for list items (cached for performance)
 func ListItemStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Foreground())
+	return GetCachedStyles().ListItem
 }
 
-// ListItemSelectedStyle returns the style for selected list items
+// ListItemSelectedStyle returns the style for selected list items (cached for performance)
 func ListItemSelectedStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.AccentBlue()).
-		Bold(true)
+	return GetCachedStyles().ListItemSelected
 }
 
-// TableHeaderStyle returns the style for table headers
+// TableHeaderStyle returns the style for table headers (cached for performance)
 func TableHeaderStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Secondary()).
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderBottom(true).
-		BorderForeground(theme.Border()).
-		Bold(true)
+	return GetCachedStyles().TableHeader
 }
 
-// StatusBarStyle returns the style for the status bar
+// StatusBarStyle returns the style for the status bar (cached for performance)
 func StatusBarStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Muted())
+	return GetCachedStyles().StatusBar
 }
 
-// StatusBarKeyStyle returns the style for status bar keys
+// StatusBarKeyStyle returns the style for status bar keys (cached for performance)
 func StatusBarKeyStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.AccentIndigo()).
-		Bold(true)
+	return GetCachedStyles().StatusBarKey
 }
 
-// StatusBarValueStyle returns the style for status bar values
+// StatusBarValueStyle returns the style for status bar values (cached for performance)
 func StatusBarValueStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Foreground())
+	return GetCachedStyles().StatusBarValue
 }
 
-// HelpStyle returns the style for help text
+// HelpStyle returns the style for help text (cached for performance)
 func HelpStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Muted())
+	return GetCachedStyles().Help
 }
 
-// SearchBarStyle returns the style for the search bar
+// SearchBarStyle returns the style for the search bar (cached for performance)
 func SearchBarStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Primary()).
-		Background(theme.Selected()).
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(theme.Border()).
-		Padding(0, 1)
+	return GetCachedStyles().SearchBar
 }
 
-// SearchBarActiveStyle returns the style for the active search bar
+// SearchBarActiveStyle returns the style for the active search bar (cached for performance)
 func SearchBarActiveStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Primary()).
-		Background(theme.Highlight()).
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(theme.AccentBlue()).
-		Padding(0, 1).
-		Bold(true)
+	return GetCachedStyles().SearchBarActive
 }
 
-// HelpKeyStyle returns the style for help keys
+// HelpKeyStyle returns the style for help keys (cached for performance)
 func HelpKeyStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.AccentIndigo()).
-		Bold(true)
+	return GetCachedStyles().HelpKey
 }
 
-// HelpDescStyle returns the style for help descriptions
+// HelpDescStyle returns the style for help descriptions (cached for performance)
 func HelpDescStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Secondary())
+	return GetCachedStyles().HelpDesc
 }
 
-// BorderStyle returns the style for borders
+// BorderStyle returns the style for borders (cached for performance)
 func BorderStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(theme.Border())
+	return GetCachedStyles().Border
 }
 
-// ErrorStyle returns the style for error messages
+// ErrorStyle returns the style for error messages (cached for performance)
 func ErrorStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.AccentRed()).
-		Bold(true)
+	return GetCachedStyles().Error
 }
 
-// SuccessStyle returns the style for success messages
+// SuccessStyle returns the style for success messages (cached for performance)
 func SuccessStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.AccentGreen()).
-		Bold(true)
+	return GetCachedStyles().Success
 }
 
-// LoadingStyle returns the style for loading text
+// LoadingStyle returns the style for loading text (cached for performance)
 func LoadingStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Secondary())
+	return GetCachedStyles().Loading
 }
 
-// PanelStyle returns the style for panels
+// PanelStyle returns the style for panels (cached for performance)
 func PanelStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(theme.Border())
+	return GetCachedStyles().Panel
 }
 
-// ModalStyle returns the style for modals
+// ModalStyle returns the style for modals (cached for performance)
 func ModalStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(theme.AccentBlue()).
-		Foreground(theme.Primary()).
-		Background(theme.Selected()).
-		Padding(1, 2)
+	return GetCachedStyles().Modal
 }
 
-// ModalTitleStyle returns the style for modal titles
+// ModalTitleStyle returns the style for modal titles (cached for performance)
 func ModalTitleStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Primary()).
-		Bold(true)
+	return GetCachedStyles().ModalTitle
 }
 
-// ModalLabelStyle returns the style for modal labels
+// ModalLabelStyle returns the style for modal labels (cached for performance)
 func ModalLabelStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Secondary()).
-		Bold(true)
+	return GetCachedStyles().ModalLabel
 }
 
-// ModalInputStyle returns the style for modal inputs
+// ModalInputStyle returns the style for modal inputs (cached for performance)
 func ModalInputStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Primary()).
-		Background(theme.Focused()).
-		Padding(0, 1).
-		Bold(true)
+	return GetCachedStyles().ModalInput
 }
 
-// ModalPlaceholderStyle returns the style for modal placeholders
+// ModalPlaceholderStyle returns the style for modal placeholders (cached for performance)
 func ModalPlaceholderStyle() lipgloss.Style {
-	theme := GetTheme()
-	return ModalInputStyle().
-		Foreground(theme.Secondary()).
-		Faint(true).
-		Italic(true)
+	return GetCachedStyles().ModalPlaceholder
 }
 
-// ModalHelpStyle returns the style for modal help text
+// ModalHelpStyle returns the style for modal help text (cached for performance)
 func ModalHelpStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.AccentIndigo())
+	return GetCachedStyles().ModalHelp
 }
 
 // GetStateColor returns the appropriate color for an instance state
@@ -587,9 +502,9 @@ func RenderStatusMessage(message string, messageType string) string {
 	case "error":
 		style = ErrorStyle()
 	case "warning":
-		style = lipgloss.NewStyle().Foreground(ColorAccentAmber).Bold(true)
+		style = GetCachedStyles().Warning
 	case "info":
-		style = lipgloss.NewStyle().Foreground(ColorAccentIndigo)
+		style = GetCachedStyles().Info
 	default:
 		style = lipgloss.NewStyle().Foreground(ColorForeground)
 	}
@@ -612,112 +527,67 @@ func RenderMetric(label string, value string, highlight bool) string {
 
 // Beautiful Dashboard Styling Functions
 
-// DashboardTitleStyle returns the main title styling for the beautiful dashboard
+// DashboardTitleStyle returns the main title styling for the beautiful dashboard (cached for performance)
 func DashboardTitleStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.AccentBlue()).
-		Bold(true).
-		MarginBottom(0)
+	return GetCachedStyles().DashboardTitle
 }
 
-// DashboardSubtitleStyle returns the subtitle/context styling
+// DashboardSubtitleStyle returns the subtitle/context styling (cached for performance)
 func DashboardSubtitleStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Secondary()).
-		MarginBottom(1)
+	return GetCachedStyles().DashboardSubtitle
 }
 
-// DashboardHeaderBarStyle returns the header bar with context information
+// DashboardHeaderBarStyle returns the header bar with context information (cached for performance)
 func DashboardHeaderBarStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Muted()).
-		MarginBottom(1)
+	return GetCachedStyles().DashboardHeaderBar
 }
 
-// DashboardSeparatorStyle returns the horizontal separator line
+// DashboardSeparatorStyle returns the horizontal separator line (cached for performance)
 func DashboardSeparatorStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Border()).
-		MarginTop(1).
-		MarginBottom(1)
+	return GetCachedStyles().DashboardSeparator
 }
 
-// DashboardSectionTitleStyle returns the section title styling
+// DashboardSectionTitleStyle returns the section title styling (cached for performance)
 func DashboardSectionTitleStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Primary()).
-		Bold(true).
-		MarginBottom(1)
+	return GetCachedStyles().DashboardSectionTitle
 }
 
-// DashboardServiceNameStyle returns the service name column styling
+// DashboardServiceNameStyle returns the service name column styling (cached for performance)
 func DashboardServiceNameStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Primary()).
-		Width(22). // Fixed width for alignment
-		Bold(true)
+	return GetCachedStyles().DashboardServiceName
 }
 
-// DashboardServiceDescStyle returns the service description column styling
+// DashboardServiceDescStyle returns the service description column styling (cached for performance)
 func DashboardServiceDescStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Secondary()).
-		Width(40) // Fixed width for alignment
+	return GetCachedStyles().DashboardServiceDesc
 }
 
-// DashboardSelectionBarStyle returns the vertical selection bar styling
+// DashboardSelectionBarStyle returns the vertical selection bar styling (cached for performance)
 func DashboardSelectionBarStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.AccentBlue()).
-		Bold(true)
+	return GetCachedStyles().DashboardSelectionBar
 }
 
-// DashboardSelectedNameStyle returns the selected service name styling
+// DashboardSelectedNameStyle returns the selected service name styling (cached for performance)
 func DashboardSelectedNameStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.AccentBlue()).
-		Background(theme.Highlight()).
-		Bold(true).
-		Width(22) // Same width as normal for alignment
+	return GetCachedStyles().DashboardSelectedName
 }
 
-// DashboardSelectedDescStyle returns the selected service description styling
+// DashboardSelectedDescStyle returns the selected service description styling (cached for performance)
 func DashboardSelectedDescStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.AccentBlue()).
-		Background(theme.Highlight()).
-		Width(40) // Same width as normal for alignment
+	return GetCachedStyles().DashboardSelectedDesc
 }
 
-// DashboardFooterStyle returns the footer styling
+// DashboardFooterStyle returns the footer styling (cached for performance)
 func DashboardFooterStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Muted()).
-		MarginTop(1)
+	return GetCachedStyles().DashboardFooter
 }
 
-// DashboardFooterKeyStyle returns the footer key styling
+// DashboardFooterKeyStyle returns the footer key styling (cached for performance)
 func DashboardFooterKeyStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.AccentIndigo()).
-		Bold(true)
+	return GetCachedStyles().DashboardFooterKey
 }
 
-// DashboardFooterActionStyle returns the footer action description styling
+// DashboardFooterActionStyle returns the footer action description styling (cached for performance)
 func DashboardFooterActionStyle() lipgloss.Style {
-	theme := GetTheme()
-	return lipgloss.NewStyle().
-		Foreground(theme.Secondary())
+	return GetCachedStyles().DashboardFooterAction
 }

@@ -5,42 +5,36 @@ import (
 	"strings"
 )
 
-// renderEKSClusters renders the EKS clusters view - minimal design
+// renderEKSClusters renders the EKS clusters view using pooled string builder
 func (m Model) renderEKSClusters() string {
-	var b strings.Builder
+	rb := NewRenderBuffer()
 
 	clusters := m.getEKSClusters()
 
 	// Header - simple
 	header := m.renderHeader("EKS Clusters", fmt.Sprintf("%d clusters", len(clusters)))
-	b.WriteString(header)
-	b.WriteString("\n\n")
+	rb.WriteLine(header).Newline()
 
 	// Show loading or error - minimal
 	if m.loading {
-		b.WriteString(m.renderLoading())
-		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
-		return b.String()
+		rb.WriteLine(m.renderLoading())
+		rb.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
+		return rb.String()
 	}
 
 	if m.err != nil {
-		b.WriteString(m.renderError())
-		b.WriteString("\n\n")
-		b.WriteString(HelpStyle().Render("esc:back"))
-		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
-		return b.String()
+		rb.WriteLine(m.renderError()).Newline()
+		rb.WriteLine(HelpStyle().Render("esc:back"))
+		rb.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
+		return rb.String()
 	}
 
 	// No clusters
 	if len(clusters) == 0 {
-		b.WriteString(SubtitleStyle().Render("No EKS clusters found"))
-		b.WriteString("\n\n")
-		b.WriteString(HelpStyle().Render("esc:back"))
-		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
-		return b.String()
+		rb.WriteLine(SubtitleStyle().Render("No EKS clusters found")).Newline()
+		rb.WriteLine(HelpStyle().Render("esc:back"))
+		rb.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
+		return rb.String()
 	}
 
 	// Get responsive column widths based on terminal width
@@ -48,8 +42,7 @@ func (m Model) renderEKSClusters() string {
 
 	// Table header - clean and aligned with responsive widths
 	headerRow := fmt.Sprintf("  %-*s %-*s %-*s", nameW, "NAME", statusW, "STATUS", versionW, "VERSION")
-	b.WriteString(TableHeaderStyle().Render(headerRow))
-	b.WriteString("\n")
+	rb.WriteLine(TableHeaderStyle().Render(headerRow))
 
 	// Calculate responsive vertical layout
 	layout := EKSLayout(m.height)
@@ -68,29 +61,27 @@ func (m Model) renderEKSClusters() string {
 		status := StateStyle(cluster.Status)
 		row := fmt.Sprintf("  %-*s %-*s %-*s", nameW, name, statusW, status, versionW, cluster.Version)
 
-		b.WriteString(RenderSelectableRow(row, i == cursor))
-		b.WriteString("\n")
+		rb.WriteLine(RenderSelectableRow(row, i == cursor))
 	}
 
 	// Pagination indicator
 	if len(clusters) > endIdx-startIdx {
-		b.WriteString("\n")
-		b.WriteString(SubtitleStyle().Render(fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(clusters))))
+		rb.Newline()
+		rb.WriteString(SubtitleStyle().Render(fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(clusters))))
 	}
 
 	// Footer
-	b.WriteString("\n")
+	rb.Newline()
 	if searchBar := m.renderSearchBar(ViewEKSClusters); searchBar != "" {
-		b.WriteString(searchBar)
-		b.WriteString("\n")
+		rb.WriteLine(searchBar)
 	}
-	b.WriteString(m.renderEKSFooter())
+	rb.WriteString(m.renderEKSFooter())
 
 	// Status bar
-	b.WriteString("\n")
-	b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
+	rb.Newline()
+	rb.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 
-	return b.String()
+	return rb.String()
 }
 
 // calculateEKSVisibleRange calculates the visible range for EKS clusters

@@ -131,27 +131,14 @@ func (s *StatusAnimation) Update() (bool, string) {
 	return false, s.Message
 }
 
-// GetAnimatedStyle applies animation effects to styles based on progress
+// GetAnimatedStyle applies animation effects to styles based on progress.
+// NOTE: Animation effects are currently not visually applied as lipgloss
+// doesn't support opacity or dynamic color interpolation natively.
+// This function is kept as a hook for future animation support.
 func GetAnimatedStyle(baseStyle lipgloss.Style, animation *AnimationState) lipgloss.Style {
-	if animation == nil || animation.Completed {
-		return baseStyle
-	}
-
-	progress := animation.Progress()
-	easedProgress := EaseInOutCubic(progress)
-
-	switch animation.AnimationType {
-	case AnimationFadeIn:
-		// Apply fade-in effect by adjusting foreground color brightness
-		return baseStyle
-	case AnimationPulse:
-		// Create pulsing effect by cycling opacity
-		_ = (1.0 + easedProgress) / 2.0 // pulse value for future use
-		return baseStyle
-	case AnimationGlow:
-		// Add glow effect by brightening colors
-		return baseStyle
-	default:
-		return baseStyle
-	}
+	// Currently returns the base style unchanged.
+	// Future implementations could use terminal-specific escape codes
+	// or integrate with a more advanced styling library.
+	return baseStyle
 }
+

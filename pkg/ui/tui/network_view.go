@@ -7,23 +7,21 @@ import (
 	"github.com/johnlam90/aws-ssm/pkg/aws"
 )
 
-// renderNetworkInterfaces renders the network interfaces view
+// renderNetworkInterfaces renders the network interfaces view using pooled string builder
 func (m Model) renderNetworkInterfaces() string {
 	instances := m.getNetworkInterfaces()
 	if s := m.renderNetworkState(instances); s != "" {
 		return s
 	}
-	var b strings.Builder
+	rb := NewRenderBuffer()
 	header := m.renderHeader("Network Interfaces", fmt.Sprintf("%d instances", len(instances)))
-	b.WriteString(header)
-	b.WriteString("\n\n")
+	rb.WriteLine(header).Newline()
 
 	// Get responsive column widths based on terminal width
 	nameW, idW, dnsW, ifacesW := NetworkColumnWidths(m.width)
 
 	headerRow := fmt.Sprintf("  %-*s %-*s %-*s %*s", nameW, "NAME", idW, "INSTANCE ID", dnsW, "DNS NAME", ifacesW, "IFACES")
-	b.WriteString(TableHeaderStyle().Render(headerRow))
-	b.WriteString("\n")
+	rb.WriteLine(TableHeaderStyle().Render(headerRow))
 	cursor := clampIndex(m.cursor, len(instances))
 
 	// Calculate responsive vertical layout
@@ -39,55 +37,46 @@ func (m Model) renderNetworkInterfaces() string {
 		}
 		dns := normalizeValue(inst.DNSName, "n/a", dnsW)
 		row := fmt.Sprintf("  %-*s %-*s %-*s %*d", nameW, name, idW, id, dnsW, dns, ifacesW, len(inst.Interfaces))
-		b.WriteString(RenderSelectableRow(row, i == cursor))
-		b.WriteString("\n")
+		rb.WriteLine(RenderSelectableRow(row, i == cursor))
 	}
 
 	// Pagination indicator
 	if len(instances) > endIdx-startIdx {
-		b.WriteString(SubtitleStyle().Render(fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(instances))))
-		b.WriteString("\n")
+		rb.WriteLine(SubtitleStyle().Render(fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(instances))))
 	}
 
 	selected := instances[cursor]
-	b.WriteString("\n")
-	b.WriteString(SubtitleStyle().Render(fmt.Sprintf("Interfaces for %s (%s)", normalizeValue(selected.InstanceName, "(no name)", 0), selected.InstanceID)))
-	b.WriteString("\n")
-	b.WriteString(fmt.Sprintf("  DNS Name:   %s\n", normalizeValue(selected.DNSName, "n/a", 0)))
-	b.WriteString(fmt.Sprintf("  Interfaces: %d\n\n", len(selected.Interfaces)))
+	rb.Newline()
+	rb.WriteLine(SubtitleStyle().Render(fmt.Sprintf("Interfaces for %s (%s)", normalizeValue(selected.InstanceName, "(no name)", 0), selected.InstanceID)))
+	rb.WriteString(fmt.Sprintf("  DNS Name:   %s\n", normalizeValue(selected.DNSName, "n/a", 0)))
+	rb.WriteString(fmt.Sprintf("  Interfaces: %d\n\n", len(selected.Interfaces)))
 
 	// Render interface details with responsive height
 	interfaceDetailHeight := layout.DetailHeight - 4 // Subtract header lines
 	if len(selected.Interfaces) == 0 {
-		b.WriteString(HelpStyle().Render("No interfaces found for this instance"))
-		b.WriteString("\n")
+		rb.WriteLine(HelpStyle().Render("No interfaces found for this instance"))
 	} else {
 		widths := calculateInterfaceColumnWidths(selected.Interfaces, m.width)
-		b.WriteString(TableHeaderStyle().Render(formatInterfaceHeader(widths)))
-		b.WriteString("\n")
+		rb.WriteLine(TableHeaderStyle().Render(formatInterfaceHeader(widths)))
 		maxInterfaces := interfaceDetailHeight
 		if maxInterfaces < 1 {
 			maxInterfaces = 1
 		}
 		for i, iface := range selected.Interfaces {
 			if i >= maxInterfaces {
-				b.WriteString(HelpStyle().Render(fmt.Sprintf("    ... and %d more interfaces", len(selected.Interfaces)-i)))
-				b.WriteString("\n")
+				rb.WriteLine(HelpStyle().Render(fmt.Sprintf("    ... and %d more interfaces", len(selected.Interfaces)-i)))
 				break
 			}
-			b.WriteString(ListItemStyle().Render(formatInterfaceRow(iface, widths)))
-			b.WriteString("\n")
+			rb.WriteLine(ListItemStyle().Render(formatInterfaceRow(iface, widths)))
 		}
 	}
-	b.WriteString("\n")
+	rb.Newline()
 	if searchBar := m.renderSearchBar(ViewNetworkInterfaces); searchBar != "" {
-		b.WriteString(searchBar)
-		b.WriteString("\n")
+		rb.WriteLine(searchBar)
 	}
-	b.WriteString(m.renderNetworkFooter())
-	b.WriteString("\n")
-	b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
-	return b.String()
+	rb.WriteLine(m.renderNetworkFooter())
+	rb.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
+	return rb.String()
 }
 
 func (m Model) renderNetworkState(instances []aws.InstanceInterfaces) string {

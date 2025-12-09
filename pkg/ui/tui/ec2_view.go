@@ -6,42 +6,36 @@ import (
 	"time"
 )
 
-// renderEC2Instances renders the EC2 instances view
+// renderEC2Instances renders the EC2 instances view using pooled string builder
 func (m Model) renderEC2Instances() string {
-	var b strings.Builder
+	rb := NewRenderBuffer()
 
 	instances := m.getEC2Instances()
 
 	// Header
 	header := m.renderHeader("EC2 Instances", fmt.Sprintf("%d instances", len(instances)))
-	b.WriteString(header)
-	b.WriteString("\n\n")
+	rb.WriteLine(header).Newline()
 
 	// Show loading or error - minimal
 	if m.loading {
-		b.WriteString(m.renderLoading())
-		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
-		return b.String()
+		rb.WriteLine(m.renderLoading())
+		rb.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
+		return rb.String()
 	}
 
 	if m.err != nil {
-		b.WriteString(m.renderError())
-		b.WriteString("\n\n")
-		b.WriteString(HelpStyle().Render("esc:back"))
-		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
-		return b.String()
+		rb.WriteLine(m.renderError()).Newline()
+		rb.WriteLine(HelpStyle().Render("esc:back"))
+		rb.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
+		return rb.String()
 	}
 
 	// No instances
 	if len(instances) == 0 {
-		b.WriteString(SubtitleStyle().Render("No EC2 instances found"))
-		b.WriteString("\n\n")
-		b.WriteString(HelpStyle().Render("esc:back"))
-		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
-		return b.String()
+		rb.WriteLine(SubtitleStyle().Render("No EC2 instances found")).Newline()
+		rb.WriteLine(HelpStyle().Render("esc:back"))
+		rb.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
+		return rb.String()
 	}
 
 	cursor := clampIndex(m.cursor, len(instances))
@@ -52,8 +46,7 @@ func (m Model) renderEC2Instances() string {
 	// Table header - clean and aligned with responsive widths
 	headerRow := fmt.Sprintf("  %-*s %-*s %-*s %-*s %-*s",
 		nameW, "NAME", idW, "INSTANCE ID", ipW, "PRIVATE IP", stateW, "STATE", typeW, "TYPE")
-	b.WriteString(TableHeaderStyle().Render(headerRow))
-	b.WriteString("\n")
+	rb.WriteLine(TableHeaderStyle().Render(headerRow))
 
 	// Calculate responsive vertical layout
 	layout := EC2Layout(m.height)
@@ -74,39 +67,32 @@ func (m Model) renderEC2Instances() string {
 		row := fmt.Sprintf("  %-*s %-*s %-*s %s %-*s",
 			nameW, name, idW, inst.InstanceID, ipW, inst.PrivateIP, state, typeW, inst.InstanceType)
 
-		b.WriteString(RenderSelectableRow(row, i == cursor))
-		b.WriteString("\n")
+		rb.WriteLine(RenderSelectableRow(row, i == cursor))
 	}
 
 	// Pagination indicator
 	if len(instances) > endIdx-startIdx {
 		pageInfo := fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(instances))
-		b.WriteString("\n")
-		b.WriteString(SubtitleStyle().Render(pageInfo))
+		rb.Newline().WriteString(SubtitleStyle().Render(pageInfo))
 	}
 
 	selected := instances[cursor]
-	b.WriteString("\n")
+	rb.Newline()
 	detailTitle := fmt.Sprintf("%s (%s)", normalizeValue(selected.Name, "(no name)", 0), selected.InstanceID)
-	b.WriteString(SubtitleStyle().Render(detailTitle))
-	b.WriteString("\n")
-	b.WriteString(m.renderEC2DetailsResponsive(selected, layout.DetailHeight))
+	rb.WriteLine(SubtitleStyle().Render(detailTitle))
+	rb.WriteString(m.renderEC2DetailsResponsive(selected, layout.DetailHeight))
 
 	if searchBar := m.renderSearchBar(ViewEC2Instances); searchBar != "" {
-		b.WriteString("\n")
-		b.WriteString(searchBar)
-		b.WriteString("\n")
+		rb.Newline().WriteLine(searchBar)
 	}
 
 	// Footer
-	b.WriteString("\n")
-	b.WriteString(m.renderEC2Footer())
+	rb.Newline().WriteLine(m.renderEC2Footer())
 
 	// Status bar
-	b.WriteString("\n")
-	b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
+	rb.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 
-	return b.String()
+	return rb.String()
 }
 
 // renderEC2Footer renders the footer for EC2 view
