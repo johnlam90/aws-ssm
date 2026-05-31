@@ -33,10 +33,10 @@ func TestNewModel(t *testing.T) {
 	if model.currentView != ViewDashboard {
 		t.Error("Model should start in dashboard view")
 	}
-	// Phase 5 of the foundation redesign merged the Network
-	// Interfaces view into EC2; the dashboard menu drops to 5 entries.
-	if len(model.menuItems) != 5 {
-		t.Errorf("Model should have 5 menu items, got %d", len(model.menuItems))
+	// Phase 9: Home view's roll-up is the four resource types.
+	// Help moved to overlay/sidebar and is no longer a menu entry.
+	if len(model.menuItems) != 4 {
+		t.Errorf("Model should have 4 menu items, got %d", len(model.menuItems))
 	}
 	if model.cursor != 0 {
 		t.Error("Model cursor should start at 0")

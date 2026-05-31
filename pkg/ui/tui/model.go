@@ -74,40 +74,29 @@ func NewModel(ctx context.Context, client *aws.Client, config Config) Model {
 	// Initialize navigation manager
 	navigation := NewNavigationManager()
 
-	// Phase 5: ENI merged into EC2; dashboard menu drops the
-	// standalone Network Interfaces entry. ENIs now appear as a
-	// column on the EC2 list and as a section in the EC2 detail
-	// panel.
+	// Phase 9: dashboard becomes a Home view with a resources roll-up.
+	// Help is reachable via `?` (overlay) or the sidebar entry, so it
+	// no longer appears as a navigable row on Home.
 	menuItems := []MenuItem{
 		{
 			Title:       "EC2 Instances",
 			Description: "Manage EC2 instances and network interfaces",
 			View:        ViewEC2Instances,
-			Icon:        "",
 		},
 		{
 			Title:       "EKS Clusters",
 			Description: "Manage EKS clusters and node groups",
 			View:        ViewEKSClusters,
-			Icon:        "",
 		},
 		{
 			Title:       "Auto Scaling Groups",
 			Description: "View and scale ASGs",
 			View:        ViewASGs,
-			Icon:        "",
 		},
 		{
 			Title:       "EKS Node Groups",
 			Description: "Inspect managed node groups",
 			View:        ViewNodeGroups,
-			Icon:        "",
-		},
-		{
-			Title:       "Help",
-			Description: "View keybindings and help",
-			View:        ViewHelp,
-			Icon:        "",
 		},
 	}
 

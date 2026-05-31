@@ -25,16 +25,16 @@ func TestBeautifulDashboardRendering(t *testing.T) {
 	// chrome contributions like region, profile, navigation hints.
 	view := model.View()
 
-	if !strings.Contains(view, "Services") {
-		t.Error("Dashboard should contain 'Services' section title")
+	if !strings.Contains(view, "Resources in this region") {
+		t.Error("Home view should contain 'Resources in this region' section")
 	}
 
 	if !strings.Contains(view, "us-west-2") {
-		t.Error("View should contain region information (chrome top bar)")
+		t.Error("View should contain region information (chrome top bar or Home context)")
 	}
 
 	if !strings.Contains(view, "test-profile") {
-		t.Error("View should contain profile information (chrome top bar)")
+		t.Error("View should contain profile information")
 	}
 
 	if !strings.Contains(view, "aws-ssm") {
@@ -45,19 +45,18 @@ func TestBeautifulDashboardRendering(t *testing.T) {
 		t.Error("View should contain breadcrumb 'Home' (chrome top bar)")
 	}
 
-	// Service tiles are rendered by the dashboard's main panel.
-	// Phase 5 merged the standalone Network Interfaces view into EC2.
-	services := []string{"EC2 Instances", "EKS Clusters", "Auto Scaling Groups", "EKS Node Groups", "Help"}
-	for _, service := range services {
-		if !strings.Contains(view, service) {
-			t.Errorf("View should contain service '%s'", service)
+	// Phase 9: Home view rolls up the four resource types.
+	resources := []string{"EC2 Instances", "EKS Clusters", "Auto Scaling Groups", "EKS Node Groups"}
+	for _, resource := range resources {
+		if !strings.Contains(view, resource) {
+			t.Errorf("Home view should contain resource '%s'", resource)
 		}
 	}
 
-	// Bottom hint bar carries navigation hints.
-	for _, hint := range []string{"navigate", "select", "search", "help", "quit"} {
+	// Quick start tips reference the palette and search hotkeys.
+	for _, hint := range []string{"command palette", "filter the focused list", "refresh", "help"} {
 		if !strings.Contains(view, hint) {
-			t.Errorf("View should contain hint label %q (bottom hint bar)", hint)
+			t.Errorf("Home view should contain hint %q (Quick start)", hint)
 		}
 	}
 }
