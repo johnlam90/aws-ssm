@@ -295,6 +295,115 @@ func TestRenderNodeGroups_FitsTerminalHeightWhenScrolled(t *testing.T) {
 	}
 }
 
+func TestTableViews_FitTerminalHeightWhenScrolled(t *testing.T) {
+	tests := []struct {
+		name       string
+		setup      func() Model
+		render     func(Model) string
+		headerText []string
+	}{
+		{
+			name: "ec2",
+			setup: func() Model {
+				model := newScrolledRenderModel(ViewEC2Instances)
+				model.ec2Instances = make([]EC2Instance, 23)
+				for i := range model.ec2Instances {
+					model.ec2Instances[i] = EC2Instance{
+						Name:             fmt.Sprintf("instance-%02d", i),
+						InstanceID:       fmt.Sprintf("i-%017d", i),
+						State:            "running",
+						PrivateIP:        fmt.Sprintf("10.0.0.%d", i+1),
+						InstanceType:     "t3.micro",
+						AvailabilityZone: "us-east-1a",
+					}
+				}
+				return model
+			},
+			render:     Model.renderEC2Instances,
+			headerText: []string{"NAME", "INSTANCE ID"},
+		},
+		{
+			name: "eks",
+			setup: func() Model {
+				model := newScrolledRenderModel(ViewEKSClusters)
+				model.eksClusters = make([]EKSCluster, 23)
+				for i := range model.eksClusters {
+					model.eksClusters[i] = EKSCluster{
+						Name:    fmt.Sprintf("cluster-%02d", i),
+						Status:  "ACTIVE",
+						Version: "1.29",
+					}
+				}
+				return model
+			},
+			render:     Model.renderEKSClusters,
+			headerText: []string{"NAME", "STATUS", "VERSION"},
+		},
+		{
+			name: "asg",
+			setup: func() Model {
+				model := newScrolledRenderModel(ViewASGs)
+				model.asgs = make([]ASG, 23)
+				for i := range model.asgs {
+					model.asgs[i] = ASG{
+						Name:            fmt.Sprintf("asg-%02d", i),
+						DesiredCapacity: 3,
+						MinSize:         1,
+						MaxSize:         5,
+						CurrentSize:     3,
+					}
+				}
+				return model
+			},
+			render:     Model.renderASGs,
+			headerText: []string{"NAME", "DESIRED", "CURRENT"},
+		},
+		{
+			name: "network",
+			setup: func() Model {
+				model := newScrolledRenderModel(ViewNetworkInterfaces)
+				model.netInterfaces = make([]aws.InstanceInterfaces, 23)
+				for i := range model.netInterfaces {
+					model.netInterfaces[i] = aws.InstanceInterfaces{
+						InstanceID:   fmt.Sprintf("i-%017d", i),
+						InstanceName: fmt.Sprintf("instance-%02d", i),
+						DNSName:      fmt.Sprintf("ip-10-0-0-%d.ec2.internal", i+1),
+					}
+				}
+				return model
+			},
+			render:     Model.renderNetworkInterfaces,
+			headerText: []string{"NAME", "INSTANCE ID", "IFACES"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			model := tt.setup()
+			view := tt.render(model)
+			lines := strings.Split(strings.TrimSuffix(view, "\n"), "\n")
+			if len(lines) > model.height {
+				t.Fatalf("%s view rendered %d lines for height %d", tt.name, len(lines), model.height)
+			}
+			for _, header := range tt.headerText {
+				if !strings.Contains(view, header) {
+					t.Fatalf("%s table header should contain %q", tt.name, header)
+				}
+			}
+		})
+	}
+}
+
+func newScrolledRenderModel(view ViewMode) Model {
+	model := NewModel(context.Background(), &aws.Client{}, Config{})
+	model.currentView = view
+	model.ready = true
+	model.width = 120
+	model.height = 18
+	model.cursor = 15
+	return model
+}
+
 // Helper function
 func contains(s, substr string) bool {
 	for i := 0; i <= len(s)-len(substr); i++ {

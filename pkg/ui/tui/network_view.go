@@ -14,14 +14,18 @@ func (m Model) renderNetworkInterfaces() string {
 		return s
 	}
 	var b strings.Builder
+	cursor := clampIndex(m.cursor, len(instances))
+	selected := instances[cursor]
+	details := limitRenderedLines(renderNetworkDetails(selected, m.width), max(1, m.height-8))
+	visibleRows := calculateTableRows(m.height, 7, details)
+
 	header := m.renderHeader("Network Interfaces", fmt.Sprintf("%d instances", len(instances)))
 	b.WriteString(header)
 	b.WriteString("\n\n")
 	headerRow := fmt.Sprintf("  %-28s %-20s %-32s %6s", "NAME", "INSTANCE ID", "DNS NAME", "IFACES")
 	b.WriteString(TableHeaderStyle().Render(headerRow))
 	b.WriteString("\n")
-	cursor := clampIndex(m.cursor, len(instances))
-	startIdx, endIdx := calculateNetworkVisibleRange(len(instances), cursor, m.height-15)
+	startIdx, endIdx := calculateNetworkVisibleRange(len(instances), cursor, visibleRows)
 	for i := startIdx; i < endIdx; i++ {
 		inst := instances[i]
 		name := normalizeValue(inst.InstanceName, "(no name)", 28)
@@ -34,24 +38,8 @@ func (m Model) renderNetworkInterfaces() string {
 		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
-	selected := instances[cursor]
 	b.WriteString("\n")
-	b.WriteString(SubtitleStyle().Render(fmt.Sprintf("Interfaces for %s (%s)", normalizeValue(selected.InstanceName, "(no name)", 0), selected.InstanceID)))
-	b.WriteString("\n")
-	fmt.Fprintf(&b, "  DNS Name:   %s\n", normalizeValue(selected.DNSName, "n/a", 0))
-	fmt.Fprintf(&b, "  Interfaces: %d\n\n", len(selected.Interfaces))
-	if len(selected.Interfaces) == 0 {
-		b.WriteString(HelpStyle().Render("No interfaces found for this instance"))
-		b.WriteString("\n")
-	} else {
-		widths := calculateInterfaceColumnWidths(selected.Interfaces, m.width)
-		b.WriteString(TableHeaderStyle().Render(formatInterfaceHeader(widths)))
-		b.WriteString("\n")
-		for _, iface := range selected.Interfaces {
-			b.WriteString(ListItemStyle().Render(formatInterfaceRow(iface, widths)))
-			b.WriteString("\n")
-		}
-	}
+	b.WriteString(details)
 	b.WriteString("\n")
 	if searchBar := m.renderSearchBar(ViewNetworkInterfaces); searchBar != "" {
 		b.WriteString(searchBar)
@@ -61,6 +49,27 @@ func (m Model) renderNetworkInterfaces() string {
 	b.WriteString("\n")
 	b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 	return b.String()
+}
+
+func renderNetworkDetails(selected aws.InstanceInterfaces, width int) string {
+	var b strings.Builder
+	b.WriteString(SubtitleStyle().Render(fmt.Sprintf("Interfaces for %s (%s)", normalizeValue(selected.InstanceName, "(no name)", 0), selected.InstanceID)))
+	b.WriteString("\n")
+	fmt.Fprintf(&b, "  DNS Name:   %s\n", normalizeValue(selected.DNSName, "n/a", 0))
+	fmt.Fprintf(&b, "  Interfaces: %d\n\n", len(selected.Interfaces))
+	if len(selected.Interfaces) == 0 {
+		b.WriteString(HelpStyle().Render("No interfaces found for this instance"))
+		b.WriteString("\n")
+	} else {
+		widths := calculateInterfaceColumnWidths(selected.Interfaces, width)
+		b.WriteString(TableHeaderStyle().Render(formatInterfaceHeader(widths)))
+		b.WriteString("\n")
+		for _, iface := range selected.Interfaces {
+			b.WriteString(ListItemStyle().Render(formatInterfaceRow(iface, widths)))
+			b.WriteString("\n")
+		}
+	}
+	return strings.TrimSuffix(b.String(), "\n")
 }
 
 func (m Model) renderNetworkState(instances []aws.InstanceInterfaces) string {
@@ -94,22 +103,7 @@ func (m Model) renderNetworkState(instances []aws.InstanceInterfaces) string {
 }
 
 func calculateNetworkVisibleRange(total, cursor, visibleHeight int) (int, int) {
-	if visibleHeight < 5 {
-		return 0, total
-	}
-	start := cursor - visibleHeight/2
-	if start < 0 {
-		start = 0
-	}
-	end := start + visibleHeight
-	if end > total {
-		end = total
-		start = end - visibleHeight
-		if start < 0 {
-			start = 0
-		}
-	}
-	return start, end
+	return calculateBoundedVisibleRange(total, cursor, visibleHeight)
 }
 
 // renderNetworkFooter renders footer controls for the network view

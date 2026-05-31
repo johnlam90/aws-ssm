@@ -43,13 +43,18 @@ func (m Model) renderEKSClusters() string {
 		return b.String()
 	}
 
+	cursor := clampIndex(m.cursor, len(clusters))
+	visibleRows := calculateTableRows(m.height, 7, "")
+	startIdx, endIdx := calculateBoundedVisibleRange(len(clusters), cursor, visibleRows)
+
 	// Table header - clean and aligned
 	headerRow := fmt.Sprintf("  %-45s %-15s %-10s", "NAME", "STATUS", "VERSION")
 	b.WriteString(TableHeaderStyle().Render(headerRow))
 	b.WriteString("\n")
 
 	// Render clusters with proper alignment
-	for i, cluster := range clusters {
+	for i := startIdx; i < endIdx; i++ {
+		cluster := clusters[i]
 		// Truncate name if too long
 		name := cluster.Name
 		if len(name) > 45 {
@@ -59,7 +64,7 @@ func (m Model) renderEKSClusters() string {
 		status := StateStyle(cluster.Status)
 		row := fmt.Sprintf("  %-45s %-15s %-10s", name, status, cluster.Version)
 
-		b.WriteString(RenderSelectableRow(row, i == m.cursor))
+		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
 
