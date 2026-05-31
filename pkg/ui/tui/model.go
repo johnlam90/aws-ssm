@@ -8,10 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/johnlam90/aws-ssm/pkg/aws"
-	"github.com/johnlam90/aws-ssm/pkg/ui/tui/chrome"
-	"github.com/johnlam90/aws-ssm/pkg/ui/tui/layout"
 )
 
 // Model represents the main TUI model
@@ -60,9 +57,6 @@ type Model struct {
 	searchDebounce  *time.Timer
 	scaling         *ScalingState
 	ltUpdate        *LaunchTemplateUpdateState
-	palette         *PaletteState
-	helpOverlay     bool
-	hideDetail      bool
 	statusMessage   string
 	statusAnimation *StatusAnimation
 }
@@ -75,29 +69,42 @@ func NewModel(ctx context.Context, client *aws.Client, config Config) Model {
 	// Initialize navigation manager
 	navigation := NewNavigationManager()
 
-	// Phase 9: dashboard becomes a Home view with a resources roll-up.
-	// Help is reachable via `?` (overlay) or the sidebar entry, so it
-	// no longer appears as a navigable row on Home.
 	menuItems := []MenuItem{
 		{
 			Title:       "EC2 Instances",
-			Description: "Manage EC2 instances and network interfaces",
+			Description: "View and manage EC2 instances",
 			View:        ViewEC2Instances,
+			Icon:        "",
 		},
 		{
 			Title:       "EKS Clusters",
 			Description: "Manage EKS clusters and node groups",
 			View:        ViewEKSClusters,
+			Icon:        "",
 		},
 		{
 			Title:       "Auto Scaling Groups",
 			Description: "View and scale ASGs",
 			View:        ViewASGs,
+			Icon:        "",
 		},
 		{
 			Title:       "EKS Node Groups",
 			Description: "Inspect managed node groups",
 			View:        ViewNodeGroups,
+			Icon:        "",
+		},
+		{
+			Title:       "Network Interfaces",
+			Description: "View EC2 network interfaces and ENIs",
+			View:        ViewNetworkInterfaces,
+			Icon:        "",
+		},
+		{
+			Title:       "Help",
+			Description: "View keybindings and help",
+			View:        ViewHelp,
+			Icon:        "",
 		},
 	}
 
@@ -138,11 +145,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Palette wins over everything except hard modals — opening a
-	// modal always closes the palette implicitly via its own handler.
-	if m.palette != nil {
-		return m.handlePaletteKeys(msg)
-	}
 	if m.scaling != nil {
 		return m.handleScalingKeys(msg)
 	}
@@ -154,15 +156,6 @@ func (m Model) updateKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if handled {
 			return updated, searchCmd
 		}
-	}
-	// `:` opens the command palette from any non-input context.
-	if msg.String() == ":" {
-		return m.openPalette(), nil
-	}
-	// `i` toggles the detail block visibility on list views.
-	if msg.String() == "i" && isListView(m.currentView) {
-		m.hideDetail = !m.hideDetail
-		return m, nil
 	}
 	if msg.Type == tea.KeyEsc && !m.searchActive && strings.TrimSpace(m.getSearchQuery(m.currentView)) != "" {
 		m = m.clearSearchQuery(m.currentView)
@@ -208,72 +201,18 @@ func (m Model) updateNonKeyMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// View renders the current screen with a flat three-region layout:
-// top chrome bar, horizontal rule, main panel (full width), horizontal
-// rule, bottom hint bar. The sidebar was removed in the visual
-// overhaul because it duplicated the Home rollup; navigation now goes
-// through the command palette (`:`) and Mod+1..N hotkeys.
+// View renders the current view
 func (m Model) View() string {
 	if !m.ready {
 		return "Initializing..."
 	}
 
-	rects := layout.Compute(m.width, m.height)
-	if rects.Main.IsEmpty() {
-		return fmt.Sprintf(
-			"Terminal too small (%d×%d). Resize to at least %d×%d.",
-			m.width, m.height, layout.MinTerminalWidth, layout.MinTerminalHeight,
-		)
+	// Show loading spinner if loading
+	if m.loading {
+		return fmt.Sprintf("\n\n   %s %s\n\n", m.spinner.View(), m.loadingMsg)
 	}
 
-	top := chrome.RenderTopBar(chrome.TopBarInput{
-		Brand:      "aws-ssm",
-		Breadcrumb: m.breadcrumb(),
-		Region:     m.getRegion(),
-		Profile:    m.getProfile(),
-		Width:      rects.TopBar.Width,
-	})
-
-	mainRaw := m.renderMainPanel()
-	switch {
-	case m.palette != nil:
-		mainRaw = m.renderPalette()
-	case m.helpOverlay:
-		mainRaw = m.renderHelpOverlay()
-	}
-	mainContent := padOrFitMainPanel(mainRaw, rects.Main)
-
-	bottom := chrome.RenderBottomBar(chrome.BottomBarInput{
-		Hints:  m.hintsForView(),
-		Status: m.statusFooter(),
-		Width:  rects.BottomBar.Width,
-	})
-
-	rule := horizontalRule(rects.TopBar.Width)
-
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		top,
-		rule,
-		mainContent,
-		rule,
-		bottom,
-	)
-}
-
-// horizontalRule returns a single-line, full-width divider in muted
-// foreground color.
-func horizontalRule(width int) string {
-	if width <= 0 {
-		return ""
-	}
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#30363D")).
-		Render(strings.Repeat("─", width))
-}
-
-// renderMainPanel returns the per-view content for the main region.
-func (m Model) renderMainPanel() string {
+	// Render based on current view
 	switch m.currentView {
 	case ViewDashboard:
 		return m.renderDashboard()
@@ -294,130 +233,6 @@ func (m Model) renderMainPanel() string {
 	}
 }
 
-// isListView reports whether the given view is a resource list (and
-// therefore has a detail panel that the `i` key can toggle).
-func isListView(v ViewMode) bool {
-	switch v {
-	case ViewEC2Instances, ViewEKSClusters, ViewASGs, ViewNodeGroups, ViewNetworkInterfaces:
-		return true
-	default:
-		return false
-	}
-}
-
-// breadcrumb returns the chrome breadcrumb for the current view.
-func (m Model) breadcrumb() string {
-	if m.currentView == ViewDashboard {
-		return "Home"
-	}
-	return "Home ▸ " + m.currentView.String()
-}
-
-// mainWidth returns the inner content width of the main panel
-// region (after subtracting the 2-cell left inset baked into
-// padOrFitMainPanel). Per-view renderers use this to size their
-// table column allocators so content fits without overflow.
-func (m Model) mainWidth() int {
-	rects := layout.Compute(m.width, m.height)
-	w := rects.Main.Width - 2 // 2-cell left inset
-	if w < 1 {
-		return 1
-	}
-	return w
-}
-
-// hintsForView returns the bottom hint bar's per-view key hints.
-func (m Model) hintsForView() []chrome.Hint {
-	var view []chrome.Hint
-	switch m.currentView {
-	case ViewDashboard:
-		// Home has no list to navigate; surface the most useful
-		// global keys — palette and view shortcuts.
-		view = []chrome.Hint{
-			{Key: "↵", Label: "open palette"},
-		}
-	case ViewEC2Instances:
-		view = []chrome.Hint{
-			{Key: "↵", Label: "connect"},
-			{Key: "↑↓", Label: "navigate"},
-		}
-	case ViewEKSClusters:
-		view = []chrome.Hint{
-			{Key: "↵", Label: "details"},
-			{Key: "↑↓", Label: "navigate"},
-		}
-	case ViewASGs:
-		view = []chrome.Hint{
-			{Key: "↵", Label: "scale"},
-			{Key: "↑↓", Label: "navigate"},
-		}
-	case ViewNodeGroups:
-		view = []chrome.Hint{
-			{Key: "↵", Label: "scale"},
-			{Key: "u", Label: "update LT"},
-			{Key: "↑↓", Label: "navigate"},
-		}
-	case ViewNetworkInterfaces:
-		view = []chrome.Hint{
-			{Key: "↑↓", Label: "navigate"},
-		}
-	default:
-		view = nil
-	}
-	common := []chrome.Hint{
-		{Key: "/", Label: "search"},
-		{Key: ":", Label: "command"},
-		{Key: "r", Label: "refresh"},
-		{Key: "?", Label: "help"},
-		{Key: "q", Label: "quit"},
-	}
-	return append(view, common...)
-}
-
-// statusFooter returns the line under the hint bar — pagination,
-// selection state, or transient status messages.
-func (m Model) statusFooter() string {
-	if strings.TrimSpace(m.statusMessage) != "" {
-		return m.statusMessage
-	}
-	n := m.viewLength(m.currentView)
-	if n == 0 {
-		return ""
-	}
-	return fmt.Sprintf("%s · %d items · %s", m.currentView.String(), n, m.getRegion())
-}
-
-// padOrFitMainPanel pads or trims the per-view content so the main
-// region renders at exactly rect.Width × rect.Height. Each line is
-// inset by 2 cells on the left so content has clear left-margin
-// rhythm against the chrome rules above and below. Lines longer than
-// rect.Width are NOT truncated; the per-view code is expected to
-// have already targeted mainWidth(). Shorter lines are padded with
-// spaces. Extra rows are added (or excess rows truncated) to match
-// rect.Height.
-func padOrFitMainPanel(content string, rect layout.Rect) string {
-	if rect.IsEmpty() {
-		return ""
-	}
-	lines := strings.Split(content, "\n")
-	if len(lines) > rect.Height {
-		lines = lines[:rect.Height]
-	}
-	for len(lines) < rect.Height {
-		lines = append(lines, "")
-	}
-	for i, line := range lines {
-		inset := "  " + line
-		w := lipgloss.Width(inset)
-		if w < rect.Width {
-			lines[i] = inset + strings.Repeat(" ", rect.Width-w)
-		} else {
-			lines[i] = inset
-		}
-	}
-	return strings.Join(lines, "\n")
-}
-
 // handleKeyPress handles keyboard input using the navigation manager
 func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Use navigation manager to handle the key press
@@ -435,10 +250,11 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case NavHelp:
-		// Phase 10: help is now a global overlay reachable from any
-		// view; pressing `?` toggles it without manipulating the view
-		// stack.
-		m.helpOverlay = !m.helpOverlay
+		// Toggle help
+		if m.currentView == ViewHelp {
+			return m.navigateBack(), nil
+		}
+		m.pushView(ViewHelp)
 		return m, nil
 
 	case NavSearch:
@@ -591,14 +407,47 @@ func (m *Model) scheduleSSMSession(instanceID string) tea.Cmd {
 
 // Navigation handler methods
 
-// handleDashboardNavigation handles navigation actions for the Home
-// view. Since the rollup was removed, Up/Down/Enter on Home are
-// no-ops; users navigate by `:` palette or Mod+1..N hotkeys.
+// handleDashboardNavigation handles navigation actions for dashboard
 func (m Model) handleDashboardNavigation(action NavigationKey) (tea.Model, tea.Cmd) {
-	if action == NavSelect {
-		// Open the palette as a friendly default for someone hitting
-		// Enter on the Home view.
-		return m.openPalette(), nil
+	switch action {
+	case NavUp:
+		if m.cursor > 0 {
+			m.cursor--
+		}
+	case NavDown:
+		if m.cursor < len(m.menuItems)-1 {
+			m.cursor++
+		}
+	case NavSelect:
+		// Navigate to selected view
+		selectedItem := m.menuItems[m.cursor]
+		m.pushView(selectedItem.View)
+
+		// Load data for the selected view
+		var cmd tea.Cmd
+		switch selectedItem.View {
+		case ViewEC2Instances:
+			m.loading = true
+			m.loadingMsg = "Loading EC2 instances..."
+			cmd = LoadEC2InstancesCmd(m.ctx, m.client)
+		case ViewEKSClusters:
+			m.loading = true
+			m.loadingMsg = "Loading EKS clusters..."
+			cmd = LoadEKSClustersCmd(m.ctx, m.client)
+		case ViewASGs:
+			m.loading = true
+			m.loadingMsg = "Loading Auto Scaling Groups..."
+			cmd = LoadASGsCmd(m.ctx, m.client)
+		case ViewNodeGroups:
+			m.loading = true
+			m.loadingMsg = "Loading EKS node groups..."
+			cmd = LoadNodeGroupsCmd(m.ctx, m.client)
+		case ViewNetworkInterfaces:
+			m.loading = true
+			m.loadingMsg = "Loading network interfaces..."
+			cmd = LoadNetworkInterfacesCmd(m.ctx, m.client)
+		}
+		return m, cmd
 	}
 	return m, nil
 }
@@ -612,10 +461,7 @@ func (m Model) handleRefresh() (tea.Model, tea.Cmd) {
 	case ViewEC2Instances:
 		m.loading = true
 		m.loadingMsg = "Refreshing EC2 instances..."
-		cmd = tea.Batch(
-			LoadEC2InstancesCmd(m.ctx, m.client),
-			LoadNetworkInterfacesCmd(m.ctx, m.client),
-		)
+		cmd = LoadEC2InstancesCmd(m.ctx, m.client)
 	case ViewEKSClusters:
 		m.loading = true
 		m.loadingMsg = "Refreshing EKS clusters..."

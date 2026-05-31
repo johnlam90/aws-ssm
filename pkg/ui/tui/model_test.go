@@ -33,10 +33,8 @@ func TestNewModel(t *testing.T) {
 	if model.currentView != ViewDashboard {
 		t.Error("Model should start in dashboard view")
 	}
-	// menuItems is internal scaffolding kept around for legacy
-	// callers; it carries no UI semantics post visual overhaul.
-	if model.menuItems == nil {
-		t.Error("Model.menuItems should be initialized")
+	if len(model.menuItems) != 6 {
+		t.Error("Model should have 6 menu items")
 	}
 	if model.cursor != 0 {
 		t.Error("Model cursor should start at 0")
@@ -150,21 +148,17 @@ func TestHandleKeyPressHelp(t *testing.T) {
 	config := Config{}
 	model := NewModel(ctx, client, config)
 
-	// Phase 10: '?' toggles a help overlay rather than navigating to
-	// a separate ViewHelp screen. The current view is preserved.
+	// Test help toggle
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}}
 	newModel, _ := model.Update(msg)
-	if !newModel.(Model).helpOverlay {
-		t.Error("'?' should open the help overlay")
-	}
-	if newModel.(Model).currentView != ViewDashboard {
-		t.Error("'?' should not change the current view")
+	if newModel.(Model).currentView != ViewHelp {
+		t.Error("'?' should switch to help view")
 	}
 
-	// Toggle back closes the overlay.
-	newModel2, _ := newModel.Update(msg)
-	if newModel2.(Model).helpOverlay {
-		t.Error("second '?' should close the help overlay")
+	// Test help toggle back
+	_, cmd := newModel.Update(msg)
+	if cmd != nil {
+		t.Error("Second '?' should return to previous view")
 	}
 }
 
@@ -343,7 +337,7 @@ func TestTableViews_FitTerminalHeightWhenScrolled(t *testing.T) {
 				return model
 			},
 			render:     Model.renderEKSClusters,
-			headerText: []string{"NAME", "STATE", "VERSION"},
+			headerText: []string{"NAME", "STATUS", "VERSION"},
 		},
 		{
 			name: "asg",
@@ -362,7 +356,7 @@ func TestTableViews_FitTerminalHeightWhenScrolled(t *testing.T) {
 				return model
 			},
 			render:     Model.renderASGs,
-			headerText: []string{"NAME", "DES", "CUR"},
+			headerText: []string{"NAME", "DESIRED", "CURRENT"},
 		},
 		{
 			name: "network",

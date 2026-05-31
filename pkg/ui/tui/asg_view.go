@@ -3,43 +3,35 @@ package tui
 import (
 	"fmt"
 	"strings"
-	"time"
-
-	"github.com/johnlam90/aws-ssm/pkg/ui/tui/table"
 )
 
-// renderASGs renders the Auto Scaling Groups main-panel content.
+// renderASGs renders the Auto Scaling Groups view - minimal design
 func (m Model) renderASGs() string {
 	asgs := m.getASGs()
-
-	var search strings.Builder
-	search.WriteString(m.renderSearchBar(ViewASGs))
-	search.WriteString("\n")
-
-	if m.loading {
-		return search.String() + m.renderLoading()
+	if s := m.renderASGState(asgs); s != "" {
+		return s
 	}
-	if m.err != nil {
-		return search.String() + m.renderError()
-	}
-	if len(asgs) == 0 {
-		return search.String() + SubtitleStyle().Render("No Auto Scaling Groups found")
-	}
-
 	var b strings.Builder
-	b.WriteString(search.String())
 	cursor := clampIndex(m.cursor, len(asgs))
 	selected := asgs[cursor]
 	details := limitRenderedLines(m.renderASGDetails(selected), max(1, m.height-10))
 	visibleRows := calculateTableRows(m.height, 9, details)
 
-	cols := table.Allocate(asgColumns(), m.mainWidth())
-	b.WriteString(TableHeaderStyle().Render(table.FormatHeader(cols)))
+	header := m.renderHeader("Auto Scaling Groups", fmt.Sprintf("%d ASGs", len(asgs)))
+	b.WriteString(header)
+	b.WriteString("\n\n")
+	b.WriteString(TableHeaderStyle().Render(fmt.Sprintf("  %-50s %8s %8s %8s %8s",
+		"NAME", "DESIRED", "MIN", "MAX", "CURRENT")))
 	b.WriteString("\n")
-
 	startIdx, endIdx := m.calculateVisibleRange(len(asgs), cursor, visibleRows)
 	for i := startIdx; i < endIdx; i++ {
-		row := table.FormatRow(asgRowValues(asgs[i]), cols)
+		asg := asgs[i]
+		name := asg.Name
+		if len(name) > 50 {
+			name = name[:47] + "..."
+		}
+		row := fmt.Sprintf("  %-50s %8d %8d %8d %8d",
+			name, asg.DesiredCapacity, asg.MinSize, asg.MaxSize, asg.CurrentSize)
 		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
@@ -47,55 +39,86 @@ func (m Model) renderASGs() string {
 		b.WriteString("\n")
 		b.WriteString(SubtitleStyle().Render(fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(asgs))))
 	}
-	if !m.hideDetail {
-		b.WriteString("\n")
-		b.WriteString(SubtitleStyle().Render(selected.Name))
-		b.WriteString("\n")
-		b.WriteString(details)
-	}
-
+	b.WriteString("\n")
+	b.WriteString(SubtitleStyle().Render(selected.Name))
+	b.WriteString("\n")
+	b.WriteString(details)
+	b.WriteString("\n")
 	if overlay := m.renderScalingPrompt(ViewASGs); overlay != "" {
-		b.WriteString("\n")
 		b.WriteString(overlay)
+		b.WriteString("\n")
+	}
+	if searchBar := m.renderSearchBar(ViewASGs); searchBar != "" {
+		b.WriteString(searchBar)
+		b.WriteString("\n")
 	}
 	if status := m.renderStatusMessage(); status != "" {
-		b.WriteString("\n")
 		b.WriteString(status)
+		b.WriteString("\n")
 	}
-
+	b.WriteString(m.renderASGFooter())
+	b.WriteString("\n")
+	b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 	return b.String()
 }
 
-func asgColumns() []table.ColumnSpec {
-	return []table.ColumnSpec{
-		{Header: "NAME", MinWidth: 12, PrefWidth: 36, MaxWidth: 60, Align: "left"},
-		{Header: "STATE", MinWidth: 5, PrefWidth: 5, MaxWidth: 5, Align: "center"},
-		{Header: "DES", MinWidth: 3, PrefWidth: 5, MaxWidth: 6, Align: "right"},
-		{Header: "MIN", MinWidth: 3, PrefWidth: 5, MaxWidth: 6, Align: "right"},
-		{Header: "MAX", MinWidth: 3, PrefWidth: 5, MaxWidth: 6, Align: "right"},
-		{Header: "CUR", MinWidth: 3, PrefWidth: 5, MaxWidth: 6, Align: "right"},
-		{Header: "AGE", MinWidth: 3, PrefWidth: 5, MaxWidth: 8, Align: "right"},
+func (m Model) renderASGState(asgs []ASG) string {
+	var b strings.Builder
+	header := m.renderHeader("Auto Scaling Groups", fmt.Sprintf("%d ASGs", len(asgs)))
+	b.WriteString(header)
+	b.WriteString("\n\n")
+	if m.loading {
+		b.WriteString(m.renderLoading())
+		b.WriteString("\n")
+		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		return b.String()
 	}
-}
-
-func asgRowValues(a ASG) []string {
-	age := ""
-	if !a.CreatedAt.IsZero() {
-		age = humanDurationShort(time.Since(a.CreatedAt))
+	if m.err != nil {
+		b.WriteString(m.renderError())
+		b.WriteString("\n\n")
+		b.WriteString(HelpStyle().Render("esc:back"))
+		b.WriteString("\n")
+		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		return b.String()
 	}
-	return []string{
-		a.Name,
-		"  " + table.StateBadge(a.Status) + "  ",
-		fmt.Sprintf("%d", a.DesiredCapacity),
-		fmt.Sprintf("%d", a.MinSize),
-		fmt.Sprintf("%d", a.MaxSize),
-		fmt.Sprintf("%d", a.CurrentSize),
-		age,
+	if len(asgs) == 0 {
+		b.WriteString(SubtitleStyle().Render("No Auto Scaling Groups found"))
+		b.WriteString("\n\n")
+		b.WriteString(HelpStyle().Render("esc:back"))
+		b.WriteString("\n")
+		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		return b.String()
 	}
+	return ""
 }
 
 func (m Model) calculateVisibleRange(total, cursor, visibleHeight int) (int, int) {
 	return calculateBoundedVisibleRange(total, cursor, visibleHeight)
+}
+
+// renderASGFooter renders the footer for ASG view
+func (m Model) renderASGFooter() string {
+	keys := []struct {
+		key  string
+		desc string
+	}{
+		{"↑/k", "up"},
+		{"↓/j", "down"},
+		{"g/G", "top/bottom"},
+		{"enter", "scale"},
+		{"r", "refresh"},
+		{"/", "search"},
+		{"esc", "back"},
+	}
+
+	var parts []string
+	for _, k := range keys {
+		keyStyle := StatusBarKeyStyle().Render(k.key)
+		descStyle := StatusBarValueStyle().Render(k.desc)
+		parts = append(parts, fmt.Sprintf("%s %s", keyStyle, descStyle))
+	}
+
+	return HelpStyle().Render(strings.Join(parts, " • "))
 }
 
 func (m Model) renderASGDetails(asg ASG) string {

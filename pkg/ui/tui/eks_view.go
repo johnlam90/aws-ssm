@@ -3,85 +3,107 @@ package tui
 import (
 	"fmt"
 	"strings"
-
-	"github.com/johnlam90/aws-ssm/pkg/ui/tui/table"
 )
 
-// renderEKSClusters renders the EKS clusters main-panel content.
+// renderEKSClusters renders the EKS clusters view - minimal design
 func (m Model) renderEKSClusters() string {
 	var b strings.Builder
 
 	clusters := m.getEKSClusters()
 
-	b.WriteString(m.renderSearchBar(ViewEKSClusters))
-	b.WriteString("\n")
+	// Header - simple
+	header := m.renderHeader("EKS Clusters", fmt.Sprintf("%d clusters", len(clusters)))
+	b.WriteString(header)
+	b.WriteString("\n\n")
 
+	// Show loading or error - minimal
 	if m.loading {
 		b.WriteString(m.renderLoading())
+		b.WriteString("\n")
+		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
 		return b.String()
 	}
+
 	if m.err != nil {
 		b.WriteString(m.renderError())
+		b.WriteString("\n\n")
+		b.WriteString(HelpStyle().Render("esc:back"))
+		b.WriteString("\n")
+		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
 		return b.String()
 	}
+
+	// No clusters
 	if len(clusters) == 0 {
 		b.WriteString(SubtitleStyle().Render("No EKS clusters found"))
+		b.WriteString("\n\n")
+		b.WriteString(HelpStyle().Render("esc:back"))
+		b.WriteString("\n")
+		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
 		return b.String()
 	}
 
 	cursor := clampIndex(m.cursor, len(clusters))
-	selected := clusters[cursor]
-	details := limitRenderedLines(m.renderEKSDetails(selected), max(1, m.height-10))
-	visibleRows := calculateTableRows(m.height, 9, details)
+	visibleRows := calculateTableRows(m.height, 7, "")
 	startIdx, endIdx := calculateBoundedVisibleRange(len(clusters), cursor, visibleRows)
 
-	cols := table.Allocate(eksColumns(), m.mainWidth())
-	b.WriteString(TableHeaderStyle().Render(table.FormatHeader(cols)))
+	// Table header - clean and aligned
+	headerRow := fmt.Sprintf("  %-45s %-15s %-10s", "NAME", "STATUS", "VERSION")
+	b.WriteString(TableHeaderStyle().Render(headerRow))
 	b.WriteString("\n")
 
+	// Render clusters with proper alignment
 	for i := startIdx; i < endIdx; i++ {
-		row := table.FormatRow(eksRowValues(clusters[i]), cols)
+		cluster := clusters[i]
+		// Truncate name if too long
+		name := cluster.Name
+		if len(name) > 45 {
+			name = name[:42] + "..."
+		}
+
+		status := StateStyle(cluster.Status)
+		row := fmt.Sprintf("  %-45s %-15s %-10s", name, status, cluster.Version)
+
 		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
 
-	if !m.hideDetail {
+	// Footer
+	b.WriteString("\n")
+	if searchBar := m.renderSearchBar(ViewEKSClusters); searchBar != "" {
+		b.WriteString(searchBar)
 		b.WriteString("\n")
-		b.WriteString(SubtitleStyle().Render(selected.Name))
-		b.WriteString("\n")
-		b.WriteString(details)
 	}
+	b.WriteString(m.renderEKSFooter())
+
+	// Status bar
+	b.WriteString("\n")
+	b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 
 	return b.String()
 }
 
-func (m Model) renderEKSDetails(c EKSCluster) string {
-	var b strings.Builder
-
-	b.WriteString("  Cluster:\n")
-	fmt.Fprintf(&b, "    Status:  %s\n", StateStyle(strings.ToLower(c.Status)))
-	fmt.Fprintf(&b, "    Version: %s\n", normalizeValue(c.Version, "unknown", 0))
-
-	if strings.TrimSpace(c.Arn) != "" {
-		b.WriteString("\n  Identity:\n")
-		fmt.Fprintf(&b, "    ARN: %s\n", c.Arn)
+// renderEKSFooter renders the footer for EKS view
+func (m Model) renderEKSFooter() string {
+	keys := []struct {
+		key  string
+		desc string
+	}{
+		{"↑/k", "up"},
+		{"↓/j", "down"},
+		{"g/G", "top/bottom"},
+		{"enter", "details"},
+		{"r", "refresh"},
+		{"/", "search"},
+		{"esc", "back"},
 	}
 
-	return b.String()
-}
-
-func eksColumns() []table.ColumnSpec {
-	return []table.ColumnSpec{
-		{Header: "NAME", MinWidth: 12, PrefWidth: 32, MaxWidth: 50, Align: "left"},
-		{Header: "STATE", MinWidth: 5, PrefWidth: 5, MaxWidth: 5, Align: "center"},
-		{Header: "VERSION", MinWidth: 4, PrefWidth: 8, MaxWidth: 10, Align: "left"},
+	var parts []string
+	for _, k := range keys {
+		keyStyle := StatusBarKeyStyle().Render(k.key)
+		descStyle := StatusBarValueStyle().Render(k.desc)
+		parts = append(parts, fmt.Sprintf("%s %s", keyStyle, descStyle))
 	}
-}
 
-func eksRowValues(c EKSCluster) []string {
-	return []string{
-		c.Name,
-		"  " + table.StateBadge(c.Status) + "  ",
-		c.Version,
-	}
+	return HelpStyle().Render(strings.Join(parts, " • "))
 }

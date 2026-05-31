@@ -20,32 +20,71 @@ func TestBeautifulDashboardRendering(t *testing.T) {
 	model.height = 30
 	model.ready = true
 
-	// Phase 2: chrome (top bar, sidebar, bottom hint bar) is composed
-	// at the View() level. Assert on the full screen so we capture
-	// chrome contributions like region, profile, navigation hints.
-	view := model.View()
+	// Test dashboard rendering
+	view := model.renderDashboard()
 
-	if !strings.Contains(view, "us-west-2") {
-		t.Error("View should contain region information")
-	}
-	if !strings.Contains(view, "test-profile") {
-		t.Error("View should contain profile information")
-	}
-	if !strings.Contains(view, "aws-ssm") {
-		t.Error("View should contain app brand")
+	// Verify key components are present
+	if !strings.Contains(view, "AWS SSM Manager") {
+		t.Error("Dashboard should contain title 'AWS SSM Manager'")
 	}
 
-	// Tips block surfaces the palette + filter + help hotkeys.
-	for _, hint := range []string{"command palette", "filter the focused list", "show keybindings", "refresh"} {
-		if !strings.Contains(view, hint) {
-			t.Errorf("Home view should contain tip %q", hint)
+	if !strings.Contains(view, "Region: us-west-2") {
+		t.Error("Dashboard should contain region information")
+	}
+
+	if !strings.Contains(view, "Profile: test-profile") {
+		t.Error("Dashboard should contain profile information")
+	}
+
+	if !strings.Contains(view, "Services") {
+		t.Error("Dashboard should contain 'Services' section title")
+	}
+
+	// Verify services are present
+	services := []string{"EC2 Instances", "EKS Clusters", "Auto Scaling Groups", "EKS Node Groups", "Network Interfaces", "Help"}
+	for _, service := range services {
+		if !strings.Contains(view, service) {
+			t.Errorf("Dashboard should contain service '%s'", service)
 		}
+	}
+
+	// Verify navigation hints
+	if !strings.Contains(view, "Navigation:") {
+		t.Error("Dashboard should contain navigation hints")
+	}
+
+	if !strings.Contains(view, "↑/k") {
+		t.Error("Dashboard should contain up navigation hint")
+	}
+
+	if !strings.Contains(view, "↓/j") {
+		t.Error("Dashboard should contain down navigation hint")
+	}
+
+	// Verify separator lines are present
+	if !strings.Contains(view, "────────────────────────────────────────────────────────────────────────────────") {
+		t.Error("Dashboard should contain horizontal separator lines")
 	}
 }
 
-// Selection rendering test removed — Home no longer has a rollup, so
-// there's nothing to "select" via cursor on the Home view. Selection
-// is exercised by the per-resource list view tests.
+func TestDashboardSelectionRendering(t *testing.T) {
+	// Create a test model with selection
+	ctx := context.Background()
+	config := Config{NoColor: false}
+
+	model := NewModel(ctx, nil, config)
+	model.width = 120
+	model.height = 30
+	model.ready = true
+	model.cursor = 2 // Select third item (Auto Scaling Groups)
+
+	view := model.renderDashboard()
+
+	// Verify selection indicator is present
+	if !strings.Contains(view, "▌") {
+		t.Error("Selected item should show vertical bar indicator")
+	}
+}
 
 func TestDashboardDescriptionNormalization(t *testing.T) {
 	ctx := context.Background()

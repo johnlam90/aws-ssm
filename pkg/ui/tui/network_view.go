@@ -5,72 +5,50 @@ import (
 	"strings"
 
 	"github.com/johnlam90/aws-ssm/pkg/aws"
-	"github.com/johnlam90/aws-ssm/pkg/ui/tui/table"
 )
 
-// renderNetworkInterfaces renders the network interfaces main-panel content.
+// renderNetworkInterfaces renders the network interfaces view
 func (m Model) renderNetworkInterfaces() string {
 	instances := m.getNetworkInterfaces()
-
-	var search strings.Builder
-	search.WriteString(m.renderSearchBar(ViewNetworkInterfaces))
-	search.WriteString("\n")
-
 	if s := m.renderNetworkState(instances); s != "" {
-		return search.String() + s
+		return s
 	}
 	var b strings.Builder
-	b.WriteString(search.String())
 	cursor := clampIndex(m.cursor, len(instances))
 	selected := instances[cursor]
 	details := limitRenderedLines(renderNetworkDetails(selected, m.width), max(1, m.height-8))
 	visibleRows := calculateTableRows(m.height, 7, details)
 
-	cols := table.Allocate(networkColumns(), m.mainWidth())
-	b.WriteString(TableHeaderStyle().Render(table.FormatHeader(cols)))
+	header := m.renderHeader("Network Interfaces", fmt.Sprintf("%d instances", len(instances)))
+	b.WriteString(header)
+	b.WriteString("\n\n")
+	headerRow := fmt.Sprintf("  %-28s %-20s %-32s %6s", "NAME", "INSTANCE ID", "DNS NAME", "IFACES")
+	b.WriteString(TableHeaderStyle().Render(headerRow))
 	b.WriteString("\n")
-
 	startIdx, endIdx := calculateNetworkVisibleRange(len(instances), cursor, visibleRows)
 	for i := startIdx; i < endIdx; i++ {
-		row := table.FormatRow(networkRowValues(instances[i]), cols)
+		inst := instances[i]
+		name := normalizeValue(inst.InstanceName, "(no name)", 28)
+		id := inst.InstanceID
+		if id == "" {
+			id = "unknown"
+		}
+		dns := normalizeValue(inst.DNSName, "n/a", 32)
+		row := fmt.Sprintf("  %-28s %-20s %-32s %6d", name, id, dns, len(inst.Interfaces))
 		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
-	if !m.hideDetail {
+	b.WriteString("\n")
+	b.WriteString(details)
+	b.WriteString("\n")
+	if searchBar := m.renderSearchBar(ViewNetworkInterfaces); searchBar != "" {
+		b.WriteString(searchBar)
 		b.WriteString("\n")
-		b.WriteString(details)
 	}
+	b.WriteString(m.renderNetworkFooter())
+	b.WriteString("\n")
+	b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 	return b.String()
-}
-
-func networkColumns() []table.ColumnSpec {
-	return []table.ColumnSpec{
-		{Header: "NAME", MinWidth: 10, PrefWidth: 24, MaxWidth: 32, Align: "left"},
-		{Header: "INSTANCE ID", MinWidth: 19, PrefWidth: 19, MaxWidth: 19, Align: "left"},
-		{Header: "DNS NAME", MinWidth: 14, PrefWidth: 28, MaxWidth: 40, Align: "left"},
-		{Header: "IFACES", MinWidth: 6, PrefWidth: 6, MaxWidth: 8, Align: "right"},
-	}
-}
-
-func networkRowValues(inst aws.InstanceInterfaces) []string {
-	name := inst.InstanceName
-	if name == "" {
-		name = "(no name)"
-	}
-	id := inst.InstanceID
-	if id == "" {
-		id = "unknown"
-	}
-	dns := inst.DNSName
-	if dns == "" {
-		dns = "n/a"
-	}
-	return []string{
-		name,
-		id,
-		dns,
-		fmt.Sprintf("%d", len(inst.Interfaces)),
-	}
 }
 
 func renderNetworkDetails(selected aws.InstanceInterfaces, width int) string {
@@ -95,20 +73,61 @@ func renderNetworkDetails(selected aws.InstanceInterfaces, width int) string {
 }
 
 func (m Model) renderNetworkState(instances []aws.InstanceInterfaces) string {
+	var b strings.Builder
+	header := m.renderHeader("Network Interfaces", fmt.Sprintf("%d instances", len(instances)))
+	b.WriteString(header)
+	b.WriteString("\n\n")
 	if m.loading {
-		return m.renderLoading()
+		b.WriteString(m.renderLoading())
+		b.WriteString("\n")
+		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		return b.String()
 	}
 	if m.err != nil {
-		return m.renderError()
+		b.WriteString(m.renderError())
+		b.WriteString("\n\n")
+		b.WriteString(HelpStyle().Render("esc:back"))
+		b.WriteString("\n")
+		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		return b.String()
 	}
 	if len(instances) == 0 {
-		return SubtitleStyle().Render("No instances with network interfaces")
+		b.WriteString(SubtitleStyle().Render("No instances with network interfaces"))
+		b.WriteString("\n\n")
+		b.WriteString(HelpStyle().Render("esc:back"))
+		b.WriteString("\n")
+		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
+		return b.String()
 	}
 	return ""
 }
 
 func calculateNetworkVisibleRange(total, cursor, visibleHeight int) (int, int) {
 	return calculateBoundedVisibleRange(total, cursor, visibleHeight)
+}
+
+// renderNetworkFooter renders footer controls for the network view
+func (m Model) renderNetworkFooter() string {
+	keys := []struct {
+		key  string
+		desc string
+	}{
+		{"↑/k", "up"},
+		{"↓/j", "down"},
+		{"g/G", "top/bottom"},
+		{"r", "refresh"},
+		{"/", "search"},
+		{"esc", "back"},
+	}
+
+	var parts []string
+	for _, k := range keys {
+		keyStyle := StatusBarKeyStyle().Render(k.key)
+		descStyle := StatusBarValueStyle().Render(k.desc)
+		parts = append(parts, fmt.Sprintf("%s %s", keyStyle, descStyle))
+	}
+
+	return HelpStyle().Render(strings.Join(parts, " • "))
 }
 
 type interfaceColumnWidths struct {
@@ -122,7 +141,7 @@ type interfaceColumnWidths struct {
 
 func (w interfaceColumnWidths) totalWidth() int {
 	const indent = 2
-	const columnSpacing = 5
+	const columnSpacing = 5 // Six columns, five gaps
 	return indent + columnSpacing + w.iface + w.card + w.device + w.subnet + w.cidr + w.sg
 }
 
