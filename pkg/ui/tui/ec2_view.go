@@ -45,6 +45,8 @@ func (m Model) renderEC2Instances() string {
 	}
 
 	cursor := clampIndex(m.cursor, len(instances))
+	selected := instances[cursor]
+	details := limitRenderedLines(m.renderEC2Details(selected), max(1, m.height-10))
 
 	// Table header - clean and aligned
 	headerRow := fmt.Sprintf("  %-32s %-20s %-15s %-12s %-15s",
@@ -53,28 +55,8 @@ func (m Model) renderEC2Instances() string {
 	b.WriteString("\n")
 
 	// Calculate visible range for pagination
-	visibleHeight := m.height - 14 // Reserve space for header, footer, status, details
-	if visibleHeight < 5 {
-		visibleHeight = len(instances)
-	}
-	startIdx := 0
-	endIdx := len(instances)
-
-	if len(instances) > visibleHeight {
-		// Center the cursor in the visible area
-		startIdx = cursor - visibleHeight/2
-		if startIdx < 0 {
-			startIdx = 0
-		}
-		endIdx = startIdx + visibleHeight
-		if endIdx > len(instances) {
-			endIdx = len(instances)
-			startIdx = endIdx - visibleHeight
-			if startIdx < 0 {
-				startIdx = 0
-			}
-		}
-	}
+	visibleHeight := calculateTableRows(m.height, 9, details)
+	startIdx, endIdx := calculateBoundedVisibleRange(len(instances), cursor, visibleHeight)
 
 	// Render instances with proper alignment
 	for i := startIdx; i < endIdx; i++ {
@@ -102,12 +84,11 @@ func (m Model) renderEC2Instances() string {
 		b.WriteString(SubtitleStyle().Render(pageInfo))
 	}
 
-	selected := instances[cursor]
 	b.WriteString("\n")
 	detailTitle := fmt.Sprintf("%s (%s)", normalizeValue(selected.Name, "(no name)", 0), selected.InstanceID)
 	b.WriteString(SubtitleStyle().Render(detailTitle))
 	b.WriteString("\n")
-	b.WriteString(m.renderEC2Details(selected))
+	b.WriteString(details)
 
 	if searchBar := m.renderSearchBar(ViewEC2Instances); searchBar != "" {
 		b.WriteString("\n")

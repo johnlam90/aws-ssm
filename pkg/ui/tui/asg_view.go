@@ -12,14 +12,18 @@ func (m Model) renderASGs() string {
 		return s
 	}
 	var b strings.Builder
+	cursor := clampIndex(m.cursor, len(asgs))
+	selected := asgs[cursor]
+	details := limitRenderedLines(m.renderASGDetails(selected), max(1, m.height-10))
+	visibleRows := calculateTableRows(m.height, 9, details)
+
 	header := m.renderHeader("Auto Scaling Groups", fmt.Sprintf("%d ASGs", len(asgs)))
 	b.WriteString(header)
 	b.WriteString("\n\n")
 	b.WriteString(TableHeaderStyle().Render(fmt.Sprintf("  %-50s %8s %8s %8s %8s",
 		"NAME", "DESIRED", "MIN", "MAX", "CURRENT")))
 	b.WriteString("\n")
-	cursor := clampIndex(m.cursor, len(asgs))
-	startIdx, endIdx := m.calculateVisibleRange(len(asgs), cursor, m.height-14)
+	startIdx, endIdx := m.calculateVisibleRange(len(asgs), cursor, visibleRows)
 	for i := startIdx; i < endIdx; i++ {
 		asg := asgs[i]
 		name := asg.Name
@@ -35,11 +39,10 @@ func (m Model) renderASGs() string {
 		b.WriteString("\n")
 		b.WriteString(SubtitleStyle().Render(fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(asgs))))
 	}
-	selected := asgs[cursor]
 	b.WriteString("\n")
 	b.WriteString(SubtitleStyle().Render(selected.Name))
 	b.WriteString("\n")
-	b.WriteString(m.renderASGDetails(selected))
+	b.WriteString(details)
 	b.WriteString("\n")
 	if overlay := m.renderScalingPrompt(ViewASGs); overlay != "" {
 		b.WriteString(overlay)
@@ -90,22 +93,7 @@ func (m Model) renderASGState(asgs []ASG) string {
 }
 
 func (m Model) calculateVisibleRange(total, cursor, visibleHeight int) (int, int) {
-	if visibleHeight < 5 {
-		return 0, total
-	}
-	start := cursor - visibleHeight/2
-	if start < 0 {
-		start = 0
-	}
-	end := start + visibleHeight
-	if end > total {
-		end = total
-		start = end - visibleHeight
-		if start < 0 {
-			start = 0
-		}
-	}
-	return start, end
+	return calculateBoundedVisibleRange(total, cursor, visibleHeight)
 }
 
 // renderASGFooter renders the footer for ASG view

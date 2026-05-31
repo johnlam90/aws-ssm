@@ -73,3 +73,67 @@ func renderTagLines(tags map[string]string, skipKeys ...string) []string {
 	}
 	return lines
 }
+
+func countRenderedLines(s string) int {
+	s = strings.TrimSuffix(s, "\n")
+	if s == "" {
+		return 0
+	}
+	return strings.Count(s, "\n") + 1
+}
+
+func limitRenderedLines(s string, maxLines int) string {
+	s = strings.TrimSuffix(s, "\n")
+	if s == "" || maxLines <= 0 {
+		return ""
+	}
+
+	lines := strings.Split(s, "\n")
+	if len(lines) <= maxLines {
+		return s
+	}
+	if maxLines == 1 {
+		return "  ..."
+	}
+
+	limited := append([]string{}, lines[:maxLines-1]...)
+	limited = append(limited, "  ...")
+	return strings.Join(limited, "\n")
+}
+
+func calculateTableRows(terminalHeight, fixedLines int, details string) int {
+	if terminalHeight <= 0 {
+		return 5
+	}
+	rows := terminalHeight - fixedLines - countRenderedLines(details)
+	if rows < 1 {
+		return 1
+	}
+	return rows
+}
+
+func calculateBoundedVisibleRange(total, cursor, visibleHeight int) (int, int) {
+	if total <= 0 {
+		return 0, 0
+	}
+	if visibleHeight < 1 {
+		visibleHeight = 1
+	}
+	if visibleHeight >= total {
+		return 0, total
+	}
+
+	start := cursor - visibleHeight/2
+	if start < 0 {
+		start = 0
+	}
+	end := start + visibleHeight
+	if end > total {
+		end = total
+		start = end - visibleHeight
+		if start < 0 {
+			start = 0
+		}
+	}
+	return start, end
+}

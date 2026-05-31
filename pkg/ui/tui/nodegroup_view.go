@@ -107,13 +107,6 @@ func calculateNodeGroupTableRows(terminalHeight int, details string) int {
 	return rows
 }
 
-func countRenderedLines(s string) int {
-	if s == "" {
-		return 0
-	}
-	return strings.Count(strings.TrimSuffix(s, "\n"), "\n") + 1
-}
-
 // renderNodeGroupState renders loading/error/empty states
 func (m Model) renderNodeGroupState(groups []NodeGroup) string {
 	var b strings.Builder
@@ -146,28 +139,7 @@ func (m Model) renderNodeGroupState(groups []NodeGroup) string {
 }
 
 func calculateNodeGroupVisibleRange(total, cursor, visibleHeight int) (int, int) {
-	if total <= 0 {
-		return 0, 0
-	}
-	if visibleHeight < 1 {
-		visibleHeight = 1
-	}
-	if visibleHeight >= total {
-		return 0, total
-	}
-	start := cursor - visibleHeight/2
-	if start < 0 {
-		start = 0
-	}
-	end := start + visibleHeight
-	if end > total {
-		end = total
-		start = end - visibleHeight
-		if start < 0 {
-			start = 0
-		}
-	}
-	return start, end
+	return calculateBoundedVisibleRange(total, cursor, visibleHeight)
 }
 
 // renderNodeGroupFooter renders footer controls for node group view
