@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/johnlam90/aws-ssm/pkg/ui/tui/table"
@@ -26,7 +27,9 @@ func (m Model) renderEKSClusters() string {
 	}
 
 	cursor := clampIndex(m.cursor, len(clusters))
-	visibleRows := calculateTableRows(m.height, 7, "")
+	selected := clusters[cursor]
+	details := limitRenderedLines(m.renderEKSDetails(selected), max(1, m.height-10))
+	visibleRows := calculateTableRows(m.height, 9, details)
 	startIdx, endIdx := calculateBoundedVisibleRange(len(clusters), cursor, visibleRows)
 
 	cols := table.Allocate(eksColumns(), m.mainWidth())
@@ -39,9 +42,29 @@ func (m Model) renderEKSClusters() string {
 		b.WriteString("\n")
 	}
 
+	b.WriteString("\n")
+	b.WriteString(SubtitleStyle().Render(selected.Name))
+	b.WriteString("\n")
+	b.WriteString(details)
+
 	if searchBar := m.renderSearchBar(ViewEKSClusters); searchBar != "" {
 		b.WriteString("\n")
 		b.WriteString(searchBar)
+	}
+
+	return b.String()
+}
+
+func (m Model) renderEKSDetails(c EKSCluster) string {
+	var b strings.Builder
+
+	b.WriteString("  Cluster:\n")
+	fmt.Fprintf(&b, "    Status:  %s\n", StateStyle(strings.ToLower(c.Status)))
+	fmt.Fprintf(&b, "    Version: %s\n", normalizeValue(c.Version, "unknown", 0))
+
+	if strings.TrimSpace(c.Arn) != "" {
+		b.WriteString("\n  Identity:\n")
+		fmt.Fprintf(&b, "    ARN: %s\n", c.Arn)
 	}
 
 	return b.String()
