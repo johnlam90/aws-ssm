@@ -46,7 +46,8 @@ func TestBeautifulDashboardRendering(t *testing.T) {
 	}
 
 	// Service tiles are rendered by the dashboard's main panel.
-	services := []string{"EC2 Instances", "EKS Clusters", "Auto Scaling Groups", "EKS Node Groups", "Network Interfaces", "Help"}
+	// Phase 5 merged the standalone Network Interfaces view into EC2.
+	services := []string{"EC2 Instances", "EKS Clusters", "Auto Scaling Groups", "EKS Node Groups", "Help"}
 	for _, service := range services {
 		if !strings.Contains(view, service) {
 			t.Errorf("View should contain service '%s'", service)

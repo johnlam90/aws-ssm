@@ -132,12 +132,42 @@ func filterEC2View(m Model, query string) Model {
 	}
 	var filtered []EC2Instance
 	for _, inst := range m.ec2Instances {
-		if ec2MatchesQuery(inst, query) {
+		if m.ec2InstanceMatches(inst, query) {
 			filtered = append(filtered, inst)
 		}
 	}
 	m.filteredEC2 = filtered
 	return m
+}
+
+// ec2InstanceMatches is the model-aware EC2 query matcher. Phase 5
+// added interface-scoped tokens (subnet:, cidr:, sg:, eni:) which are
+// resolved against the per-instance interface cache, so the matcher
+// needs the model. For tokenless queries it falls back to the
+// pure-data ec2TextSearch.
+func (m Model) ec2InstanceMatches(inst EC2Instance, query string) bool {
+	query = strings.ToLower(strings.TrimSpace(query))
+	tokens := parseTokens(query)
+	if len(tokens) == 0 {
+		return ec2TextSearch(inst, query)
+	}
+
+	ifaces := m.interfacesForInstance(inst.InstanceID)
+	for _, t := range tokens {
+		key := strings.ToLower(t[0])
+		value := strings.ToLower(t[1])
+		switch key {
+		case "subnet", "cidr", "sg", "securitygroup", "eni":
+			if !ec2InterfaceTokenMatches(ifaces, key, value) {
+				return false
+			}
+		default:
+			if !ec2TokenMatches(inst, key, value) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func filterEKSView(m Model, query string) Model {
@@ -325,6 +355,39 @@ func ec2MatchesQuery(inst EC2Instance, query string) bool {
 		return ec2TokensMatch(inst, tokens)
 	}
 	return ec2TextSearch(inst, query)
+}
+
+// ec2InterfaceTokenMatches checks subnet/cidr/sg/eni tokens against a
+// list of network interfaces (post Phase-5 ENI merge). Returns true if
+// any of the provided interfaces contains the value.
+func ec2InterfaceTokenMatches(ifaces []aws.NetworkInterface, key, value string) bool {
+	switch key {
+	case "subnet":
+		for _, iface := range ifaces {
+			if strings.Contains(strings.ToLower(iface.SubnetID), value) {
+				return true
+			}
+		}
+	case "cidr":
+		for _, iface := range ifaces {
+			if strings.Contains(strings.ToLower(iface.CIDR), value) {
+				return true
+			}
+		}
+	case "sg", "securitygroup":
+		for _, iface := range ifaces {
+			if strings.Contains(strings.ToLower(iface.SecurityGroup), value) {
+				return true
+			}
+		}
+	case "eni":
+		for _, iface := range ifaces {
+			if strings.Contains(strings.ToLower(iface.InterfaceName), value) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func ec2TokenMatches(inst EC2Instance, key, value string) bool {

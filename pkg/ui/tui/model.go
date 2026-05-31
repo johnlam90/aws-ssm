@@ -73,10 +73,14 @@ func NewModel(ctx context.Context, client *aws.Client, config Config) Model {
 	// Initialize navigation manager
 	navigation := NewNavigationManager()
 
+	// Phase 5: ENI merged into EC2; dashboard menu drops the
+	// standalone Network Interfaces entry. ENIs now appear as a
+	// column on the EC2 list and as a section in the EC2 detail
+	// panel.
 	menuItems := []MenuItem{
 		{
 			Title:       "EC2 Instances",
-			Description: "View and manage EC2 instances",
+			Description: "Manage EC2 instances and network interfaces",
 			View:        ViewEC2Instances,
 			Icon:        "",
 		},
@@ -96,12 +100,6 @@ func NewModel(ctx context.Context, client *aws.Client, config Config) Model {
 			Title:       "EKS Node Groups",
 			Description: "Inspect managed node groups",
 			View:        ViewNodeGroups,
-			Icon:        "",
-		},
-		{
-			Title:       "Network Interfaces",
-			Description: "View EC2 network interfaces and ENIs",
-			View:        ViewNetworkInterfaces,
 			Icon:        "",
 		},
 		{
@@ -286,6 +284,12 @@ func (m Model) mainWidth() int {
 
 // sidebarItems returns the sidebar entry list with the focus flag set
 // on the entry matching the current view.
+//
+// Phase 5 of the foundation redesign merged the standalone ENI view
+// into EC2 (interfaces appear as a column + detail section on EC2),
+// so the sidebar drops the ENI entry. The ViewNetworkInterfaces enum
+// value remains in code as a safety net for direct navigations; a
+// later cleanup phase deletes it.
 func (m Model) sidebarItems() []sidebar.Item {
 	items := []sidebar.Item{
 		{Icon: "⬡", Label: "Home", Count: -1},
@@ -293,7 +297,6 @@ func (m Model) sidebarItems() []sidebar.Item {
 		{Icon: "☸", Label: "EKS", Count: len(m.eksClusters)},
 		{Icon: "⚖", Label: "ASG", Count: len(m.asgs)},
 		{Icon: "⛁", Label: "NG", Count: len(m.nodeGroups)},
-		{Icon: "⌥", Label: "ENI", Count: len(m.netInterfaces)},
 		{Icon: "?", Label: "Help", Count: -1},
 	}
 
@@ -301,7 +304,8 @@ func (m Model) sidebarItems() []sidebar.Item {
 	switch m.currentView {
 	case ViewDashboard:
 		idx = 0
-	case ViewEC2Instances:
+	case ViewEC2Instances, ViewNetworkInterfaces:
+		// ENI redirects to EC2's sidebar focus.
 		idx = 1
 	case ViewEKSClusters:
 		idx = 2
@@ -309,10 +313,8 @@ func (m Model) sidebarItems() []sidebar.Item {
 		idx = 3
 	case ViewNodeGroups:
 		idx = 4
-	case ViewNetworkInterfaces:
-		idx = 5
 	case ViewHelp:
-		idx = 6
+		idx = 5
 	}
 	if idx >= 0 && idx < len(items) {
 		items[idx].Focus = true
@@ -592,17 +594,21 @@ func (m Model) handleDashboardNavigation(action NavigationKey) (tea.Model, tea.C
 			m.cursor++
 		}
 	case NavSelect:
-		// Navigate to selected view
 		selectedItem := m.menuItems[m.cursor]
 		m.pushView(selectedItem.View)
 
-		// Load data for the selected view
 		var cmd tea.Cmd
 		switch selectedItem.View {
 		case ViewEC2Instances:
 			m.loading = true
 			m.loadingMsg = "Loading EC2 instances..."
-			cmd = LoadEC2InstancesCmd(m.ctx, m.client)
+			// Phase 5: load EC2 instances and their network
+			// interfaces in parallel so the ENI count column and
+			// Interfaces detail section populate together.
+			cmd = tea.Batch(
+				LoadEC2InstancesCmd(m.ctx, m.client),
+				LoadNetworkInterfacesCmd(m.ctx, m.client),
+			)
 		case ViewEKSClusters:
 			m.loading = true
 			m.loadingMsg = "Loading EKS clusters..."
@@ -616,9 +622,16 @@ func (m Model) handleDashboardNavigation(action NavigationKey) (tea.Model, tea.C
 			m.loadingMsg = "Loading EKS node groups..."
 			cmd = LoadNodeGroupsCmd(m.ctx, m.client)
 		case ViewNetworkInterfaces:
+			// ENI redirect: route to EC2 (interfaces are now part of
+			// the EC2 detail block). Defensive fallback for any code
+			// path that still selects ViewNetworkInterfaces.
+			m.currentView = ViewEC2Instances
 			m.loading = true
-			m.loadingMsg = "Loading network interfaces..."
-			cmd = LoadNetworkInterfacesCmd(m.ctx, m.client)
+			m.loadingMsg = "Loading EC2 instances..."
+			cmd = tea.Batch(
+				LoadEC2InstancesCmd(m.ctx, m.client),
+				LoadNetworkInterfacesCmd(m.ctx, m.client),
+			)
 		}
 		return m, cmd
 	}
@@ -634,7 +647,10 @@ func (m Model) handleRefresh() (tea.Model, tea.Cmd) {
 	case ViewEC2Instances:
 		m.loading = true
 		m.loadingMsg = "Refreshing EC2 instances..."
-		cmd = LoadEC2InstancesCmd(m.ctx, m.client)
+		cmd = tea.Batch(
+			LoadEC2InstancesCmd(m.ctx, m.client),
+			LoadNetworkInterfacesCmd(m.ctx, m.client),
+		)
 	case ViewEKSClusters:
 		m.loading = true
 		m.loadingMsg = "Refreshing EKS clusters..."

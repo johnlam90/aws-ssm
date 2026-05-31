@@ -25,7 +25,7 @@ func (m Model) renderDashboard() string {
 
 	sectionTitle := DashboardSectionTitleStyle().Render("Services")
 	b.WriteString(sectionTitle)
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 
 	for i, item := range m.menuItems {
 		menuItem := m.renderDashboardMenuItem(i, item, i == m.cursor)

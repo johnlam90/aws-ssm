@@ -13,12 +13,9 @@ import (
 
 // Color tokens duplicated locally; see chrome package for rationale.
 var (
-	colorAccent      = lipgloss.Color("#58A6FF")
-	colorPrimary     = lipgloss.Color("#E6EDF3")
+	colorPrimary     = lipgloss.Color("#FFFFFF")
 	colorSecondary   = lipgloss.Color("#C9D1D9")
-	colorMuted       = lipgloss.Color("#8B949E")
-	colorBackground  = lipgloss.Color("#161B22")
-	colorHighlightBg = lipgloss.Color("#1F2A3D")
+	colorHighlightBg = lipgloss.Color("#264F78")
 )
 
 // Item is one entry in the sidebar.
@@ -55,18 +52,6 @@ func Render(width, height int, items []Item) string {
 }
 
 func renderItem(item Item, width int) string {
-	indicator := " "
-	labelStyle := lipgloss.NewStyle().Foreground(colorSecondary)
-	countStyle := lipgloss.NewStyle().Foreground(colorMuted)
-
-	if item.Focus {
-		indicator = lipgloss.NewStyle().Foreground(colorAccent).Bold(true).Render("┃")
-		labelStyle = lipgloss.NewStyle().Foreground(colorPrimary).Background(colorHighlightBg).Bold(true)
-		countStyle = lipgloss.NewStyle().Foreground(colorPrimary).Background(colorHighlightBg)
-	} else {
-		_ = colorBackground // reserved for future inactive-rail backdrop
-	}
-
 	icon := item.Icon
 	if icon == "" {
 		icon = " "
@@ -77,16 +62,19 @@ func renderItem(item Item, width int) string {
 		countStr = fmt.Sprintf("%d", item.Count)
 	}
 
-	// Layout: " ┃ <icon> <label>     <count> "
-	// width is typically 14. Indicator (1) + space (1) + icon (1) +
-	// space (1) + label (variable) + count (right-aligned) + trailing space.
-	const fixed = 5 // indicator + 2 spaces + icon + space
-	available := width - fixed
+	// Layout (full mode, width=14):
+	//   " ┃ <icon> <label>     <count> "
+	// indicator(1) + space(1) + icon(1) + space(1) + label(N) + space + count(M) + trailing space
+	const fixed = 4                // indicator + space + icon + space
+	available := width - fixed - 1 // -1 trailing space
 	if available < 0 {
 		available = 0
 	}
 
 	labelW := available - lipgloss.Width(countStr) - 1
+	if countStr == "" {
+		labelW = available
+	}
 	if labelW < 0 {
 		labelW = 0
 	}
@@ -101,14 +89,31 @@ func renderItem(item Item, width int) string {
 		pad = 0
 	}
 
-	body := indicator + " " + icon + " " + labelStyle.Render(label) + strings.Repeat(" ", pad)
-	if countStr != "" {
-		body += " " + countStyle.Render(countStr)
-	} else if available > 0 {
-		body += strings.Repeat(" ", lipgloss.Width(countStr)+1)
+	// Build the body without per-segment styles, then apply a single
+	// row-wide style. This eliminates the visual seam between the
+	// indicator and the rest of the row when the entry is focused.
+	indicatorChar := " "
+	if item.Focus {
+		indicatorChar = "┃"
 	}
 
-	return padRight(body, width)
+	body := indicatorChar + " " + icon + " " + label + strings.Repeat(" ", pad)
+	if countStr != "" {
+		body += " " + countStr
+	}
+	body = padRight(body, width)
+
+	if item.Focus {
+		return lipgloss.NewStyle().
+			Foreground(colorPrimary).
+			Background(colorHighlightBg).
+			Bold(true).
+			Render(body)
+	}
+
+	return lipgloss.NewStyle().
+		Foreground(colorSecondary).
+		Render(body)
 }
 
 func padRight(s string, width int) string {

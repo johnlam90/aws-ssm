@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/johnlam90/aws-ssm/pkg/aws"
 	"github.com/johnlam90/aws-ssm/pkg/ui/tui/table"
 )
 
@@ -40,7 +41,7 @@ func (m Model) renderEC2Instances() string {
 
 	for i := startIdx; i < endIdx; i++ {
 		inst := instances[i]
-		row := table.FormatRow(ec2RowValues(inst), cols)
+		row := table.FormatRow(m.ec2RowValues(inst), cols)
 		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
@@ -66,11 +67,14 @@ func ec2Columns() []table.ColumnSpec {
 		{Header: "PRIV IP", MinWidth: 9, PrefWidth: 13, MaxWidth: 15, Align: "left"},
 		{Header: "STATE", MinWidth: 5, PrefWidth: 5, MaxWidth: 5, Align: "center"},
 		{Header: "TYPE", MinWidth: 6, PrefWidth: 10, MaxWidth: 16, Align: "left"},
+		{Header: "ENIs", MinWidth: 4, PrefWidth: 4, MaxWidth: 4, Align: "right"},
 		{Header: "AGE", MinWidth: 3, PrefWidth: 5, MaxWidth: 8, Align: "right"},
 	}
 }
 
-func ec2RowValues(inst EC2Instance) []string {
+// ec2RowValues now reads from the model's network-interface cache so
+// the ENI count column shows live data when interfaces are loaded.
+func (m Model) ec2RowValues(inst EC2Instance) []string {
 	name := inst.Name
 	if name == "" {
 		name = "(no name)"
@@ -79,14 +83,35 @@ func ec2RowValues(inst EC2Instance) []string {
 	if !inst.LaunchTime.IsZero() {
 		age = humanDurationShort(time.Since(inst.LaunchTime))
 	}
+	eniCount := "—"
+	if ifaces := m.interfacesForInstance(inst.InstanceID); ifaces != nil {
+		eniCount = fmt.Sprintf("%d", len(ifaces))
+	}
 	return []string{
 		name,
 		inst.InstanceID,
 		inst.PrivateIP,
 		"  " + table.StateBadge(inst.State) + "  ",
 		inst.InstanceType,
+		eniCount,
 		age,
 	}
+}
+
+// interfacesForInstance returns the cached network interfaces for the
+// given instance ID, or nil if none have been loaded. The lookup is
+// linear; given typical fleet sizes (<5k instances) the cost is
+// negligible. A future optimization could maintain an index map.
+func (m Model) interfacesForInstance(instanceID string) []aws.NetworkInterface {
+	if instanceID == "" {
+		return nil
+	}
+	for _, ii := range m.netInterfaces {
+		if ii.InstanceID == instanceID {
+			return ii.Interfaces
+		}
+	}
+	return nil
 }
 
 // humanDurationShort returns a single-token age like "3d", "12h",
@@ -144,6 +169,20 @@ func (m Model) renderEC2Details(inst EC2Instance) string {
 		}
 	} else {
 		b.WriteString("    • no security groups detected\n")
+	}
+
+	if ifaces := m.interfacesForInstance(inst.InstanceID); len(ifaces) > 0 {
+		b.WriteString("\n  Interfaces (")
+		fmt.Fprintf(&b, "%d):\n", len(ifaces))
+		widths := calculateInterfaceColumnWidths(ifaces, m.mainWidth())
+		b.WriteString("    ")
+		b.WriteString(TableHeaderStyle().Render(formatInterfaceHeader(widths)))
+		b.WriteString("\n")
+		for _, iface := range ifaces {
+			b.WriteString("    ")
+			b.WriteString(ListItemStyle().Render(formatInterfaceRow(iface, widths)))
+			b.WriteString("\n")
+		}
 	}
 
 	if lines := renderTagLines(inst.Tags, "Name"); len(lines) > 0 {
