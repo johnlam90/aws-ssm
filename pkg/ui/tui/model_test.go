@@ -150,17 +150,21 @@ func TestHandleKeyPressHelp(t *testing.T) {
 	config := Config{}
 	model := NewModel(ctx, client, config)
 
-	// Test help toggle
+	// Phase 10: '?' toggles a help overlay rather than navigating to
+	// a separate ViewHelp screen. The current view is preserved.
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}}
 	newModel, _ := model.Update(msg)
-	if newModel.(Model).currentView != ViewHelp {
-		t.Error("'?' should switch to help view")
+	if !newModel.(Model).helpOverlay {
+		t.Error("'?' should open the help overlay")
+	}
+	if newModel.(Model).currentView != ViewDashboard {
+		t.Error("'?' should not change the current view")
 	}
 
-	// Test help toggle back
-	_, cmd := newModel.Update(msg)
-	if cmd != nil {
-		t.Error("Second '?' should return to previous view")
+	// Toggle back closes the overlay.
+	newModel2, _ := newModel.Update(msg)
+	if newModel2.(Model).helpOverlay {
+		t.Error("second '?' should close the help overlay")
 	}
 }
 

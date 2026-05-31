@@ -62,6 +62,7 @@ type Model struct {
 	scaling         *ScalingState
 	ltUpdate        *LaunchTemplateUpdateState
 	palette         *PaletteState
+	helpOverlay     bool
 	statusMessage   string
 	statusAnimation *StatusAnimation
 }
@@ -231,12 +232,15 @@ func (m Model) View() string {
 
 	sideContent := sidebar.Render(rects.Sidebar.Width, rects.Sidebar.Height, m.sidebarItems())
 
-	// When the palette is open, replace the main panel content with
-	// the centered overlay. This keeps chrome (top + sidebar + bottom)
-	// visible so the user retains context while typing a command.
+	// Overlays replace the main panel content while open; chrome
+	// (top + sidebar + bottom) stays visible so the user keeps
+	// context. Palette wins over help.
 	mainRaw := m.renderMainPanel()
-	if m.palette != nil {
+	switch {
+	case m.palette != nil:
 		mainRaw = m.renderPalette()
+	case m.helpOverlay:
+		mainRaw = m.renderHelpOverlay()
 	}
 	mainContent := padOrFitMainPanel(mainRaw, rects.Main)
 
@@ -433,11 +437,10 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case NavHelp:
-		// Toggle help
-		if m.currentView == ViewHelp {
-			return m.navigateBack(), nil
-		}
-		m.pushView(ViewHelp)
+		// Phase 10: help is now a global overlay reachable from any
+		// view; pressing `?` toggles it without manipulating the view
+		// stack.
+		m.helpOverlay = !m.helpOverlay
 		return m, nil
 
 	case NavSearch:
