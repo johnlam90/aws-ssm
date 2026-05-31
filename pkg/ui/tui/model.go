@@ -504,6 +504,11 @@ func (m Model) handleEC2Navigation(action NavigationKey) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) applyCursorMovement(length int, action NavigationKey) Model {
+	if length <= 0 {
+		m.cursor = 0
+		return m
+	}
+
 	switch action {
 	case NavUp:
 		if m.cursor > 0 {
@@ -526,7 +531,7 @@ func (m Model) applyCursorMovement(length int, action NavigationKey) Model {
 }
 
 func (m Model) ec2Connect(instances []EC2Instance) (tea.Model, tea.Cmd) {
-	if m.cursor >= len(instances) {
+	if m.cursor < 0 || m.cursor >= len(instances) {
 		return m, nil
 	}
 	inst := instances[m.cursor]
@@ -538,7 +543,7 @@ func (m Model) ec2Connect(instances []EC2Instance) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) ec2Details(instances []EC2Instance) Model {
-	if m.cursor < len(instances) {
+	if m.cursor >= 0 && m.cursor < len(instances) {
 		m.statusMessage = fmt.Sprintf("Instance %s details: %s", instances[m.cursor].InstanceID, instances[m.cursor].State)
 	}
 	return m
@@ -561,24 +566,10 @@ func (m Model) handleEKSNavigation(action NavigationKey) (tea.Model, tea.Cmd) {
 	clusters := m.getEKSClusters()
 
 	switch action {
-	case NavUp:
-		if m.cursor > 0 {
-			m.cursor--
-		}
-	case NavDown:
-		if m.cursor < len(clusters)-1 {
-			m.cursor++
-		}
-	case NavHome:
-		m.cursor = 0
-	case NavEnd:
-		m.cursor = len(clusters) - 1
-	case NavPageUp:
-		m.cursor = max(0, m.cursor-10)
-	case NavPageDown:
-		m.cursor = min(len(clusters)-1, m.cursor+10)
+	case NavUp, NavDown, NavHome, NavEnd, NavPageUp, NavPageDown:
+		return m.applyCursorMovement(len(clusters), action), nil
 	case NavSelect:
-		if m.cursor < len(clusters) {
+		if m.cursor >= 0 && m.cursor < len(clusters) {
 			clusterName := clusters[m.cursor].Name
 			m.pushView(ViewNodeGroups)
 			m.loading = true
@@ -586,7 +577,7 @@ func (m Model) handleEKSNavigation(action NavigationKey) (tea.Model, tea.Cmd) {
 			return m, LoadNodeGroupsCmd(m.ctx, m.client)
 		}
 	case NavDetails:
-		if m.cursor < len(clusters) {
+		if m.cursor >= 0 && m.cursor < len(clusters) {
 			m.statusMessage = fmt.Sprintf("Cluster %s details: %s",
 				clusters[m.cursor].Name, clusters[m.cursor].Status)
 		}
@@ -599,29 +590,15 @@ func (m Model) handleASGNavigation(action NavigationKey) (tea.Model, tea.Cmd) {
 	asgs := m.getASGs()
 
 	switch action {
-	case NavUp:
-		if m.cursor > 0 {
-			m.cursor--
-		}
-	case NavDown:
-		if m.cursor < len(asgs)-1 {
-			m.cursor++
-		}
-	case NavHome:
-		m.cursor = 0
-	case NavEnd:
-		m.cursor = len(asgs) - 1
-	case NavPageUp:
-		m.cursor = max(0, m.cursor-10)
-	case NavPageDown:
-		m.cursor = min(len(asgs)-1, m.cursor+10)
+	case NavUp, NavDown, NavHome, NavEnd, NavPageUp, NavPageDown:
+		return m.applyCursorMovement(len(asgs), action), nil
 	case NavScale:
-		if m.cursor < len(asgs) {
+		if m.cursor >= 0 && m.cursor < len(asgs) {
 			asgs := m.getASGs()
 			m = m.startASGScaling(asgs[m.cursor])
 		}
 	case NavDetails:
-		if m.cursor < len(asgs) {
+		if m.cursor >= 0 && m.cursor < len(asgs) {
 			m.statusMessage = fmt.Sprintf("ASG %s details: %d instances",
 				asgs[m.cursor].Name, asgs[m.cursor].DesiredCapacity)
 		}
@@ -634,36 +611,22 @@ func (m Model) handleNodeGroupNavigation(action NavigationKey) (tea.Model, tea.C
 	groups := m.getNodeGroups()
 
 	switch action {
-	case NavUp:
-		if m.cursor > 0 {
-			m.cursor--
-		}
-	case NavDown:
-		if m.cursor < len(groups)-1 {
-			m.cursor++
-		}
-	case NavHome:
-		m.cursor = 0
-	case NavEnd:
-		m.cursor = len(groups) - 1
-	case NavPageUp:
-		m.cursor = max(0, m.cursor-10)
-	case NavPageDown:
-		m.cursor = min(len(groups)-1, m.cursor+10)
+	case NavUp, NavDown, NavHome, NavEnd, NavPageUp, NavPageDown:
+		return m.applyCursorMovement(len(groups), action), nil
 	case NavScale:
-		if m.cursor < len(groups) {
+		if m.cursor >= 0 && m.cursor < len(groups) {
 			groups := m.getNodeGroups()
 			m = m.startNodeGroupScaling(groups[m.cursor])
 		}
 	case NavSelect:
-		if m.cursor < len(groups) {
+		if m.cursor >= 0 && m.cursor < len(groups) {
 			groups := m.getNodeGroups()
 			var cmd tea.Cmd
 			m, cmd = m.startNodeGroupLaunchTemplateUpdate(groups[m.cursor])
 			return m, cmd
 		}
 	case NavDetails:
-		if m.cursor < len(groups) {
+		if m.cursor >= 0 && m.cursor < len(groups) {
 			m.statusMessage = fmt.Sprintf("Node group %s details: %s",
 				groups[m.cursor].Name, groups[m.cursor].Status)
 		}
@@ -680,7 +643,7 @@ func (m Model) handleNodeGroupLaunchTemplateShortcut(msg tea.KeyMsg) (tea.Model,
 	switch msg.String() {
 	case "u", "U":
 		groups := m.getNodeGroups()
-		if len(groups) == 0 || m.cursor >= len(groups) {
+		if len(groups) == 0 || m.cursor < 0 || m.cursor >= len(groups) {
 			return m, nil, true
 		}
 		var cmd tea.Cmd
@@ -696,24 +659,10 @@ func (m Model) handleNetworkInterfaceNavigation(action NavigationKey) (tea.Model
 	interfaces := m.getNetworkInterfaces()
 
 	switch action {
-	case NavUp:
-		if m.cursor > 0 {
-			m.cursor--
-		}
-	case NavDown:
-		if m.cursor < len(interfaces)-1 {
-			m.cursor++
-		}
-	case NavHome:
-		m.cursor = 0
-	case NavEnd:
-		m.cursor = len(interfaces) - 1
-	case NavPageUp:
-		m.cursor = max(0, m.cursor-10)
-	case NavPageDown:
-		m.cursor = min(len(interfaces)-1, m.cursor+10)
+	case NavUp, NavDown, NavHome, NavEnd, NavPageUp, NavPageDown:
+		return m.applyCursorMovement(len(interfaces), action), nil
 	case NavDetails:
-		if m.cursor < len(interfaces) {
+		if m.cursor >= 0 && m.cursor < len(interfaces) {
 			iface := interfaces[m.cursor]
 			m.statusMessage = fmt.Sprintf("Instance %s interfaces: %d total",
 				iface.InstanceID, len(iface.Interfaces))

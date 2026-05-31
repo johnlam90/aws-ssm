@@ -112,7 +112,7 @@ func (a *Assertion) Nil(value interface{}, message string) {
 	// Use reflection safely - only check IsNil for types that support it
 	rv := reflect.ValueOf(value)
 	switch rv.Kind() {
-	case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
+	case reflect.Pointer, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
 		if !rv.IsNil() {
 			a.errors = append(a.errors, fmt.Sprintf("Expected nil, but got %v: %s", value, message))
 			a.t.Errorf("ASSERTION_FAILED: Expected nil, but got %v: %s", value, message)
@@ -137,7 +137,7 @@ func (a *Assertion) NotNil(value interface{}, message string) {
 	// Use reflection safely - only check IsNil for types that support it
 	rv := reflect.ValueOf(value)
 	switch rv.Kind() {
-	case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
+	case reflect.Pointer, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
 		if rv.IsNil() {
 			a.errors = append(a.errors, fmt.Sprintf("Expected not nil, but got nil: %s", message))
 			a.t.Errorf("ASSERTION_FAILED: Expected not nil, but got nil: %s", message)

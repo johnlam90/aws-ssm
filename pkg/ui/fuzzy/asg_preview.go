@@ -33,14 +33,14 @@ func (r *ASGPreviewRenderer) Render(asg *ASGInfo, width, _ int) string {
 	// Basic information
 	preview.WriteString(r.colors.BoldColor("Basic Information:"))
 	preview.WriteString("\n")
-	preview.WriteString(fmt.Sprintf("  Name:              %s\n", asg.Name))
-	preview.WriteString(fmt.Sprintf("  Health Check:      %s\n", asg.HealthCheckType))
+	fmt.Fprintf(&preview, "  Name:              %s\n", asg.Name)
+	fmt.Fprintf(&preview, "  Health Check:      %s\n", asg.HealthCheckType)
 
 	if !asg.CreatedTime.IsZero() {
 		age := time.Since(asg.CreatedTime)
-		preview.WriteString(fmt.Sprintf("  Created:           %s (%s ago)\n",
+		fmt.Fprintf(&preview, "  Created:           %s (%s ago)\n",
 			asg.CreatedTime.Format("2006-01-02 15:04:05"),
-			r.formatDuration(age)))
+			r.formatDuration(age))
 	}
 
 	preview.WriteString("\n")
@@ -48,29 +48,29 @@ func (r *ASGPreviewRenderer) Render(asg *ASGInfo, width, _ int) string {
 	// Scaling configuration
 	preview.WriteString(r.colors.BoldColor("Scaling Configuration:"))
 	preview.WriteString("\n")
-	preview.WriteString(fmt.Sprintf("  Desired Capacity:  %d\n", asg.DesiredCapacity))
-	preview.WriteString(fmt.Sprintf("  Min Size:          %d\n", asg.MinSize))
-	preview.WriteString(fmt.Sprintf("  Max Size:          %d\n", asg.MaxSize))
-	preview.WriteString(fmt.Sprintf("  Current Size:      %d\n", asg.CurrentSize))
+	fmt.Fprintf(&preview, "  Desired Capacity:  %d\n", asg.DesiredCapacity)
+	fmt.Fprintf(&preview, "  Min Size:          %d\n", asg.MinSize)
+	fmt.Fprintf(&preview, "  Max Size:          %d\n", asg.MaxSize)
+	fmt.Fprintf(&preview, "  Current Size:      %d\n", asg.CurrentSize)
 
 	// Show scaling status
 	switch {
 	case asg.CurrentSize < asg.DesiredCapacity:
-		preview.WriteString(fmt.Sprintf("  %s Scaling up (%d → %d)\n",
+		fmt.Fprintf(&preview, "  %s Scaling up (%d → %d)\n",
 			r.colors.WarningColor("⚠"),
 			asg.CurrentSize,
-			asg.DesiredCapacity))
+			asg.DesiredCapacity)
 	case asg.CurrentSize > asg.DesiredCapacity:
-		preview.WriteString(fmt.Sprintf("  %s Scaling down (%d → %d)\n",
+		fmt.Fprintf(&preview, "  %s Scaling down (%d → %d)\n",
 			r.colors.WarningColor("⚠"),
 			asg.CurrentSize,
-			asg.DesiredCapacity))
+			asg.DesiredCapacity)
 	case asg.CurrentSize == asg.DesiredCapacity && asg.DesiredCapacity > 0:
-		preview.WriteString(fmt.Sprintf("  %s At desired capacity\n",
-			r.colors.SuccessColor("✓")))
+		fmt.Fprintf(&preview, "  %s At desired capacity\n",
+			r.colors.SuccessColor("✓"))
 	case asg.DesiredCapacity == 0:
-		preview.WriteString(fmt.Sprintf("  %s Scaled to zero\n",
-			r.colors.WarningColor("○")))
+		fmt.Fprintf(&preview, "  %s Scaled to zero\n",
+			r.colors.WarningColor("○"))
 	}
 
 	preview.WriteString("\n")
@@ -80,9 +80,9 @@ func (r *ASGPreviewRenderer) Render(asg *ASGInfo, width, _ int) string {
 	preview.WriteString("\n")
 	switch {
 	case asg.LaunchTemplateName != "":
-		preview.WriteString(fmt.Sprintf("  Launch Template:   %s\n", asg.LaunchTemplateName))
+		fmt.Fprintf(&preview, "  Launch Template:   %s\n", asg.LaunchTemplateName)
 	case asg.LaunchConfigurationName != "":
-		preview.WriteString(fmt.Sprintf("  Launch Config:     %s\n", asg.LaunchConfigurationName))
+		fmt.Fprintf(&preview, "  Launch Config:     %s\n", asg.LaunchConfigurationName)
 	default:
 		preview.WriteString("  Launch Config:     Not specified\n")
 	}
@@ -93,7 +93,7 @@ func (r *ASGPreviewRenderer) Render(asg *ASGInfo, width, _ int) string {
 		preview.WriteString(r.colors.BoldColor("Availability Zones:"))
 		preview.WriteString("\n")
 		for _, az := range asg.AvailabilityZones {
-			preview.WriteString(fmt.Sprintf("  • %s\n", az))
+			fmt.Fprintf(&preview, "  • %s\n", az)
 		}
 	}
 
@@ -103,7 +103,7 @@ func (r *ASGPreviewRenderer) Render(asg *ASGInfo, width, _ int) string {
 		preview.WriteString(r.colors.BoldColor("Tags:"))
 		preview.WriteString("\n")
 		for key, value := range asg.Tags {
-			preview.WriteString(fmt.Sprintf("  %s\n", r.colors.TagColor(key, value)))
+			fmt.Fprintf(&preview, "  %s\n", r.colors.TagColor(key, value))
 		}
 	}
 

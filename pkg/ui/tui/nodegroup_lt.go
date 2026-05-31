@@ -258,8 +258,8 @@ func (m Model) renderLaunchTemplatePrompt() string {
 	b.WriteString("\n")
 
 	ltName := normalizeValue(state.LaunchTemplateName, "n/a", 0)
-	b.WriteString(fmt.Sprintf("Template: %s\n", ltName))
-	b.WriteString(fmt.Sprintf("Current version: %s\n", normalizeValue(state.CurrentVersion, "n/a", 0)))
+	fmt.Fprintf(&b, "Template: %s\n", ltName)
+	fmt.Fprintf(&b, "Current version: %s\n", normalizeValue(state.CurrentVersion, "n/a", 0))
 	b.WriteString("\n")
 
 	switch {

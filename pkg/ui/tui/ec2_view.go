@@ -155,29 +155,29 @@ func (m Model) renderEC2Details(inst EC2Instance) string {
 	var b strings.Builder
 
 	b.WriteString("  Basic Info:\n")
-	b.WriteString(fmt.Sprintf("    State:       %s\n", StateStyle(strings.ToLower(inst.State))))
-	b.WriteString(fmt.Sprintf("    Type:        %s\n", normalizeValue(inst.InstanceType, "unknown", 0)))
-	b.WriteString(fmt.Sprintf("    AZ:          %s\n", normalizeValue(inst.AvailabilityZone, "unknown", 0)))
+	fmt.Fprintf(&b, "    State:       %s\n", StateStyle(strings.ToLower(inst.State)))
+	fmt.Fprintf(&b, "    Type:        %s\n", normalizeValue(inst.InstanceType, "unknown", 0))
+	fmt.Fprintf(&b, "    AZ:          %s\n", normalizeValue(inst.AvailabilityZone, "unknown", 0))
 	if !inst.LaunchTime.IsZero() {
-		b.WriteString(fmt.Sprintf("    Launch:      %s\n", formatRelativeTimestamp(inst.LaunchTime)))
-		b.WriteString(fmt.Sprintf("    Uptime:      %s\n", humanDuration(time.Since(inst.LaunchTime))))
+		fmt.Fprintf(&b, "    Launch:      %s\n", formatRelativeTimestamp(inst.LaunchTime))
+		fmt.Fprintf(&b, "    Uptime:      %s\n", humanDuration(time.Since(inst.LaunchTime)))
 	}
 
 	b.WriteString("\n  Network:\n")
-	b.WriteString(fmt.Sprintf("    Private IP:  %s\n", normalizeValue(inst.PrivateIP, "n/a", 0)))
-	b.WriteString(fmt.Sprintf("    Private DNS: %s\n", normalizeValue(inst.PrivateDNS, "n/a", 0)))
-	b.WriteString(fmt.Sprintf("    Public IP:   %s\n", normalizeValue(inst.PublicIP, "n/a", 0)))
-	b.WriteString(fmt.Sprintf("    Public DNS:  %s\n", normalizeValue(inst.PublicDNS, "n/a", 0)))
+	fmt.Fprintf(&b, "    Private IP:  %s\n", normalizeValue(inst.PrivateIP, "n/a", 0))
+	fmt.Fprintf(&b, "    Private DNS: %s\n", normalizeValue(inst.PrivateDNS, "n/a", 0))
+	fmt.Fprintf(&b, "    Public IP:   %s\n", normalizeValue(inst.PublicIP, "n/a", 0))
+	fmt.Fprintf(&b, "    Public DNS:  %s\n", normalizeValue(inst.PublicDNS, "n/a", 0))
 
 	b.WriteString("\n  Security:\n")
 	if inst.InstanceProfile != "" {
-		b.WriteString(fmt.Sprintf("    IAM Role:    %s\n", inst.InstanceProfile))
+		fmt.Fprintf(&b, "    IAM Role:    %s\n", inst.InstanceProfile)
 	} else {
 		b.WriteString("    IAM Role:    n/a\n")
 	}
 	if len(inst.SecurityGroups) > 0 {
 		for _, sg := range inst.SecurityGroups {
-			b.WriteString(fmt.Sprintf("    • %s\n", sg))
+			fmt.Fprintf(&b, "    • %s\n", sg)
 		}
 	} else {
 		b.WriteString("    • no security groups detected\n")

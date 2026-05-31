@@ -268,13 +268,13 @@ func (e *MultipleInstancesError) Error() string {
 // FormatInstanceList returns a formatted string listing all matching instances
 func (e *MultipleInstancesError) FormatInstanceList() string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("Found %d instances matching '%s':\n\n", len(e.Instances), e.Identifier))
+	fmt.Fprintf(&b, "Found %d instances matching '%s':\n\n", len(e.Instances), e.Identifier)
 	for i, inst := range e.Instances {
 		name := inst.Name
 		if name == "" {
 			name = "(no name)"
 		}
-		b.WriteString(fmt.Sprintf("%d. %s - %s [%s] - %s\n", i+1, inst.InstanceID, name, inst.State, inst.PrivateIP))
+		fmt.Fprintf(&b, "%d. %s - %s [%s] - %s\n", i+1, inst.InstanceID, name, inst.State, inst.PrivateIP)
 	}
 	if e.AllowInteractive {
 		b.WriteString("\nOpening interactive selector... (Esc to cancel)\n")

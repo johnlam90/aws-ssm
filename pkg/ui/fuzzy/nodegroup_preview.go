@@ -33,16 +33,16 @@ func (r *NodeGroupPreviewRenderer) Render(ng *NodeGroupInfo, width, _ int) strin
 	// Basic information
 	preview.WriteString(r.colors.BoldColor("Basic Information:"))
 	preview.WriteString("\n")
-	preview.WriteString(fmt.Sprintf("  Name:              %s\n", ng.Name))
-	preview.WriteString(fmt.Sprintf("  Cluster:           %s\n", ng.ClusterName))
-	preview.WriteString(fmt.Sprintf("  Status:            %s\n", r.formatStatus(ng.Status)))
-	preview.WriteString(fmt.Sprintf("  Version:           %s\n", ng.Version))
+	fmt.Fprintf(&preview, "  Name:              %s\n", ng.Name)
+	fmt.Fprintf(&preview, "  Cluster:           %s\n", ng.ClusterName)
+	fmt.Fprintf(&preview, "  Status:            %s\n", r.formatStatus(ng.Status))
+	fmt.Fprintf(&preview, "  Version:           %s\n", ng.Version)
 
 	if !ng.CreatedAt.IsZero() {
 		age := time.Since(ng.CreatedAt)
-		preview.WriteString(fmt.Sprintf("  Created:           %s (%s ago)\n",
+		fmt.Fprintf(&preview, "  Created:           %s (%s ago)\n",
 			ng.CreatedAt.Format("2006-01-02 15:04:05"),
-			r.formatDuration(age)))
+			r.formatDuration(age))
 	}
 
 	preview.WriteString("\n")
@@ -50,26 +50,27 @@ func (r *NodeGroupPreviewRenderer) Render(ng *NodeGroupInfo, width, _ int) strin
 	// Scaling configuration
 	preview.WriteString(r.colors.BoldColor("Scaling Configuration:"))
 	preview.WriteString("\n")
-	preview.WriteString(fmt.Sprintf("  Desired Size:      %d\n", ng.DesiredSize))
-	preview.WriteString(fmt.Sprintf("  Min Size:          %d\n", ng.MinSize))
-	preview.WriteString(fmt.Sprintf("  Max Size:          %d\n", ng.MaxSize))
-	preview.WriteString(fmt.Sprintf("  Current Size:      %d\n", ng.CurrentSize))
+	fmt.Fprintf(&preview, "  Desired Size:      %d\n", ng.DesiredSize)
+	fmt.Fprintf(&preview, "  Min Size:          %d\n", ng.MinSize)
+	fmt.Fprintf(&preview, "  Max Size:          %d\n", ng.MaxSize)
+	fmt.Fprintf(&preview, "  Current Size:      %d\n", ng.CurrentSize)
 
 	// Show scaling status
 	switch {
 	case ng.CurrentSize < ng.DesiredSize:
-		preview.WriteString(fmt.Sprintf("  %s Scaling up (%d → %d)\n",
+		fmt.Fprintf(&preview, "  %s Scaling up (%d → %d)\n",
 			r.colors.WarningColor("⚠"),
 			ng.CurrentSize,
-			ng.DesiredSize))
+			ng.DesiredSize)
 	case ng.CurrentSize > ng.DesiredSize:
-		preview.WriteString(fmt.Sprintf("  %s Scaling down (%d → %d)\n",
+		fmt.Fprintf(&preview, "  %s Scaling down (%d → %d)\n",
 			r.colors.WarningColor("⚠"),
 			ng.CurrentSize,
-			ng.DesiredSize))
+			ng.DesiredSize)
 	case ng.CurrentSize == ng.DesiredSize && ng.DesiredSize > 0:
-		preview.WriteString(fmt.Sprintf("  %s At desired capacity\n",
-			r.colors.SuccessColor("✓")))
+		fmt.Fprintf(&preview, "  %s At desired capacity\n",
+			r.colors.SuccessColor("✓"))
+
 	}
 
 	preview.WriteString("\n")
@@ -81,10 +82,10 @@ func (r *NodeGroupPreviewRenderer) Render(ng *NodeGroupInfo, width, _ int) strin
 	case len(ng.InstanceTypes) > 0:
 		preview.WriteString("  Instance Types:\n")
 		for _, instanceType := range ng.InstanceTypes {
-			preview.WriteString(fmt.Sprintf("    • %s\n", instanceType))
+			fmt.Fprintf(&preview, "    • %s\n", instanceType)
 		}
 	case ng.LaunchTemplateName != "":
-		preview.WriteString(fmt.Sprintf("  Launch Template:   %s\n", ng.LaunchTemplateName))
+		fmt.Fprintf(&preview, "  Launch Template:   %s\n", ng.LaunchTemplateName)
 		preview.WriteString("  Instance Types:    (defined in launch template)\n")
 	default:
 		preview.WriteString("  Instance Types:    Not specified\n")
@@ -96,7 +97,7 @@ func (r *NodeGroupPreviewRenderer) Render(ng *NodeGroupInfo, width, _ int) strin
 		preview.WriteString(r.colors.BoldColor("Tags:"))
 		preview.WriteString("\n")
 		for key, value := range ng.Tags {
-			preview.WriteString(fmt.Sprintf("  %s\n", r.colors.TagColor(key, value)))
+			fmt.Fprintf(&preview, "  %s\n", r.colors.TagColor(key, value))
 		}
 	}
 

@@ -137,28 +137,28 @@ func (m Model) renderASGDetails(asg ASG) string {
 	var b strings.Builder
 
 	b.WriteString("  Scaling:\n")
-	b.WriteString(fmt.Sprintf("    Desired: %d  Min: %d  Max: %d  Current: %d\n",
-		asg.DesiredCapacity, asg.MinSize, asg.MaxSize, asg.CurrentSize))
+	fmt.Fprintf(&b, "    Desired: %d  Min: %d  Max: %d  Current: %d\n",
+		asg.DesiredCapacity, asg.MinSize, asg.MaxSize, asg.CurrentSize)
 	if asg.Status != "" {
-		b.WriteString(fmt.Sprintf("    Status:  %s\n", StateStyle(strings.ToLower(asg.Status))))
+		fmt.Fprintf(&b, "    Status:  %s\n", StateStyle(strings.ToLower(asg.Status)))
 	}
 	if asg.HealthCheckType != "" {
-		b.WriteString(fmt.Sprintf("    Health Check: %s\n", asg.HealthCheckType))
+		fmt.Fprintf(&b, "    Health Check: %s\n", asg.HealthCheckType)
 	}
 	if !asg.CreatedAt.IsZero() {
-		b.WriteString(fmt.Sprintf("    Created: %s\n", formatRelativeTimestamp(asg.CreatedAt)))
+		fmt.Fprintf(&b, "    Created: %s\n", formatRelativeTimestamp(asg.CreatedAt))
 	}
 
 	b.WriteString("\n  Launch Configuration:\n")
 	switch {
 	case strings.TrimSpace(asg.LaunchTemplateName) != "":
-		b.WriteString(fmt.Sprintf("    Template: %s", asg.LaunchTemplateName))
+		fmt.Fprintf(&b, "    Template: %s", asg.LaunchTemplateName)
 		if strings.TrimSpace(asg.LaunchTemplateVersion) != "" {
-			b.WriteString(fmt.Sprintf(" (version %s)", asg.LaunchTemplateVersion))
+			fmt.Fprintf(&b, " (version %s)", asg.LaunchTemplateVersion)
 		}
 		b.WriteString("\n")
 	case strings.TrimSpace(asg.LaunchConfigurationName) != "":
-		b.WriteString(fmt.Sprintf("    Configuration: %s\n", asg.LaunchConfigurationName))
+		fmt.Fprintf(&b, "    Configuration: %s\n", asg.LaunchConfigurationName)
 	default:
 		b.WriteString("    Configuration: n/a\n")
 	}
@@ -166,21 +166,21 @@ func (m Model) renderASGDetails(asg ASG) string {
 	if len(asg.AvailabilityZones) > 0 {
 		b.WriteString("\n  Availability Zones:\n")
 		for _, az := range asg.AvailabilityZones {
-			b.WriteString(fmt.Sprintf("    • %s\n", az))
+			fmt.Fprintf(&b, "    • %s\n", az)
 		}
 	}
 
 	if len(asg.LoadBalancerNames) > 0 {
 		b.WriteString("\n  Load Balancers:\n")
 		for _, lb := range asg.LoadBalancerNames {
-			b.WriteString(fmt.Sprintf("    • %s\n", lb))
+			fmt.Fprintf(&b, "    • %s\n", lb)
 		}
 	}
 
 	if len(asg.TargetGroupARNs) > 0 {
 		b.WriteString("\n  Target Groups:\n")
 		for _, tg := range asg.TargetGroupARNs {
-			b.WriteString(fmt.Sprintf("    • %s\n", tg))
+			fmt.Fprintf(&b, "    • %s\n", tg)
 		}
 	}
 

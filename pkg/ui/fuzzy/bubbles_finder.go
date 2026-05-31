@@ -134,7 +134,7 @@ func (f *BubblesFinder) Select(ctx context.Context) (int, error) {
 
 	// Create list
 	l := list.New(f.items, delegate, 0, 0)
-	l.Title = f.promptString + " [NEW BUBBLES UI]" // DEBUG: Confirm new UI is loading
+	l.Title = f.promptString
 	l.SetShowStatusBar(true)
 	l.SetFilteringEnabled(true)
 	l.SetShowHelp(true)
