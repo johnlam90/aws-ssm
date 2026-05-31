@@ -25,8 +25,8 @@ func TestBeautifulDashboardRendering(t *testing.T) {
 	// chrome contributions like region, profile, navigation hints.
 	view := model.View()
 
-	if !strings.Contains(view, "Resources in this region") {
-		t.Error("Home view should contain 'Resources in this region' section")
+	if !strings.Contains(view, "Resources") {
+		t.Error("Home view should contain 'Resources' section")
 	}
 
 	if !strings.Contains(view, "us-west-2") {

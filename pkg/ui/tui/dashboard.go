@@ -25,14 +25,9 @@ func (m Model) renderDashboard() string {
 		return b.String()
 	}
 
-	contextStyle := SubtitleStyle()
-	b.WriteString(contextStyle.Render(fmt.Sprintf(
-		"Region %s   ·   Profile %s",
-		m.getRegion(), m.getProfile(),
-	)))
-	b.WriteString("\n\n")
-
-	b.WriteString(DashboardSectionTitleStyle().Render("Resources in this region"))
+	// Region / profile already live in the chrome top bar; don't
+	// duplicate them here. Lead straight with the section title.
+	b.WriteString(DashboardSectionTitleStyle().Render("Resources"))
 	b.WriteString("\n\n")
 
 	rollups := []struct {
@@ -49,42 +44,52 @@ func (m Model) renderDashboard() string {
 	}
 
 	iconStyle := lipgloss.NewStyle().Foreground(ColorAccentBlue).Bold(true)
-	labelStyle := lipgloss.NewStyle().Foreground(ColorPrimary).Bold(true)
+	labelStyle := lipgloss.NewStyle().Foreground(ColorPrimary).Bold(true).Width(22)
+	selLabelStyle := lipgloss.NewStyle().Foreground(ColorPrimary).Background(lipgloss.Color("#264F78")).Bold(true).Width(22)
 	dimStyle := lipgloss.NewStyle().Foreground(ColorSecondary)
 	countStyle := lipgloss.NewStyle().Foreground(ColorAccentIndigo).Bold(true)
 
 	for i, r := range rollups {
-		marker := "  "
+		var marker string
+		var lblStyle lipgloss.Style
 		if i == m.cursor {
-			marker = DashboardSelectionBarStyle().Render("▌ ")
+			marker = DashboardSelectionBarStyle().Render("▌")
+			lblStyle = selLabelStyle
+		} else {
+			marker = " "
+			lblStyle = labelStyle
 		}
-		count := dimStyle.Render("(not loaded)")
-		if r.count > 0 || r.state != "" {
-			count = fmt.Sprintf("%s   %s", countStyle.Render(fmt.Sprintf("%d", r.count)), dimStyle.Render(r.state))
-		} else if r.count == 0 {
-			count = dimStyle.Render("0")
+
+		var countCell string
+		switch {
+		case r.count == 0 && r.state == "":
+			countCell = dimStyle.Render("—")
+		case r.state != "":
+			countCell = fmt.Sprintf("%s   %s", countStyle.Render(fmt.Sprintf("%4d", r.count)), dimStyle.Render(r.state))
+		default:
+			countCell = countStyle.Render(fmt.Sprintf("%4d", r.count))
 		}
-		fmt.Fprintf(&b, "%s%s  %s   %s\n",
+		fmt.Fprintf(&b, "%s %s  %s   %s\n",
 			marker,
 			iconStyle.Render(r.icon),
-			labelStyle.Width(22).Render(r.label),
-			count,
+			lblStyle.Render(r.label),
+			countCell,
 		)
 	}
 
 	b.WriteString("\n")
 	b.WriteString(SubtitleStyle().Render("Quick start"))
 	b.WriteString("\n")
-	hintKey := lipgloss.NewStyle().Foreground(ColorAccentIndigo).Bold(true)
+	hintKey := lipgloss.NewStyle().Foreground(ColorAccentIndigo).Bold(true).Width(3)
 	hintDesc := lipgloss.NewStyle().Foreground(ColorSecondary)
 	for _, h := range []struct{ key, desc string }{
 		{":", "open command palette"},
 		{"/", "filter the focused list"},
-		{"↵", "select / open the highlighted resource"},
+		{"↵", "open the highlighted resource"},
 		{"r", "refresh"},
 		{"?", "help"},
 	} {
-		fmt.Fprintf(&b, "  %s  %s\n", hintKey.Render(h.key), hintDesc.Render(h.desc))
+		fmt.Fprintf(&b, "  %s %s\n", hintKey.Render(h.key), hintDesc.Render(h.desc))
 	}
 
 	return b.String()

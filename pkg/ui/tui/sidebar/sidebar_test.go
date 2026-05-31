@@ -74,9 +74,12 @@ func TestRender_PadsExtraLines(t *testing.T) {
 	if len(lines) != 5 {
 		t.Fatalf("line count = %d, want 5", len(lines))
 	}
+	// Each line carries the right-side separator (" │"), so blank
+	// rows still contain the separator. Strip it before checking.
 	for i := 1; i < 5; i++ {
-		if strings.TrimSpace(lines[i]) != "" {
-			t.Errorf("line %d expected blank, got %q", i, lines[i])
+		stripped := strings.TrimRight(strings.TrimSuffix(lines[i], " │"), " ")
+		if stripped != "" {
+			t.Errorf("line %d expected blank (excluding separator), got %q", i, lines[i])
 		}
 	}
 }

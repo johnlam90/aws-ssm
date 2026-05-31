@@ -15,6 +15,7 @@ import (
 var (
 	colorPrimary     = lipgloss.Color("#FFFFFF")
 	colorSecondary   = lipgloss.Color("#C9D1D9")
+	colorMuted       = lipgloss.Color("#484F58")
 	colorHighlightBg = lipgloss.Color("#264F78")
 )
 
@@ -27,25 +28,34 @@ type Item struct {
 }
 
 // Render returns a vertical block of the requested width × height.
-// Width must equal layout.SidebarFullWidth (14) for Phase 2; smaller
-// widths simply pad with spaces. The returned string contains exactly
-// height lines separated by newlines; each line is exactly width
-// cells wide.
+// The rightmost column is reserved for a thin vertical separator
+// (` │ `) so the sidebar visually demarcates from the main panel.
+// Width must equal layout.SidebarFullWidth (14) for full mode;
+// smaller widths simply pad with spaces. The returned string contains
+// exactly height lines separated by newlines; each line is exactly
+// width cells wide.
 func Render(width, height int, items []Item) string {
 	if width <= 0 || height <= 0 {
 		return ""
 	}
 
+	// Reserve the rightmost cell for a vertical separator.
+	itemWidth := width - 2
+	if itemWidth < 1 {
+		itemWidth = 1
+	}
+
+	separator := lipgloss.NewStyle().Foreground(colorMuted).Render(" │")
 	lines := make([]string, 0, height)
 	for i, item := range items {
 		if i >= height {
 			break
 		}
-		lines = append(lines, renderItem(item, width))
+		lines = append(lines, renderItem(item, itemWidth)+separator)
 	}
 
 	for len(lines) < height {
-		lines = append(lines, padRight("", width))
+		lines = append(lines, padRight("", itemWidth)+separator)
 	}
 
 	return strings.Join(lines, "\n")
