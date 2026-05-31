@@ -11,10 +11,16 @@ import (
 // renderNetworkInterfaces renders the network interfaces main-panel content.
 func (m Model) renderNetworkInterfaces() string {
 	instances := m.getNetworkInterfaces()
+
+	var search strings.Builder
+	search.WriteString(m.renderSearchBar(ViewNetworkInterfaces))
+	search.WriteString("\n")
+
 	if s := m.renderNetworkState(instances); s != "" {
-		return s
+		return search.String() + s
 	}
 	var b strings.Builder
+	b.WriteString(search.String())
 	cursor := clampIndex(m.cursor, len(instances))
 	selected := instances[cursor]
 	details := limitRenderedLines(renderNetworkDetails(selected, m.width), max(1, m.height-8))
@@ -32,11 +38,6 @@ func (m Model) renderNetworkInterfaces() string {
 	}
 	b.WriteString("\n")
 	b.WriteString(details)
-
-	if searchBar := m.renderSearchBar(ViewNetworkInterfaces); searchBar != "" {
-		b.WriteString("\n")
-		b.WriteString(searchBar)
-	}
 	return b.String()
 }
 

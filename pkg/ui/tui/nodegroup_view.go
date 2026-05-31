@@ -11,10 +11,16 @@ import (
 // renderNodeGroups renders the EKS node groups main-panel content.
 func (m Model) renderNodeGroups() string {
 	groups := m.getNodeGroups()
+
+	var search strings.Builder
+	search.WriteString(m.renderSearchBar(ViewNodeGroups))
+	search.WriteString("\n")
+
 	if s := m.renderNodeGroupState(groups); s != "" {
-		return s
+		return search.String() + s
 	}
 	var b strings.Builder
+	b.WriteString(search.String())
 	cursor := clampIndex(m.cursor, len(groups))
 	selected := groups[cursor]
 	details := renderNodeGroupDetails(selected)
@@ -42,10 +48,6 @@ func (m Model) renderNodeGroups() string {
 	if ltOverlay := m.renderLaunchTemplatePrompt(); ltOverlay != "" {
 		b.WriteString("\n")
 		b.WriteString(ltOverlay)
-	}
-	if searchBar := m.renderSearchBar(ViewNodeGroups); searchBar != "" {
-		b.WriteString("\n")
-		b.WriteString(searchBar)
 	}
 	if status := m.renderStatusMessage(); status != "" {
 		b.WriteString("\n")
@@ -129,7 +131,9 @@ func calculateNodeGroupTableRows(terminalHeight int, details string) int {
 	if terminalHeight <= 0 {
 		return 5
 	}
-	const fixedLines = 6
+	// fixedLines: search bar (1) + blank (1) + table header (1) +
+	// detail title row (1) + spacing (2)
+	const fixedLines = 7
 	detailLines := countRenderedLines(details)
 	rows := terminalHeight - fixedLines - detailLines
 	if rows < 1 {

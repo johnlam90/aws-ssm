@@ -275,37 +275,59 @@ func (m Model) viewLength(view ViewMode) int {
 	}
 }
 
-// renderSearchBar renders the search prompt for a view
+// renderSearchBar renders the search prompt for a view. Phase 6 of
+// the foundation redesign makes the bar always visible — when no
+// query is set and the bar is not focused, a dim placeholder appears
+// inviting the user to press `/`. When a query is applied, a match
+// counter shows the filtered/total ratio.
 func (m Model) renderSearchBar(view ViewMode) string {
-	query := strings.TrimSpace(m.getSearchQuery(view))
-	if m.searchActive && m.currentView == view {
-		query = m.searchBuffer
-	}
-
-	if !m.searchActive && query == "" {
-		return ""
-	}
-
-	status := "Search"
 	active := m.searchActive && m.currentView == view
+	saved := strings.TrimSpace(m.getSearchQuery(view))
+	displayQuery := saved
 	if active {
-		status = "Search (enter to apply, esc to cancel)"
+		displayQuery = m.searchBuffer
 	}
 
-	display := strings.TrimSpace(query)
-	if active {
-		display = query + "▍"
-	}
-	if display == "" {
-		display = "(type to filter)"
-	}
+	totalLen := m.totalForView(view)
+	filteredLen := m.viewLength(view)
 
-	style := SearchBarStyle()
-	if active {
-		style = SearchBarActiveStyle()
-	}
+	switch {
+	case active:
+		caret := "▍"
+		shown := displayQuery + caret
+		if displayQuery == "" {
+			shown = "(type to filter — enter to apply, esc to cancel)" + caret
+		}
+		return SearchBarActiveStyle().Render(fmt.Sprintf("/ %s", shown))
 
-	return style.Render(fmt.Sprintf("%s › %s", status, display))
+	case saved != "":
+		hint := fmt.Sprintf("  %d / %d matches  ·  esc to clear", filteredLen, totalLen)
+		return SearchBarStyle().Render(fmt.Sprintf("/ %s%s", saved, hint))
+
+	default:
+		return SearchBarStyle().
+			Faint(true).
+			Render("/ filter — press / to focus")
+	}
+}
+
+// totalForView returns the unfiltered count of items for a view —
+// used by the search bar match counter.
+func (m Model) totalForView(view ViewMode) int {
+	switch view {
+	case ViewEC2Instances:
+		return len(m.ec2Instances)
+	case ViewEKSClusters:
+		return len(m.eksClusters)
+	case ViewASGs:
+		return len(m.asgs)
+	case ViewNodeGroups:
+		return len(m.nodeGroups)
+	case ViewNetworkInterfaces:
+		return len(m.netInterfaces)
+	default:
+		return 0
+	}
 }
 
 // getEC2Instances returns the visible EC2 instances (filtered or not)

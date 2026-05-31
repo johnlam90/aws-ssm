@@ -12,17 +12,22 @@ import (
 func (m Model) renderASGs() string {
 	asgs := m.getASGs()
 
+	var search strings.Builder
+	search.WriteString(m.renderSearchBar(ViewASGs))
+	search.WriteString("\n")
+
 	if m.loading {
-		return m.renderLoading()
+		return search.String() + m.renderLoading()
 	}
 	if m.err != nil {
-		return m.renderError()
+		return search.String() + m.renderError()
 	}
 	if len(asgs) == 0 {
-		return SubtitleStyle().Render("No Auto Scaling Groups found")
+		return search.String() + SubtitleStyle().Render("No Auto Scaling Groups found")
 	}
 
 	var b strings.Builder
+	b.WriteString(search.String())
 	cursor := clampIndex(m.cursor, len(asgs))
 	selected := asgs[cursor]
 	details := limitRenderedLines(m.renderASGDetails(selected), max(1, m.height-10))
@@ -50,10 +55,6 @@ func (m Model) renderASGs() string {
 	if overlay := m.renderScalingPrompt(ViewASGs); overlay != "" {
 		b.WriteString("\n")
 		b.WriteString(overlay)
-	}
-	if searchBar := m.renderSearchBar(ViewASGs); searchBar != "" {
-		b.WriteString("\n")
-		b.WriteString(searchBar)
 	}
 	if status := m.renderStatusMessage(); status != "" {
 		b.WriteString("\n")

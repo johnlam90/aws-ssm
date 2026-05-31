@@ -13,6 +13,9 @@ func (m Model) renderEKSClusters() string {
 
 	clusters := m.getEKSClusters()
 
+	b.WriteString(m.renderSearchBar(ViewEKSClusters))
+	b.WriteString("\n")
+
 	if m.loading {
 		b.WriteString(m.renderLoading())
 		return b.String()
@@ -46,11 +49,6 @@ func (m Model) renderEKSClusters() string {
 	b.WriteString(SubtitleStyle().Render(selected.Name))
 	b.WriteString("\n")
 	b.WriteString(details)
-
-	if searchBar := m.renderSearchBar(ViewEKSClusters); searchBar != "" {
-		b.WriteString("\n")
-		b.WriteString(searchBar)
-	}
 
 	return b.String()
 }

@@ -15,6 +15,9 @@ func (m Model) renderEC2Instances() string {
 
 	instances := m.getEC2Instances()
 
+	b.WriteString(m.renderSearchBar(ViewEC2Instances))
+	b.WriteString("\n")
+
 	if m.loading {
 		b.WriteString(m.renderLoading())
 		return b.String()
@@ -51,11 +54,6 @@ func (m Model) renderEC2Instances() string {
 	b.WriteString(SubtitleStyle().Render(detailTitle))
 	b.WriteString("\n")
 	b.WriteString(details)
-
-	if searchBar := m.renderSearchBar(ViewEC2Instances); searchBar != "" {
-		b.WriteString("\n")
-		b.WriteString(searchBar)
-	}
 
 	return b.String()
 }
