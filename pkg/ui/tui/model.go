@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/johnlam90/aws-ssm/pkg/aws"
+	"github.com/johnlam90/aws-ssm/pkg/ui/tui/layout"
 )
 
 // Model represents the main TUI model
@@ -201,18 +202,35 @@ func (m Model) updateNonKeyMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// View renders the current view
+// View renders the current screen by composing through the layout pipeline.
+//
+// Phase 1 of the foundation redesign: layout.Compute is consulted for
+// the screen rectangles, but only the Main region is non-empty, so the
+// visible output is byte-identical to the prior implementation. The
+// indirection is the seam that lets later phases populate sidebar, top
+// bar, and bottom hint bar without rewriting View again.
 func (m Model) View() string {
 	if !m.ready {
 		return "Initializing..."
 	}
 
-	// Show loading spinner if loading
+	rects := layout.Compute(m.width, m.height)
+	if rects.Main.IsEmpty() {
+		return "Initializing..."
+	}
+
+	return m.renderMainPanel()
+}
+
+// renderMainPanel renders the main region's contents by dispatching to
+// the per-view renderer for the current view, mirroring the previous
+// switch in View() exactly. Phase 1 deliberately keeps each per-view
+// renderer untouched; Phase 2 onward will pass region dimensions in.
+func (m Model) renderMainPanel() string {
 	if m.loading {
 		return fmt.Sprintf("\n\n   %s %s\n\n", m.spinner.View(), m.loadingMsg)
 	}
 
-	// Render based on current view
 	switch m.currentView {
 	case ViewDashboard:
 		return m.renderDashboard()
