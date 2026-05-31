@@ -45,10 +45,12 @@ func (m Model) renderEKSClusters() string {
 		b.WriteString("\n")
 	}
 
-	b.WriteString("\n")
-	b.WriteString(SubtitleStyle().Render(selected.Name))
-	b.WriteString("\n")
-	b.WriteString(details)
+	if !m.hideDetail {
+		b.WriteString("\n")
+		b.WriteString(SubtitleStyle().Render(selected.Name))
+		b.WriteString("\n")
+		b.WriteString(details)
+	}
 
 	return b.String()
 }

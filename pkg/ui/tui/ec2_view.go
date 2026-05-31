@@ -49,11 +49,13 @@ func (m Model) renderEC2Instances() string {
 		b.WriteString("\n")
 	}
 
-	b.WriteString("\n")
-	detailTitle := fmt.Sprintf("%s · %s", normalizeValue(selected.Name, "(no name)", 0), selected.InstanceID)
-	b.WriteString(SubtitleStyle().Render(detailTitle))
-	b.WriteString("\n")
-	b.WriteString(details)
+	if !m.hideDetail {
+		b.WriteString("\n")
+		detailTitle := fmt.Sprintf("%s · %s", normalizeValue(selected.Name, "(no name)", 0), selected.InstanceID)
+		b.WriteString(SubtitleStyle().Render(detailTitle))
+		b.WriteString("\n")
+		b.WriteString(details)
+	}
 
 	return b.String()
 }

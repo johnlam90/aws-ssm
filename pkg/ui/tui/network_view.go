@@ -36,8 +36,10 @@ func (m Model) renderNetworkInterfaces() string {
 		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
-	b.WriteString("\n")
-	b.WriteString(details)
+	if !m.hideDetail {
+		b.WriteString("\n")
+		b.WriteString(details)
+	}
 	return b.String()
 }
 

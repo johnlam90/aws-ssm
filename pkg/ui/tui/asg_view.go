@@ -47,10 +47,12 @@ func (m Model) renderASGs() string {
 		b.WriteString("\n")
 		b.WriteString(SubtitleStyle().Render(fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(asgs))))
 	}
-	b.WriteString("\n")
-	b.WriteString(SubtitleStyle().Render(selected.Name))
-	b.WriteString("\n")
-	b.WriteString(details)
+	if !m.hideDetail {
+		b.WriteString("\n")
+		b.WriteString(SubtitleStyle().Render(selected.Name))
+		b.WriteString("\n")
+		b.WriteString(details)
+	}
 
 	if overlay := m.renderScalingPrompt(ViewASGs); overlay != "" {
 		b.WriteString("\n")

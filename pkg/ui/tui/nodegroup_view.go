@@ -36,10 +36,12 @@ func (m Model) renderNodeGroups() string {
 		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
-	b.WriteString("\n")
-	b.WriteString(SubtitleStyle().Render(fmt.Sprintf("%s / %s", selected.ClusterName, selected.Name)))
-	b.WriteString("\n")
-	b.WriteString(details)
+	if !m.hideDetail {
+		b.WriteString("\n")
+		b.WriteString(SubtitleStyle().Render(fmt.Sprintf("%s / %s", selected.ClusterName, selected.Name)))
+		b.WriteString("\n")
+		b.WriteString(details)
+	}
 
 	if overlay := m.renderScalingPrompt(ViewNodeGroups); overlay != "" {
 		b.WriteString("\n")

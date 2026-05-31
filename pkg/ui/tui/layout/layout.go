@@ -46,6 +46,13 @@ type Layout struct {
 	BottomBar Rect
 }
 
+// Options carry user-toggleable layout preferences (e.g. the sidebar
+// has been manually hidden via Ctrl+B). They override the auto-fit
+// behavior in Compute.
+type Options struct {
+	HideSidebar bool
+}
+
 // Compute returns a Layout describing how to subdivide a terminal of
 // the given width and height into the four screen regions.
 //
@@ -53,18 +60,24 @@ type Layout struct {
 // bar reserves 2 rows across the full width. The sidebar reserves 14
 // columns on the left side of the inner region when the terminal is
 // at least SidebarMinTerminalWidth wide; below that the sidebar is
-// hidden in Phase 2. The main region takes whatever rectangle remains.
+// auto-hidden. Options.HideSidebar forces the sidebar hidden at any
+// width.
 //
 // Inputs below MinTerminalWidth × MinTerminalHeight return an empty
 // Layout — the caller is expected to render a "terminal too small"
 // fallback message.
 func Compute(width, height int) Layout {
+	return ComputeWith(width, height, Options{})
+}
+
+// ComputeWith is the option-aware version of Compute.
+func ComputeWith(width, height int, opts Options) Layout {
 	if width < MinTerminalWidth || height < MinTerminalHeight {
 		return Layout{}
 	}
 
 	sidebarWidth := SidebarFullWidth
-	if width < SidebarMinTerminalWidth {
+	if width < SidebarMinTerminalWidth || opts.HideSidebar {
 		sidebarWidth = 0
 	}
 

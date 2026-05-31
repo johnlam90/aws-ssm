@@ -63,6 +63,8 @@ type Model struct {
 	ltUpdate        *LaunchTemplateUpdateState
 	palette         *PaletteState
 	helpOverlay     bool
+	hideSidebar     bool
+	hideDetail      bool
 	statusMessage   string
 	statusAnimation *StatusAnimation
 }
@@ -159,6 +161,16 @@ func (m Model) updateKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.String() == ":" {
 		return m.openPalette(), nil
 	}
+	// Ctrl+B toggles the sidebar visibility (manual override).
+	if msg.Type == tea.KeyCtrlB {
+		m.hideSidebar = !m.hideSidebar
+		return m, nil
+	}
+	// `i` toggles the detail block visibility on list views.
+	if msg.String() == "i" && isListView(m.currentView) {
+		m.hideDetail = !m.hideDetail
+		return m, nil
+	}
 	if msg.Type == tea.KeyEsc && !m.searchActive && strings.TrimSpace(m.getSearchQuery(m.currentView)) != "" {
 		m = m.clearSearchQuery(m.currentView)
 		return m, nil
@@ -214,7 +226,7 @@ func (m Model) View() string {
 		return "Initializing..."
 	}
 
-	rects := layout.Compute(m.width, m.height)
+	rects := layout.ComputeWith(m.width, m.height, layout.Options{HideSidebar: m.hideSidebar})
 	if rects.Main.IsEmpty() {
 		return fmt.Sprintf(
 			"Terminal too small (%d×%d). Resize to at least %d×%d.",
@@ -276,6 +288,17 @@ func (m Model) renderMainPanel() string {
 	}
 }
 
+// isListView reports whether the given view is a resource list (and
+// therefore has a detail panel that the `i` key can toggle).
+func isListView(v ViewMode) bool {
+	switch v {
+	case ViewEC2Instances, ViewEKSClusters, ViewASGs, ViewNodeGroups, ViewNetworkInterfaces:
+		return true
+	default:
+		return false
+	}
+}
+
 // breadcrumb returns the chrome breadcrumb for the current view.
 func (m Model) breadcrumb() string {
 	if m.currentView == ViewDashboard {
@@ -289,7 +312,7 @@ func (m Model) breadcrumb() string {
 // table column allocators so content fits inside the chrome+sidebar
 // envelope without overflow.
 func (m Model) mainWidth() int {
-	rects := layout.Compute(m.width, m.height)
+	rects := layout.ComputeWith(m.width, m.height, layout.Options{HideSidebar: m.hideSidebar})
 	return rects.Main.Width
 }
 
@@ -374,7 +397,6 @@ func (m Model) hintsForView() []chrome.Hint {
 		{Key: "/", Label: "search"},
 		{Key: ":", Label: "command"},
 		{Key: "r", Label: "refresh"},
-		{Key: "esc", Label: "back"},
 		{Key: "?", Label: "help"},
 		{Key: "q", Label: "quit"},
 	}
