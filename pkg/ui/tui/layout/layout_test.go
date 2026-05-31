@@ -70,8 +70,8 @@ func TestCompute(t *testing.T) {
 			width:       90,
 			height:      24,
 			wantTop:     Rect{90, 1},
-			wantSidebar: Rect{14, 21},
-			wantMain:    Rect{76, 21},
+			wantSidebar: Rect{18, 21},
+			wantMain:    Rect{72, 21},
 			wantBottom:  Rect{90, 2},
 		},
 		{
@@ -79,8 +79,8 @@ func TestCompute(t *testing.T) {
 			width:       120,
 			height:      40,
 			wantTop:     Rect{120, 1},
-			wantSidebar: Rect{14, 37},
-			wantMain:    Rect{106, 37},
+			wantSidebar: Rect{18, 37},
+			wantMain:    Rect{102, 37},
 			wantBottom:  Rect{120, 2},
 		},
 		{
@@ -88,8 +88,8 @@ func TestCompute(t *testing.T) {
 			width:       200,
 			height:      60,
 			wantTop:     Rect{200, 1},
-			wantSidebar: Rect{14, 57},
-			wantMain:    Rect{186, 57},
+			wantSidebar: Rect{18, 57},
+			wantMain:    Rect{182, 57},
 			wantBottom:  Rect{200, 2},
 		},
 	}

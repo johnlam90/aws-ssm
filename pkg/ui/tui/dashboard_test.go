@@ -74,9 +74,9 @@ func TestDashboardSelectionRendering(t *testing.T) {
 
 	view := model.renderDashboard()
 
-	// Verify selection indicator is present
-	if !strings.Contains(view, "▌") {
-		t.Error("Selected item should show vertical bar indicator")
+	// Verify selection indicator is present (post-overhaul: thin bar).
+	if !strings.Contains(view, "▎") {
+		t.Error("Selected item should show vertical bar indicator (▎)")
 	}
 }
 

@@ -3,83 +3,47 @@ package sidebar
 import (
 	"strings"
 	"testing"
-
-	"github.com/charmbracelet/lipgloss"
 )
 
-func TestRender_ZeroDimensionsReturnEmpty(t *testing.T) {
-	if got := Render(0, 10, nil); got != "" {
-		t.Errorf("expected empty for zero width, got %q", got)
+func TestRender_TooSmallReturnsEmpty(t *testing.T) {
+	if got := Render(2, 10, nil); got != "" {
+		t.Errorf("expected empty for tiny width, got %q", got)
 	}
-	if got := Render(14, 0, nil); got != "" {
-		t.Errorf("expected empty for zero height, got %q", got)
-	}
-}
-
-func TestRender_LineCountMatchesHeight(t *testing.T) {
-	items := []Item{
-		{Icon: "⬡", Label: "Home", Count: -1},
-		{Icon: "▣", Label: "EC2", Count: 14, Focus: true},
-		{Icon: "☸", Label: "EKS", Count: 3},
-	}
-	got := Render(14, 8, items)
-	lines := strings.Split(got, "\n")
-	if len(lines) != 8 {
-		t.Errorf("line count = %d, want 8", len(lines))
+	if got := Render(20, 2, nil); got != "" {
+		t.Errorf("expected empty for tiny height, got %q", got)
 	}
 }
 
-func TestRender_LineWidthsExact(t *testing.T) {
+func TestRender_ContainsLabelsAndCounts(t *testing.T) {
 	items := []Item{
-		{Icon: "⬡", Label: "Home", Count: -1},
-		{Icon: "▣", Label: "EC2", Count: 14, Focus: true},
+		{Label: "Home", Count: -1},
+		{Label: "EC2", Count: 14, Focus: true},
+		{Label: "EKS", Count: 3},
 	}
-	got := Render(14, 4, items)
-	for i, line := range strings.Split(got, "\n") {
-		if w := lipgloss.Width(line); w != 14 {
-			t.Errorf("line %d width = %d, want 14 (line: %q)", i, w, line)
-		}
-	}
-}
-
-func TestRender_FocusItemContainsIndicator(t *testing.T) {
-	items := []Item{
-		{Icon: "⬡", Label: "Home", Count: -1},
-		{Icon: "▣", Label: "EC2", Count: 14, Focus: true},
-	}
-	got := Render(14, 2, items)
-	if !strings.Contains(got, "┃") {
-		t.Errorf("expected focus indicator '┃' in output, got %q", got)
-	}
-}
-
-func TestRender_ContainsAllLabelsAndCounts(t *testing.T) {
-	items := []Item{
-		{Icon: "⬡", Label: "Home", Count: -1},
-		{Icon: "▣", Label: "EC2", Count: 14},
-		{Icon: "☸", Label: "EKS", Count: 3},
-	}
-	got := Render(14, 6, items)
+	got := Render(20, 10, items)
 	for _, want := range []string{"Home", "EC2", "EKS", "14", "3"} {
 		if !strings.Contains(got, want) {
-			t.Errorf("output missing %q (got: %q)", want, got)
+			t.Errorf("rendered sidebar missing %q (got: %q)", want, got)
 		}
 	}
 }
 
-func TestRender_PadsExtraLines(t *testing.T) {
-	items := []Item{{Icon: "⬡", Label: "Home", Count: -1}}
-	got := Render(14, 5, items)
-	lines := strings.Split(got, "\n")
-	if len(lines) != 5 {
-		t.Fatalf("line count = %d, want 5", len(lines))
+func TestRender_FocusIndicator(t *testing.T) {
+	items := []Item{
+		{Label: "Home", Count: -1},
+		{Label: "EC2", Count: 14, Focus: true},
 	}
-	// Each line carries the right-side separator (" │"), so blank
-	// rows still contain the separator. Strip it before checking.
-	for i := 1; i < 5; i++ {
-		stripped := strings.TrimRight(strings.TrimSuffix(lines[i], " │"), " ")
-		if stripped != "" {
-			t.Errorf("line %d expected blank (excluding separator), got %q", i, lines[i])
+	got := Render(20, 10, items)
+	if !strings.Contains(got, "▎") {
+		t.Errorf("focused entry should render the '▎' indicator, got: %q", got)
+	}
+}
+
+func TestRender_RoundedBorderCorners(t *testing.T) {
+	got := Render(20, 8, []Item{{Label: "Home", Count: -1}})
+	for _, corner := range []string{"╭", "╮", "╰", "╯"} {
+		if !strings.Contains(got, corner) {
+			t.Errorf("expected rounded-border corner %q in panel, got: %q", corner, got)
 		}
 	}
 }

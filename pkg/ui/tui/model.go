@@ -254,7 +254,29 @@ func (m Model) View() string {
 	case m.helpOverlay:
 		mainRaw = m.renderHelpOverlay()
 	}
-	mainContent := padOrFitMainPanel(mainRaw, rects.Main)
+
+	// Wrap the main panel in a rounded border. Border eats 2 cells of
+	// width and 2 rows of height, so the inner content is
+	// (Main.Width - 2) × (Main.Height - 2). Per-view content bakes
+	// in its own 1-cell horizontal inset so we don't double-count
+	// against lipgloss padding.
+	innerW := rects.Main.Width - 2
+	innerH := rects.Main.Height - 2
+	if innerW < 1 {
+		innerW = 1
+	}
+	if innerH < 1 {
+		innerH = 1
+	}
+	mainPanelStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#30363D")).
+		Width(innerW).
+		Height(innerH)
+	mainContent := mainPanelStyle.Render(padOrFitMainPanel(mainRaw, layout.Rect{
+		Width:  innerW,
+		Height: innerH,
+	}))
 
 	bottom := chrome.RenderBottomBar(chrome.BottomBarInput{
 		Hints:  m.hintsForView(),
@@ -307,31 +329,30 @@ func (m Model) breadcrumb() string {
 	return "Home ▸ " + m.currentView.String()
 }
 
-// mainWidth returns the width of the main panel region for the
-// current terminal size. Per-view renderers use this to size their
-// table column allocators so content fits inside the chrome+sidebar
-// envelope without overflow.
+// mainWidth returns the inner content width of the main panel
+// region (after subtracting the rounded panel border and the 1-cell
+// left inset). Per-view renderers use this to size their table column
+// allocators so content fits without overflow.
 func (m Model) mainWidth() int {
 	rects := layout.ComputeWith(m.width, m.height, layout.Options{HideSidebar: m.hideSidebar})
-	return rects.Main.Width
+	w := rects.Main.Width - 2 - 1 // border + 1-cell left inset
+	if w < 1 {
+		return 1
+	}
+	return w
 }
 
 // sidebarItems returns the sidebar entry list with the focus flag set
-// on the entry matching the current view.
-//
-// Phase 5 of the foundation redesign merged the standalone ENI view
-// into EC2 (interfaces appear as a column + detail section on EC2),
-// so the sidebar drops the ENI entry. The ViewNetworkInterfaces enum
-// value remains in code as a safety net for direct navigations; a
-// later cleanup phase deletes it.
+// on the entry matching the current view. Labels are intentionally
+// short so they fit comfortably in the 18-cell sidebar.
 func (m Model) sidebarItems() []sidebar.Item {
 	items := []sidebar.Item{
-		{Icon: "⬡", Label: "Home", Count: -1},
-		{Icon: "▣", Label: "EC2", Count: len(m.ec2Instances)},
-		{Icon: "☸", Label: "EKS", Count: len(m.eksClusters)},
-		{Icon: "⚖", Label: "ASG", Count: len(m.asgs)},
-		{Icon: "⛁", Label: "NG", Count: len(m.nodeGroups)},
-		{Icon: "?", Label: "Help", Count: -1},
+		{Label: "Home", Count: -1},
+		{Label: "EC2", Count: len(m.ec2Instances)},
+		{Label: "EKS", Count: len(m.eksClusters)},
+		{Label: "ASG", Count: len(m.asgs)},
+		{Label: "NG", Count: len(m.nodeGroups)},
+		{Label: "Help", Count: -1},
 	}
 
 	idx := -1
@@ -417,11 +438,13 @@ func (m Model) statusFooter() string {
 }
 
 // padOrFitMainPanel pads or trims the per-view content so the main
-// region renders at exactly rect.Width × rect.Height. Lines wider
-// than rect.Width are not truncated (the per-view content already
-// targets m.width); shorter lines are padded with spaces. Extra rows
-// are added (or excess rows truncated) to match rect.Height so the
-// bottom chrome bar lands at a stable y position.
+// region renders at exactly rect.Width × rect.Height. Each line is
+// inset by 1 cell on the left so content doesn't jam against the
+// rounded border the panel wrapper renders. Lines longer than
+// rect.Width are NOT truncated; the per-view code is expected to
+// have already targeted mainWidth(). Shorter lines are padded with
+// spaces. Extra rows are added (or excess rows truncated) to match
+// rect.Height.
 func padOrFitMainPanel(content string, rect layout.Rect) string {
 	if rect.IsEmpty() {
 		return ""
@@ -434,9 +457,13 @@ func padOrFitMainPanel(content string, rect layout.Rect) string {
 		lines = append(lines, "")
 	}
 	for i, line := range lines {
-		w := lipgloss.Width(line)
+		// 1-cell inset from the left border, plus right-pad to width.
+		inset := " " + line
+		w := lipgloss.Width(inset)
 		if w < rect.Width {
-			lines[i] = line + strings.Repeat(" ", rect.Width-w)
+			lines[i] = inset + strings.Repeat(" ", rect.Width-w)
+		} else {
+			lines[i] = inset
 		}
 	}
 	return strings.Join(lines, "\n")

@@ -13,11 +13,11 @@ const (
 	// BottomBarHeight is the vertical reservation for the bottom hint
 	// bar (line 1: key hints; line 2: status footer).
 	BottomBarHeight = 2
-	// SidebarFullWidth is the column reservation for the full sidebar.
-	SidebarFullWidth = 14
+	// SidebarFullWidth is the column reservation for the full sidebar
+	// (including its rounded panel border on each side).
+	SidebarFullWidth = 18
 	// SidebarMinTerminalWidth is the minimum terminal width at which
-	// the full sidebar is shown. Phase 2 only supports the full mode;
-	// later phases add compact and hidden modes for narrower terminals.
+	// the full sidebar is shown.
 	SidebarMinTerminalWidth = 90
 	// MinTerminalWidth is the minimum width below which Compute returns
 	// an empty Layout — the screen cannot show the four-region skeleton

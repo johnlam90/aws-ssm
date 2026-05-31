@@ -1,7 +1,4 @@
-// Package sidebar renders the left navigation rail. The package is
-// agnostic to the parent tui package's view enum — callers pass a
-// slice of Item values plus an index of which item is currently
-// selected.
+// Package sidebar renders the left navigation rail.
 package sidebar
 
 import (
@@ -11,136 +8,104 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Color tokens duplicated locally; see chrome package for rationale.
+// Visual tokens. The sidebar leans on a single accent color for the
+// selected entry's left bar; the rest is muted so the user's eye is
+// drawn to the focused row, not to icon clutter.
 var (
-	colorPrimary     = lipgloss.Color("#FFFFFF")
-	colorSecondary   = lipgloss.Color("#C9D1D9")
-	colorMuted       = lipgloss.Color("#484F58")
-	colorHighlightBg = lipgloss.Color("#264F78")
+	colorAccent      = lipgloss.Color("#58A6FF")
+	colorPrimary     = lipgloss.Color("#E6EDF3")
+	colorMutedText   = lipgloss.Color("#8B949E")
+	colorBorder      = lipgloss.Color("#30363D")
+	colorBorderFocus = lipgloss.Color("#388BFD")
 )
 
 // Item is one entry in the sidebar.
 type Item struct {
-	Icon  string // single rune / glyph; may be empty
 	Label string
 	Count int  // -1 means hide count (e.g. Home, Help)
-	Focus bool // whether this entry is highlighted
+	Focus bool // currently selected
 }
 
-// Render returns a vertical block of the requested width × height.
-// The rightmost column is reserved for a thin vertical separator
-// (` │ `) so the sidebar visually demarcates from the main panel.
-// Width must equal layout.SidebarFullWidth (14) for full mode;
-// smaller widths simply pad with spaces. The returned string contains
-// exactly height lines separated by newlines; each line is exactly
-// width cells wide.
+// Render returns a bordered panel of exactly width × height cells.
+// The panel includes a rounded border on all four sides plus a "Views"
+// title in the top border. Content area is (width-2) × (height-2).
 func Render(width, height int, items []Item) string {
-	if width <= 0 || height <= 0 {
+	if width < 4 || height < 4 {
 		return ""
 	}
 
-	// Reserve the rightmost cell for a vertical separator.
-	itemWidth := width - 2
-	if itemWidth < 1 {
-		itemWidth = 1
+	// Border eats 1 cell on each side. The body is sized to fit
+	// exactly inside the border (width-2 cells × height-2 lines).
+	// Item rendering bakes in 1 cell of inset on each side itself
+	// so we don't fight lipgloss's Padding/Width interaction.
+	contentWidth := width - 2
+	contentHeight := height - 2
+
+	if contentWidth < 4 {
+		return ""
 	}
 
-	separator := lipgloss.NewStyle().Foreground(colorMuted).Render(" │")
-	lines := make([]string, 0, height)
+	lines := make([]string, 0, contentHeight)
 	for i, item := range items {
-		if i >= height {
+		if i >= contentHeight {
 			break
 		}
-		lines = append(lines, renderItem(item, itemWidth)+separator)
+		lines = append(lines, renderItem(item, contentWidth))
 	}
-
-	for len(lines) < height {
-		lines = append(lines, padRight("", itemWidth)+separator)
+	for len(lines) < contentHeight {
+		lines = append(lines, strings.Repeat(" ", contentWidth))
 	}
+	body := strings.Join(lines, "\n")
 
-	return strings.Join(lines, "\n")
+	panel := lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(colorBorder).
+		Width(contentWidth).
+		Height(contentHeight)
+
+	return panel.Render(body)
 }
 
-func renderItem(item Item, width int) string {
-	icon := item.Icon
-	if icon == "" {
-		icon = " "
+func renderItem(item Item, contentWidth int) string {
+	// Layout (contentWidth ≈ 18 typical):
+	//   " ▎ <label>           <count> "
+	// 1 leading space, 1 indicator, 1 space, label fills, count
+	// right-aligned with 1 trailing space.
+
+	indicator := " "
+	indicatorStyle := lipgloss.NewStyle().Foreground(colorMutedText)
+	labelStyle := lipgloss.NewStyle().Foreground(colorMutedText)
+
+	if item.Focus {
+		indicator = "▎"
+		indicatorStyle = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
+		labelStyle = lipgloss.NewStyle().Foreground(colorPrimary).Bold(true)
 	}
 
 	countStr := ""
 	if item.Count >= 0 {
 		countStr = fmt.Sprintf("%d", item.Count)
 	}
+	countStyle := lipgloss.NewStyle().Foreground(colorMutedText)
 
-	// Layout (full mode, width=14):
-	//   " ┃ <icon> <label>     <count> "
-	// indicator(1) + space(1) + icon(1) + space(1) + label(N) + space + count(M) + trailing space
-	const fixed = 4                // indicator + space + icon + space
-	available := width - fixed - 1 // -1 trailing space
-	if available < 0 {
-		available = 0
+	// Compose: " <indicator> <label>...<count> "
+	const leadPad = 1
+	const tailPad = 1
+	gap := contentWidth - leadPad - 1 - 1 - lipgloss.Width(item.Label) - lipgloss.Width(countStr) - tailPad
+	if gap < 1 {
+		gap = 1
 	}
 
-	labelW := available - lipgloss.Width(countStr) - 1
-	if countStr == "" {
-		labelW = available
-	}
-	if labelW < 0 {
-		labelW = 0
-	}
-
-	label := item.Label
-	if lipgloss.Width(label) > labelW {
-		label = truncateRunes(label, labelW)
-	}
-
-	pad := labelW - lipgloss.Width(label)
-	if pad < 0 {
-		pad = 0
-	}
-
-	// Build the body without per-segment styles, then apply a single
-	// row-wide style. This eliminates the visual seam between the
-	// indicator and the rest of the row when the entry is focused.
-	indicatorChar := " "
-	if item.Focus {
-		indicatorChar = "┃"
-	}
-
-	body := indicatorChar + " " + icon + " " + label + strings.Repeat(" ", pad)
-	if countStr != "" {
-		body += " " + countStr
-	}
-	body = padRight(body, width)
-
-	if item.Focus {
-		return lipgloss.NewStyle().
-			Foreground(colorPrimary).
-			Background(colorHighlightBg).
-			Bold(true).
-			Render(body)
-	}
-
-	return lipgloss.NewStyle().
-		Foreground(colorSecondary).
-		Render(body)
+	return strings.Repeat(" ", leadPad) +
+		indicatorStyle.Render(indicator) + " " +
+		labelStyle.Render(item.Label) +
+		strings.Repeat(" ", gap) +
+		countStyle.Render(countStr) +
+		strings.Repeat(" ", tailPad)
 }
 
-func padRight(s string, width int) string {
-	w := lipgloss.Width(s)
-	if w >= width {
-		if w == width {
-			return s
-		}
-		return truncateRunes(s, width)
-	}
-	return s + strings.Repeat(" ", width-w)
-}
-
-func truncateRunes(s string, width int) string {
-	runes := []rune(s)
-	for len(runes) > 0 && lipgloss.Width(string(runes)) > width {
-		runes = runes[:len(runes)-1]
-	}
-	return string(runes)
-}
+// FocusedBorder returns a border foreground color suitable for a
+// panel that should be visually distinguished as focused. Exported so
+// the parent package can apply matching color treatments to the
+// active region.
+func FocusedBorder() lipgloss.Color { return colorBorderFocus }

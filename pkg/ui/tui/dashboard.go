@@ -31,49 +31,44 @@ func (m Model) renderDashboard() string {
 	b.WriteString("\n\n")
 
 	rollups := []struct {
-		icon  string
 		label string
 		count int
-		view  ViewMode
 		state string
+		hint  string
 	}{
-		{"▣", "EC2 Instances", len(m.ec2Instances), ViewEC2Instances, m.ec2StateSummary()},
-		{"☸", "EKS Clusters", len(m.eksClusters), ViewEKSClusters, m.eksStateSummary()},
-		{"⚖", "Auto Scaling Groups", len(m.asgs), ViewASGs, m.asgStateSummary()},
-		{"⛁", "EKS Node Groups", len(m.nodeGroups), ViewNodeGroups, m.nodeGroupStateSummary()},
+		{"EC2 Instances", len(m.ec2Instances), m.ec2StateSummary(), "Press 2 or :ec2 to load"},
+		{"EKS Clusters", len(m.eksClusters), m.eksStateSummary(), "Press 3 or :eks to load"},
+		{"Auto Scaling Groups", len(m.asgs), m.asgStateSummary(), "Press 4 or :asg to load"},
+		{"EKS Node Groups", len(m.nodeGroups), m.nodeGroupStateSummary(), "Press 5 or :ng to load"},
 	}
 
-	iconStyle := lipgloss.NewStyle().Foreground(ColorAccentBlue).Bold(true)
-	labelStyle := lipgloss.NewStyle().Foreground(ColorPrimary).Bold(true).Width(22)
-	selLabelStyle := lipgloss.NewStyle().Foreground(ColorPrimary).Background(lipgloss.Color("#264F78")).Bold(true).Width(22)
-	dimStyle := lipgloss.NewStyle().Foreground(ColorSecondary)
+	labelStyle := lipgloss.NewStyle().Foreground(ColorSecondary).Width(24)
+	focusLabelStyle := lipgloss.NewStyle().Foreground(ColorPrimary).Bold(true).Width(24)
+	indicatorStyle := lipgloss.NewStyle().Foreground(ColorAccentBlue).Bold(true)
+	dimStyle := lipgloss.NewStyle().Foreground(ColorMuted).Italic(true)
 	countStyle := lipgloss.NewStyle().Foreground(ColorAccentIndigo).Bold(true)
 
 	for i, r := range rollups {
-		var marker string
-		var lblStyle lipgloss.Style
+		marker := "  "
+		lblStyle := labelStyle
 		if i == m.cursor {
-			marker = DashboardSelectionBarStyle().Render("▌")
-			lblStyle = selLabelStyle
-		} else {
-			marker = " "
-			lblStyle = labelStyle
+			marker = indicatorStyle.Render("▎ ")
+			lblStyle = focusLabelStyle
 		}
 
-		var countCell string
+		var rightCell string
 		switch {
 		case r.count == 0 && r.state == "":
-			countCell = dimStyle.Render("—")
+			rightCell = dimStyle.Render(r.hint)
 		case r.state != "":
-			countCell = fmt.Sprintf("%s   %s", countStyle.Render(fmt.Sprintf("%4d", r.count)), dimStyle.Render(r.state))
+			rightCell = fmt.Sprintf("%s   %s", countStyle.Render(fmt.Sprintf("%4d", r.count)), dimStyle.Render(r.state))
 		default:
-			countCell = countStyle.Render(fmt.Sprintf("%4d", r.count))
+			rightCell = countStyle.Render(fmt.Sprintf("%4d", r.count))
 		}
-		fmt.Fprintf(&b, "%s %s  %s   %s\n",
+		fmt.Fprintf(&b, "%s%s   %s\n",
 			marker,
-			iconStyle.Render(r.icon),
 			lblStyle.Render(r.label),
-			countCell,
+			rightCell,
 		)
 	}
 
