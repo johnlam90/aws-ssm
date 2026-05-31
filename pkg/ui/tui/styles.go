@@ -641,9 +641,7 @@ func DashboardHeaderBarStyle() lipgloss.Style {
 func DashboardSeparatorStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
-		Foreground(theme.Border()).
-		MarginTop(1).
-		MarginBottom(1)
+		Foreground(theme.Border())
 }
 
 // DashboardSectionTitleStyle returns the section title styling
@@ -660,7 +658,6 @@ func DashboardServiceNameStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
 		Foreground(theme.Primary()).
-		Width(22). // Fixed width for alignment
 		Bold(true)
 }
 
@@ -668,8 +665,7 @@ func DashboardServiceNameStyle() lipgloss.Style {
 func DashboardServiceDescStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
-		Foreground(theme.Secondary()).
-		Width(40) // Fixed width for alignment
+		Foreground(theme.Secondary())
 }
 
 // DashboardSelectionBarStyle returns the vertical selection bar styling
@@ -685,18 +681,14 @@ func DashboardSelectedNameStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
 		Foreground(theme.AccentBlue()).
-		Background(theme.Highlight()).
-		Bold(true).
-		Width(22) // Same width as normal for alignment
+		Bold(true)
 }
 
 // DashboardSelectedDescStyle returns the selected service description styling
 func DashboardSelectedDescStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
-		Foreground(theme.AccentBlue()).
-		Background(theme.Highlight()).
-		Width(40) // Same width as normal for alignment
+		Foreground(theme.Primary())
 }
 
 // DashboardFooterStyle returns the footer styling
@@ -720,4 +712,50 @@ func DashboardFooterActionStyle() lipgloss.Style {
 	theme := GetTheme()
 	return lipgloss.NewStyle().
 		Foreground(theme.Secondary())
+}
+
+// DashboardBrandStyle returns the brand style for the dashboard chrome.
+func DashboardBrandStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Primary()).
+		Bold(true)
+}
+
+// DashboardMutedStyle returns muted chrome text.
+func DashboardMutedStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Muted())
+}
+
+// DashboardContextStyle returns right-aligned context text.
+func DashboardContextStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Secondary())
+}
+
+// DashboardTableHeaderStyle returns the service table header style.
+func DashboardTableHeaderStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Muted()).
+		Bold(true)
+}
+
+// DashboardSelectedKeyStyle returns the selected row key style.
+func DashboardSelectedKeyStyle() lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.AccentBlue()).
+		Bold(true)
+}
+
+// DashboardSubtleRule returns a subtle horizontal rule style.
+func DashboardSubtleRule(width int) lipgloss.Style {
+	theme := GetTheme()
+	return lipgloss.NewStyle().
+		Foreground(theme.Border()).
+		Width(width)
 }

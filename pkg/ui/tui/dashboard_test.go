@@ -28,16 +28,16 @@ func TestBeautifulDashboardRendering(t *testing.T) {
 		t.Error("Dashboard should contain title 'AWS SSM Manager'")
 	}
 
-	if !strings.Contains(view, "Region: us-west-2") {
+	if !strings.Contains(view, "us-west-2") {
 		t.Error("Dashboard should contain region information")
 	}
 
-	if !strings.Contains(view, "Profile: test-profile") {
+	if !strings.Contains(view, "test-profile") {
 		t.Error("Dashboard should contain profile information")
 	}
 
-	if !strings.Contains(view, "Services") {
-		t.Error("Dashboard should contain 'Services' section title")
+	if !strings.Contains(view, "SERVICE") || !strings.Contains(view, "ACTION") {
+		t.Error("Dashboard should contain service table headers")
 	}
 
 	// Verify services are present
@@ -46,11 +46,6 @@ func TestBeautifulDashboardRendering(t *testing.T) {
 		if !strings.Contains(view, service) {
 			t.Errorf("Dashboard should contain service '%s'", service)
 		}
-	}
-
-	// Verify navigation hints
-	if !strings.Contains(view, "Navigation:") {
-		t.Error("Dashboard should contain navigation hints")
 	}
 
 	if !strings.Contains(view, "↑/k") {
@@ -81,8 +76,8 @@ func TestDashboardSelectionRendering(t *testing.T) {
 	view := model.renderDashboard()
 
 	// Verify selection indicator is present
-	if !strings.Contains(view, "▌") {
-		t.Error("Selected item should show vertical bar indicator")
+	if !strings.Contains(view, "›") {
+		t.Error("Selected item should show selection indicator")
 	}
 }
 

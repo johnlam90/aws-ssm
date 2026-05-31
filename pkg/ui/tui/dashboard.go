@@ -3,69 +3,49 @@ package tui
 import (
 	"fmt"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
-// renderDashboard renders the main dashboard view with beautiful aesthetics
+// renderDashboard renders the main dashboard view.
 func (m Model) renderDashboard() string {
 	var b strings.Builder
 
-	// Top header bar with context information
-	headerBar := m.renderDashboardHeaderBar()
-	b.WriteString(headerBar)
+	b.WriteString(m.renderDashboardTopBar())
 	b.WriteString("\n")
-
-	// Main title
-	title := DashboardTitleStyle().Render("AWS SSM Manager")
-	b.WriteString(title)
+	b.WriteString(m.renderDashboardSeparator())
+	b.WriteString("\n\n")
+	b.WriteString(DashboardTitleStyle().Render("AWS SSM Manager"))
 	b.WriteString("\n")
+	b.WriteString(SubtitleStyle().Render("Choose a resource group to inspect or operate."))
+	b.WriteString("\n\n")
 
-	// Horizontal separator
-	separator := m.renderDashboardSeparator()
-	b.WriteString(separator)
-	b.WriteString("\n")
-
-	// Show loading state with beautiful styling
 	if m.loading {
 		b.WriteString(m.renderLoading())
-		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 		return b.String()
 	}
 
-	// Show error state with beautiful styling
 	if m.err != nil {
 		b.WriteString(m.renderError())
-		b.WriteString("\n\n")
-		b.WriteString(HelpStyle().Render("esc:back"))
-		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 		return b.String()
 	}
 
-	// Section title
-	sectionTitle := DashboardSectionTitleStyle().Render("Services")
-	b.WriteString(sectionTitle)
+	b.WriteString(DashboardTableHeaderStyle().Render(fmt.Sprintf("  %-4s %-24s %s", "KEY", "SERVICE", "ACTION")))
+	b.WriteString("\n")
+	b.WriteString(DashboardSubtleRule(m.dashboardContentWidth()).Render(strings.Repeat("─", m.dashboardContentWidth())))
 	b.WriteString("\n")
 
-	// Menu items with beautiful two-column layout
 	for i, item := range m.menuItems {
 		menuItem := m.renderDashboardMenuItem(i, item, i == m.cursor)
 		b.WriteString(menuItem)
 		b.WriteString("\n")
 	}
 
-	// Horizontal separator before footer
 	b.WriteString("\n")
-	b.WriteString(separator)
-	b.WriteString("\n")
+	b.WriteString(m.renderDashboardFooter())
 
-	// Beautiful footer with concise keyboard hints
-	footer := m.renderDashboardFooter()
-	b.WriteString(footer)
-
-	// Status bar with consistent styling
 	b.WriteString("\n")
-	b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
+	b.WriteString(m.renderDashboardSeparator())
 
 	return b.String()
 }
@@ -111,43 +91,43 @@ func (m Model) renderError() string {
 	return ErrorStyle().Render(fmt.Sprintf("Error: %v", m.err))
 }
 
-// renderDashboardHeaderBar renders the top header bar with context information
-func (m Model) renderDashboardHeaderBar() string {
-	region := m.getRegion()
-	profile := m.getProfile()
+// renderDashboardTopBar renders the single-line app/context chrome.
+func (m Model) renderDashboardTopBar() string {
+	width := m.dashboardContentWidth()
+	left := DashboardBrandStyle().Render("aws-ssm") + DashboardMutedStyle().Render("  dashboard")
+	right := DashboardContextStyle().Render(fmt.Sprintf("%s  %s", m.getRegion(), m.getProfile()))
 
-	contextParts := []string{}
-	if region != "" {
-		contextParts = append(contextParts, fmt.Sprintf("Region: %s", region))
+	gap := width - lipgloss.Width(left) - lipgloss.Width(right)
+	if gap < 1 {
+		return left
 	}
-	if profile != "" {
-		contextParts = append(contextParts, fmt.Sprintf("Profile: %s", profile))
-	}
-	contextParts = append(contextParts, fmt.Sprintf("View: %s", "Dashboard"))
 
-	return DashboardHeaderBarStyle().Render(strings.Join(contextParts, "   "))
+	return left + strings.Repeat(" ", gap) + right
 }
 
 // renderDashboardSeparator renders a horizontal separator line
 func (m Model) renderDashboardSeparator() string {
-	separator := strings.Repeat("─", m.width)
+	separator := strings.Repeat("─", m.dashboardContentWidth())
 	return DashboardSeparatorStyle().Render(separator)
 }
 
-// renderDashboardMenuItem renders a beautiful two-column menu item
-func (m Model) renderDashboardMenuItem(_ int, item MenuItem, isSelected bool) string {
-	// Normalize descriptions for consistency
+// renderDashboardMenuItem renders one service row.
+func (m Model) renderDashboardMenuItem(index int, item MenuItem, isSelected bool) string {
 	normalizedDesc := m.normalizeServiceDescription(item.Description)
+	key := fmt.Sprintf("%d", index+1)
 
 	if isSelected {
-		selectionBar := DashboardSelectionBarStyle().Render("▌")
-		name := DashboardSelectedNameStyle().Render(item.Title)
-		desc := DashboardSelectedDescStyle().Render(normalizedDesc)
-		return fmt.Sprintf("%s %s %s", selectionBar, name, desc)
+		return fmt.Sprintf("%s %s %s %s",
+			DashboardSelectionBarStyle().Render("›"),
+			DashboardSelectedKeyStyle().Render(fmt.Sprintf("%-4s", key)),
+			DashboardSelectedNameStyle().Render(fmt.Sprintf("%-24s", item.Title)),
+			DashboardSelectedDescStyle().Render(normalizedDesc),
+		)
 	}
-	name := DashboardServiceNameStyle().Render(item.Title)
+
+	name := DashboardServiceNameStyle().Render(fmt.Sprintf("%-24s", item.Title))
 	desc := DashboardServiceDescStyle().Render(normalizedDesc)
-	return fmt.Sprintf("  %s %s", name, desc)
+	return fmt.Sprintf("  %s %s %s", DashboardFooterKeyStyle().Render(fmt.Sprintf("%-4s", key)), name, desc)
 }
 
 // normalizeServiceDescription normalizes service descriptions for consistency
@@ -168,7 +148,7 @@ func (m Model) normalizeServiceDescription(desc string) string {
 	return desc
 }
 
-// renderDashboardFooter renders the beautiful footer with concise keyboard hints
+// renderDashboardFooter renders concise keyboard hints.
 func (m Model) renderDashboardFooter() string {
 	keys := []struct {
 		key  string
@@ -188,7 +168,17 @@ func (m Model) renderDashboardFooter() string {
 		parts = append(parts, fmt.Sprintf("%s %s", keyStyle, descStyle))
 	}
 
-	return DashboardFooterStyle().Render(fmt.Sprintf("Navigation: %s", strings.Join(parts, "  ")))
+	return DashboardFooterStyle().Render(strings.Join(parts, "   "))
+}
+
+func (m Model) dashboardContentWidth() int {
+	if m.width <= 0 {
+		return 80
+	}
+	if m.width > 100 {
+		return 100
+	}
+	return m.width
 }
 
 // getRegion returns the current AWS region
