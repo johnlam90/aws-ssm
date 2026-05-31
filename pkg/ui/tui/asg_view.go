@@ -3,6 +3,9 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
+
+	"github.com/johnlam90/aws-ssm/pkg/ui/tui/table"
 )
 
 // renderASGs renders the Auto Scaling Groups main-panel content.
@@ -25,18 +28,13 @@ func (m Model) renderASGs() string {
 	details := limitRenderedLines(m.renderASGDetails(selected), max(1, m.height-10))
 	visibleRows := calculateTableRows(m.height, 9, details)
 
-	b.WriteString(TableHeaderStyle().Render(fmt.Sprintf("  %-50s %8s %8s %8s %8s",
-		"NAME", "DESIRED", "MIN", "MAX", "CURRENT")))
+	cols := table.Allocate(asgColumns(), m.mainWidth())
+	b.WriteString(TableHeaderStyle().Render(table.FormatHeader(cols)))
 	b.WriteString("\n")
+
 	startIdx, endIdx := m.calculateVisibleRange(len(asgs), cursor, visibleRows)
 	for i := startIdx; i < endIdx; i++ {
-		asg := asgs[i]
-		name := asg.Name
-		if len(name) > 50 {
-			name = name[:47] + "..."
-		}
-		row := fmt.Sprintf("  %-50s %8d %8d %8d %8d",
-			name, asg.DesiredCapacity, asg.MinSize, asg.MaxSize, asg.CurrentSize)
+		row := table.FormatRow(asgRowValues(asgs[i]), cols)
 		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
@@ -63,6 +61,34 @@ func (m Model) renderASGs() string {
 	}
 
 	return b.String()
+}
+
+func asgColumns() []table.ColumnSpec {
+	return []table.ColumnSpec{
+		{Header: "NAME", MinWidth: 12, PrefWidth: 36, MaxWidth: 60, Align: "left"},
+		{Header: "STATE", MinWidth: 5, PrefWidth: 5, MaxWidth: 5, Align: "center"},
+		{Header: "DES", MinWidth: 3, PrefWidth: 5, MaxWidth: 6, Align: "right"},
+		{Header: "MIN", MinWidth: 3, PrefWidth: 5, MaxWidth: 6, Align: "right"},
+		{Header: "MAX", MinWidth: 3, PrefWidth: 5, MaxWidth: 6, Align: "right"},
+		{Header: "CUR", MinWidth: 3, PrefWidth: 5, MaxWidth: 6, Align: "right"},
+		{Header: "AGE", MinWidth: 3, PrefWidth: 5, MaxWidth: 8, Align: "right"},
+	}
+}
+
+func asgRowValues(a ASG) []string {
+	age := ""
+	if !a.CreatedAt.IsZero() {
+		age = humanDurationShort(time.Since(a.CreatedAt))
+	}
+	return []string{
+		a.Name,
+		"  " + table.StateBadge(a.Status) + "  ",
+		fmt.Sprintf("%d", a.DesiredCapacity),
+		fmt.Sprintf("%d", a.MinSize),
+		fmt.Sprintf("%d", a.MaxSize),
+		fmt.Sprintf("%d", a.CurrentSize),
+		age,
+	}
 }
 
 func (m Model) calculateVisibleRange(total, cursor, visibleHeight int) (int, int) {

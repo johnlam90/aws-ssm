@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/johnlam90/aws-ssm/pkg/aws"
+	"github.com/johnlam90/aws-ssm/pkg/ui/tui/table"
 )
 
 // renderNetworkInterfaces renders the network interfaces main-panel content.
@@ -19,19 +20,13 @@ func (m Model) renderNetworkInterfaces() string {
 	details := limitRenderedLines(renderNetworkDetails(selected, m.width), max(1, m.height-8))
 	visibleRows := calculateTableRows(m.height, 7, details)
 
-	headerRow := fmt.Sprintf("  %-28s %-20s %-32s %6s", "NAME", "INSTANCE ID", "DNS NAME", "IFACES")
-	b.WriteString(TableHeaderStyle().Render(headerRow))
+	cols := table.Allocate(networkColumns(), m.mainWidth())
+	b.WriteString(TableHeaderStyle().Render(table.FormatHeader(cols)))
 	b.WriteString("\n")
+
 	startIdx, endIdx := calculateNetworkVisibleRange(len(instances), cursor, visibleRows)
 	for i := startIdx; i < endIdx; i++ {
-		inst := instances[i]
-		name := normalizeValue(inst.InstanceName, "(no name)", 28)
-		id := inst.InstanceID
-		if id == "" {
-			id = "unknown"
-		}
-		dns := normalizeValue(inst.DNSName, "n/a", 32)
-		row := fmt.Sprintf("  %-28s %-20s %-32s %6d", name, id, dns, len(inst.Interfaces))
+		row := table.FormatRow(networkRowValues(instances[i]), cols)
 		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
@@ -43,6 +38,36 @@ func (m Model) renderNetworkInterfaces() string {
 		b.WriteString(searchBar)
 	}
 	return b.String()
+}
+
+func networkColumns() []table.ColumnSpec {
+	return []table.ColumnSpec{
+		{Header: "NAME", MinWidth: 10, PrefWidth: 24, MaxWidth: 32, Align: "left"},
+		{Header: "INSTANCE ID", MinWidth: 19, PrefWidth: 19, MaxWidth: 19, Align: "left"},
+		{Header: "DNS NAME", MinWidth: 14, PrefWidth: 28, MaxWidth: 40, Align: "left"},
+		{Header: "IFACES", MinWidth: 6, PrefWidth: 6, MaxWidth: 8, Align: "right"},
+	}
+}
+
+func networkRowValues(inst aws.InstanceInterfaces) []string {
+	name := inst.InstanceName
+	if name == "" {
+		name = "(no name)"
+	}
+	id := inst.InstanceID
+	if id == "" {
+		id = "unknown"
+	}
+	dns := inst.DNSName
+	if dns == "" {
+		dns = "n/a"
+	}
+	return []string{
+		name,
+		id,
+		dns,
+		fmt.Sprintf("%d", len(inst.Interfaces)),
+	}
 }
 
 func renderNetworkDetails(selected aws.InstanceInterfaces, width int) string {

@@ -337,7 +337,7 @@ func TestTableViews_FitTerminalHeightWhenScrolled(t *testing.T) {
 				return model
 			},
 			render:     Model.renderEKSClusters,
-			headerText: []string{"NAME", "STATUS", "VERSION"},
+			headerText: []string{"NAME", "STATE", "VERSION"},
 		},
 		{
 			name: "asg",
@@ -356,7 +356,7 @@ func TestTableViews_FitTerminalHeightWhenScrolled(t *testing.T) {
 				return model
 			},
 			render:     Model.renderASGs,
-			headerText: []string{"NAME", "DESIRED", "CURRENT"},
+			headerText: []string{"NAME", "DES", "CUR"},
 		},
 		{
 			name: "network",

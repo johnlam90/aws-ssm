@@ -3,6 +3,9 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
+
+	"github.com/johnlam90/aws-ssm/pkg/ui/tui/table"
 )
 
 // renderNodeGroups renders the EKS node groups main-panel content.
@@ -17,17 +20,13 @@ func (m Model) renderNodeGroups() string {
 	details := renderNodeGroupDetails(selected)
 	visibleRows := calculateNodeGroupTableRows(m.height, details)
 
-	b.WriteString(TableHeaderStyle().Render(fmt.Sprintf("  %-24s %-28s %-10s %8s %8s %8s %8s",
-		"CLUSTER", "NODE GROUP", "STATUS", "DESIRED", "MIN", "MAX", "CURRENT")))
+	cols := table.Allocate(nodeGroupColumns(), m.mainWidth())
+	b.WriteString(TableHeaderStyle().Render(table.FormatHeader(cols)))
 	b.WriteString("\n")
+
 	startIdx, endIdx := calculateNodeGroupVisibleRange(len(groups), cursor, visibleRows)
 	for i := startIdx; i < endIdx; i++ {
-		ng := groups[i]
-		cluster := normalizeValue(ng.ClusterName, "unknown", 24)
-		name := normalizeValue(ng.Name, "n/a", 28)
-		status := RenderStateCell(ng.Status, 10)
-		row := fmt.Sprintf("  %-24s %-28s %s %8d %8d %8d %8d",
-			cluster, name, status, ng.DesiredSize, ng.MinSize, ng.MaxSize, ng.CurrentSize)
+		row := table.FormatRow(nodeGroupRowValues(groups[i]), cols)
 		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
@@ -53,6 +52,46 @@ func (m Model) renderNodeGroups() string {
 		b.WriteString(status)
 	}
 	return b.String()
+}
+
+func nodeGroupColumns() []table.ColumnSpec {
+	return []table.ColumnSpec{
+		{Header: "CLUSTER", MinWidth: 10, PrefWidth: 22, MaxWidth: 32, Align: "left"},
+		{Header: "NODE GROUP", MinWidth: 10, PrefWidth: 24, MaxWidth: 36, Align: "left"},
+		{Header: "STATE", MinWidth: 5, PrefWidth: 5, MaxWidth: 5, Align: "center"},
+		{Header: "DES", MinWidth: 3, PrefWidth: 5, MaxWidth: 6, Align: "right"},
+		{Header: "MIN", MinWidth: 3, PrefWidth: 5, MaxWidth: 6, Align: "right"},
+		{Header: "MAX", MinWidth: 3, PrefWidth: 5, MaxWidth: 6, Align: "right"},
+		{Header: "CUR", MinWidth: 3, PrefWidth: 5, MaxWidth: 6, Align: "right"},
+		{Header: "AGE", MinWidth: 3, PrefWidth: 5, MaxWidth: 8, Align: "right"},
+	}
+}
+
+func nodeGroupRowValues(ng NodeGroup) []string {
+	cluster := ng.ClusterName
+	if cluster == "" {
+		cluster = "unknown"
+	}
+	name := ng.Name
+	if name == "" {
+		name = "n/a"
+	}
+
+	age := ""
+	if t, err := time.Parse("2006-01-02 15:04:05", ng.CreatedAt); err == nil {
+		age = humanDurationShort(time.Since(t))
+	}
+
+	return []string{
+		cluster,
+		name,
+		"  " + table.StateBadge(ng.Status) + "  ",
+		fmt.Sprintf("%d", ng.DesiredSize),
+		fmt.Sprintf("%d", ng.MinSize),
+		fmt.Sprintf("%d", ng.MaxSize),
+		fmt.Sprintf("%d", ng.CurrentSize),
+		age,
+	}
 }
 
 func renderNodeGroupDetails(selected NodeGroup) string {
@@ -90,7 +129,7 @@ func calculateNodeGroupTableRows(terminalHeight int, details string) int {
 	if terminalHeight <= 0 {
 		return 5
 	}
-	const fixedLines = 6 // table header, detail title, spacing
+	const fixedLines = 6
 	detailLines := countRenderedLines(details)
 	rows := terminalHeight - fixedLines - detailLines
 	if rows < 1 {
@@ -99,8 +138,6 @@ func calculateNodeGroupTableRows(terminalHeight int, details string) int {
 	return rows
 }
 
-// renderNodeGroupState renders loading/error/empty states inside the
-// main panel; chrome remains visible above and below.
 func (m Model) renderNodeGroupState(groups []NodeGroup) string {
 	if m.loading {
 		return m.renderLoading()
@@ -118,7 +155,6 @@ func calculateNodeGroupVisibleRange(total, cursor, visibleHeight int) (int, int)
 	return calculateBoundedVisibleRange(total, cursor, visibleHeight)
 }
 
-// clampIndex ensures cursor stays within list bounds
 func clampIndex(idx, length int) int {
 	switch {
 	case length == 0:

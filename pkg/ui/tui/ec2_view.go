@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/johnlam90/aws-ssm/pkg/ui/tui/table"
 )
 
 // renderEC2Instances renders the EC2 instances main-panel content.
-// Chrome (header, footer, status bar) is owned by the chrome package
-// and is composed at the View() level.
 func (m Model) renderEC2Instances() string {
 	var b strings.Builder
 
@@ -18,12 +18,10 @@ func (m Model) renderEC2Instances() string {
 		b.WriteString(m.renderLoading())
 		return b.String()
 	}
-
 	if m.err != nil {
 		b.WriteString(m.renderError())
 		return b.String()
 	}
-
 	if len(instances) == 0 {
 		b.WriteString(SubtitleStyle().Render("No EC2 instances found"))
 		return b.String()
@@ -33,9 +31,8 @@ func (m Model) renderEC2Instances() string {
 	selected := instances[cursor]
 	details := limitRenderedLines(m.renderEC2Details(selected), max(1, m.height-10))
 
-	headerRow := fmt.Sprintf("  %-32s %-20s %-15s %-12s %-15s",
-		"NAME", "INSTANCE ID", "PRIVATE IP", "STATE", "TYPE")
-	b.WriteString(TableHeaderStyle().Render(headerRow))
+	cols := table.Allocate(ec2Columns(), m.mainWidth())
+	b.WriteString(TableHeaderStyle().Render(table.FormatHeader(cols)))
 	b.WriteString("\n")
 
 	visibleHeight := calculateTableRows(m.height, 9, details)
@@ -43,30 +40,13 @@ func (m Model) renderEC2Instances() string {
 
 	for i := startIdx; i < endIdx; i++ {
 		inst := instances[i]
-		name := inst.Name
-		if name == "" {
-			name = "(no name)"
-		}
-		if len(name) > 32 {
-			name = name[:29] + "..."
-		}
-
-		state := RenderStateCell(inst.State, 12)
-		row := fmt.Sprintf("  %-32s %-20s %-15s %s %-15s",
-			name, inst.InstanceID, inst.PrivateIP, state, inst.InstanceType)
-
+		row := table.FormatRow(ec2RowValues(inst), cols)
 		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
 
-	if visibleHeight > 0 && len(instances) > visibleHeight {
-		pageInfo := fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, len(instances))
-		b.WriteString("\n")
-		b.WriteString(SubtitleStyle().Render(pageInfo))
-	}
-
 	b.WriteString("\n")
-	detailTitle := fmt.Sprintf("%s (%s)", normalizeValue(selected.Name, "(no name)", 0), selected.InstanceID)
+	detailTitle := fmt.Sprintf("%s · %s", normalizeValue(selected.Name, "(no name)", 0), selected.InstanceID)
 	b.WriteString(SubtitleStyle().Render(detailTitle))
 	b.WriteString("\n")
 	b.WriteString(details)
@@ -77,6 +57,61 @@ func (m Model) renderEC2Instances() string {
 	}
 
 	return b.String()
+}
+
+func ec2Columns() []table.ColumnSpec {
+	return []table.ColumnSpec{
+		{Header: "NAME", MinWidth: 12, PrefWidth: 28, MaxWidth: 40, Align: "left"},
+		{Header: "INSTANCE ID", MinWidth: 19, PrefWidth: 19, MaxWidth: 19, Align: "left"},
+		{Header: "PRIV IP", MinWidth: 9, PrefWidth: 13, MaxWidth: 15, Align: "left"},
+		{Header: "STATE", MinWidth: 5, PrefWidth: 5, MaxWidth: 5, Align: "center"},
+		{Header: "TYPE", MinWidth: 6, PrefWidth: 10, MaxWidth: 16, Align: "left"},
+		{Header: "AGE", MinWidth: 3, PrefWidth: 5, MaxWidth: 8, Align: "right"},
+	}
+}
+
+func ec2RowValues(inst EC2Instance) []string {
+	name := inst.Name
+	if name == "" {
+		name = "(no name)"
+	}
+	age := ""
+	if !inst.LaunchTime.IsZero() {
+		age = humanDurationShort(time.Since(inst.LaunchTime))
+	}
+	return []string{
+		name,
+		inst.InstanceID,
+		inst.PrivateIP,
+		"  " + table.StateBadge(inst.State) + "  ",
+		inst.InstanceType,
+		age,
+	}
+}
+
+// humanDurationShort returns a single-token age like "3d", "12h",
+// "5m", or "<1m". Used in tabular AGE columns.
+func humanDurationShort(d time.Duration) string {
+	if d < 0 {
+		d = -d
+	}
+	if d < time.Minute {
+		return "<1m"
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	}
+	if d < 24*time.Hour {
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	}
+	days := int(d.Hours()) / 24
+	if days < 30 {
+		return fmt.Sprintf("%dd", days)
+	}
+	if days < 365 {
+		return fmt.Sprintf("%dmo", days/30)
+	}
+	return fmt.Sprintf("%dy", days/365)
 }
 
 func (m Model) renderEC2Details(inst EC2Instance) string {

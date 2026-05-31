@@ -275,6 +275,15 @@ func (m Model) breadcrumb() string {
 	return "Home ▸ " + m.currentView.String()
 }
 
+// mainWidth returns the width of the main panel region for the
+// current terminal size. Per-view renderers use this to size their
+// table column allocators so content fits inside the chrome+sidebar
+// envelope without overflow.
+func (m Model) mainWidth() int {
+	rects := layout.Compute(m.width, m.height)
+	return rects.Main.Width
+}
+
 // sidebarItems returns the sidebar entry list with the focus flag set
 // on the entry matching the current view.
 func (m Model) sidebarItems() []sidebar.Item {
