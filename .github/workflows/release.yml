@@ -183,52 +183,89 @@ jobs:
       - name: Wait for release assets
         run: sleep 30
 
-      - name: Download release assets for checksums
+      - name: Download release checksums
         run: |
           VERSION=${{ steps.get_version.outputs.VERSION }}
-          
-          # Download macOS arm64 for Homebrew
-          curl -L -o aws-ssm-darwin-arm64.tar.gz \
-            "https://github.com/johnlam90/aws-ssm/releases/download/v${VERSION}/aws-ssm-darwin-arm64.tar.gz"
-          
-          # Calculate SHA256
-          SHA256=$(shasum -a 256 aws-ssm-darwin-arm64.tar.gz | awk '{print $1}')
-          echo "SHA256=${SHA256}" >> $GITHUB_ENV
-          echo "Calculated SHA256: ${SHA256}"
+          curl -fsSL -o checksums.txt \
+            "https://github.com/johnlam90/aws-ssm/releases/download/v${VERSION}/checksums.txt"
+
+          get_sha() {
+            awk -v artifact="$1" '$2 == artifact { print $1 }' checksums.txt
+          }
+
+          {
+            echo "DARWIN_AMD64_SHA=$(get_sha aws-ssm-darwin-amd64.tar.gz)"
+            echo "DARWIN_ARM64_SHA=$(get_sha aws-ssm-darwin-arm64.tar.gz)"
+            echo "LINUX_AMD64_SHA=$(get_sha aws-ssm-linux-amd64.tar.gz)"
+            echo "LINUX_ARM64_SHA=$(get_sha aws-ssm-linux-arm64.tar.gz)"
+          } >> "$GITHUB_ENV"
+
+          for artifact in \
+            aws-ssm-darwin-amd64.tar.gz \
+            aws-ssm-darwin-arm64.tar.gz \
+            aws-ssm-linux-amd64.tar.gz \
+            aws-ssm-linux-arm64.tar.gz; do
+            if [[ -z "$(get_sha "$artifact")" ]]; then
+              echo "Missing checksum for ${artifact}" >&2
+              exit 1
+            fi
+          done
 
       - name: Create Homebrew formula
         run: |
+          VERSION=${{ steps.get_version.outputs.VERSION }}
+          TAG=v${VERSION}
           mkdir -p homebrew-formula
-          cat > homebrew-formula/aws-ssm.rb << 'EOF'
+          cat > homebrew-formula/aws-ssm.rb << EOF
+          # typed: false
+          # frozen_string_literal: true
+
           class AwsSsm < Formula
-            desc "AWS Systems Manager (SSM) CLI for managing EC2 instances"
+            desc "Native Golang CLI tool for managing AWS SSM sessions"
             homepage "https://github.com/johnlam90/aws-ssm"
-            version "${{ steps.get_version.outputs.VERSION }}"
-            
+            version "${VERSION}"
+            license "MIT"
+
             on_macos do
+              if Hardware::CPU.intel?
+                url "https://github.com/johnlam90/aws-ssm/releases/download/${TAG}/aws-ssm-darwin-amd64.tar.gz"
+                sha256 "${DARWIN_AMD64_SHA}"
+
+                def install
+                  bin.install "aws-ssm-darwin-amd64" => "aws-ssm"
+                end
+              end
+
               if Hardware::CPU.arm?
-                url "https://github.com/johnlam90/aws-ssm/releases/download/v#{version}/aws-ssm-darwin-arm64.tar.gz"
-                sha256 "${{ env.SHA256 }}"
-              else
-                url "https://github.com/johnlam90/aws-ssm/releases/download/v#{version}/aws-ssm-darwin-amd64.tar.gz"
-                sha256 "PLACEHOLDER_AMD64_SHA256"
+                url "https://github.com/johnlam90/aws-ssm/releases/download/${TAG}/aws-ssm-darwin-arm64.tar.gz"
+                sha256 "${DARWIN_ARM64_SHA}"
+
+                def install
+                  bin.install "aws-ssm-darwin-arm64" => "aws-ssm"
+                end
               end
             end
-            
+
             on_linux do
-              if Hardware::CPU.arm?
-                url "https://github.com/johnlam90/aws-ssm/releases/download/v#{version}/aws-ssm-linux-arm64.tar.gz"
-                sha256 "PLACEHOLDER_LINUX_ARM64_SHA256"
-              else
-                url "https://github.com/johnlam90/aws-ssm/releases/download/v#{version}/aws-ssm-linux-amd64.tar.gz"
-                sha256 "PLACEHOLDER_LINUX_AMD64_SHA256"
+              if Hardware::CPU.intel?
+                url "https://github.com/johnlam90/aws-ssm/releases/download/${TAG}/aws-ssm-linux-amd64.tar.gz"
+                sha256 "${LINUX_AMD64_SHA}"
+
+                def install
+                  bin.install "aws-ssm-linux-amd64" => "aws-ssm"
+                end
+              end
+
+              if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
+                url "https://github.com/johnlam90/aws-ssm/releases/download/${TAG}/aws-ssm-linux-arm64.tar.gz"
+                sha256 "${LINUX_ARM64_SHA}"
+
+                def install
+                  bin.install "aws-ssm-linux-arm64" => "aws-ssm"
+                end
               end
             end
-            
-            def install
-              bin.install Dir["aws-ssm-*"].first => "aws-ssm"
-            end
-            
+
             test do
               system "#{bin}/aws-ssm", "version"
             end

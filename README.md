@@ -146,6 +146,8 @@ aws-ssm eks nodegroup scale my-cluster my-nodegroup --desired 5
 
 **New in v0.8.0:** Improved navigation flow—press ESC or type "back" to return to selection without restarting the command.
 
+**New in v1.0.2:** TUI tables keep headers visible while scrolling, and cache path handling is hardened against traversal keys.
+
 ### Auto Scaling Groups
 
 ```bash

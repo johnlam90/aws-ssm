@@ -186,8 +186,7 @@ class AwsSsm < Formula
   end
 
   test do
-    system "
-      \\#{bin}/aws-ssm", "version"
+    system "#{bin}/aws-ssm", "version"
   end
 end
 EOF
