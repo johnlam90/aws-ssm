@@ -148,6 +148,8 @@ aws-ssm eks nodegroup scale my-cluster my-nodegroup --desired 5
 
 **New in v1.0.2:** TUI tables keep headers visible while scrolling, and cache path handling is hardened against traversal keys.
 
+**New in v1.0.3:** The table-header scrolling fix now applies consistently across EC2, EKS clusters, ASGs, Network Interfaces, and Node Groups.
+
 ### Auto Scaling Groups
 
 ```bash

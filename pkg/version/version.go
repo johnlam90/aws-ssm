@@ -8,7 +8,7 @@ import (
 
 var (
 	// Version is the semantic version of the application
-	Version = "1.0.2"
+	Version = "1.0.3"
 
 	// GitCommit is the git commit hash (set by build flags)
 	GitCommit = "unknown"
