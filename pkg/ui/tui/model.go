@@ -61,6 +61,7 @@ type Model struct {
 	searchDebounce  *time.Timer
 	scaling         *ScalingState
 	ltUpdate        *LaunchTemplateUpdateState
+	palette         *PaletteState
 	statusMessage   string
 	statusAnimation *StatusAnimation
 }
@@ -147,6 +148,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Palette wins over everything except hard modals — opening a
+	// modal always closes the palette implicitly via its own handler.
+	if m.palette != nil {
+		return m.handlePaletteKeys(msg)
+	}
 	if m.scaling != nil {
 		return m.handleScalingKeys(msg)
 	}
@@ -158,6 +164,10 @@ func (m Model) updateKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if handled {
 			return updated, searchCmd
 		}
+	}
+	// `:` opens the command palette from any non-input context.
+	if msg.String() == ":" {
+		return m.openPalette(), nil
 	}
 	if msg.Type == tea.KeyEsc && !m.searchActive && strings.TrimSpace(m.getSearchQuery(m.currentView)) != "" {
 		m = m.clearSearchQuery(m.currentView)
@@ -231,7 +241,15 @@ func (m Model) View() string {
 	})
 
 	sideContent := sidebar.Render(rects.Sidebar.Width, rects.Sidebar.Height, m.sidebarItems())
-	mainContent := padOrFitMainPanel(m.renderMainPanel(), rects.Main)
+
+	// When the palette is open, replace the main panel content with
+	// the centered overlay. This keeps chrome (top + sidebar + bottom)
+	// visible so the user retains context while typing a command.
+	mainRaw := m.renderMainPanel()
+	if m.palette != nil {
+		mainRaw = m.renderPalette()
+	}
+	mainContent := padOrFitMainPanel(mainRaw, rects.Main)
 
 	bottom := chrome.RenderBottomBar(chrome.BottomBarInput{
 		Hints:  m.hintsForView(),
@@ -361,6 +379,7 @@ func (m Model) hintsForView() []chrome.Hint {
 	}
 	common := []chrome.Hint{
 		{Key: "/", Label: "search"},
+		{Key: ":", Label: "command"},
 		{Key: "r", Label: "refresh"},
 		{Key: "esc", Label: "back"},
 		{Key: "?", Label: "help"},
