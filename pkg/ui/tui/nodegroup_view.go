@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// renderNodeGroups renders the EKS node groups view
+// renderNodeGroups renders the EKS node groups main-panel content.
 func (m Model) renderNodeGroups() string {
 	groups := m.getNodeGroups()
 	if s := m.renderNodeGroupState(groups); s != "" {
@@ -17,9 +17,6 @@ func (m Model) renderNodeGroups() string {
 	details := renderNodeGroupDetails(selected)
 	visibleRows := calculateNodeGroupTableRows(m.height, details)
 
-	header := m.renderHeader("EKS Node Groups", fmt.Sprintf("%d node groups", len(groups)))
-	b.WriteString(header)
-	b.WriteString("\n\n")
 	b.WriteString(TableHeaderStyle().Render(fmt.Sprintf("  %-24s %-28s %-10s %8s %8s %8s %8s",
 		"CLUSTER", "NODE GROUP", "STATUS", "DESIRED", "MIN", "MAX", "CURRENT")))
 	b.WriteString("\n")
@@ -38,28 +35,23 @@ func (m Model) renderNodeGroups() string {
 	b.WriteString(SubtitleStyle().Render(fmt.Sprintf("%s / %s", selected.ClusterName, selected.Name)))
 	b.WriteString("\n")
 	b.WriteString(details)
-	b.WriteString("\n")
 
-	b.WriteString("\n")
 	if overlay := m.renderScalingPrompt(ViewNodeGroups); overlay != "" {
-		b.WriteString(overlay)
 		b.WriteString("\n")
+		b.WriteString(overlay)
 	}
 	if ltOverlay := m.renderLaunchTemplatePrompt(); ltOverlay != "" {
-		b.WriteString(ltOverlay)
 		b.WriteString("\n")
+		b.WriteString(ltOverlay)
 	}
 	if searchBar := m.renderSearchBar(ViewNodeGroups); searchBar != "" {
-		b.WriteString(searchBar)
 		b.WriteString("\n")
+		b.WriteString(searchBar)
 	}
 	if status := m.renderStatusMessage(); status != "" {
-		b.WriteString(status)
 		b.WriteString("\n")
+		b.WriteString(status)
 	}
-	b.WriteString(m.renderNodeGroupFooter())
-	b.WriteString("\n")
-	b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 	return b.String()
 }
 
@@ -98,7 +90,7 @@ func calculateNodeGroupTableRows(terminalHeight int, details string) int {
 	if terminalHeight <= 0 {
 		return 5
 	}
-	const fixedLines = 9 // title, blank, table header, detail title, spacing, footer, status bar
+	const fixedLines = 6 // table header, detail title, spacing
 	detailLines := countRenderedLines(details)
 	rows := terminalHeight - fixedLines - detailLines
 	if rows < 1 {
@@ -107,65 +99,23 @@ func calculateNodeGroupTableRows(terminalHeight int, details string) int {
 	return rows
 }
 
-// renderNodeGroupState renders loading/error/empty states
+// renderNodeGroupState renders loading/error/empty states inside the
+// main panel; chrome remains visible above and below.
 func (m Model) renderNodeGroupState(groups []NodeGroup) string {
-	var b strings.Builder
-	header := m.renderHeader("EKS Node Groups", fmt.Sprintf("%d node groups", len(groups)))
-	b.WriteString(header)
-	b.WriteString("\n\n")
 	if m.loading {
-		b.WriteString(m.renderLoading())
-		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
-		return b.String()
+		return m.renderLoading()
 	}
 	if m.err != nil {
-		b.WriteString(m.renderError())
-		b.WriteString("\n\n")
-		b.WriteString(HelpStyle().Render("esc:back"))
-		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
-		return b.String()
+		return m.renderError()
 	}
 	if len(groups) == 0 {
-		b.WriteString(SubtitleStyle().Render("No EKS node groups found"))
-		b.WriteString("\n\n")
-		b.WriteString(HelpStyle().Render("esc:back"))
-		b.WriteString("\n")
-		b.WriteString(StatusBarStyle().Render(m.getStatusBar()))
-		return b.String()
+		return SubtitleStyle().Render("No EKS node groups found")
 	}
 	return ""
 }
 
 func calculateNodeGroupVisibleRange(total, cursor, visibleHeight int) (int, int) {
 	return calculateBoundedVisibleRange(total, cursor, visibleHeight)
-}
-
-// renderNodeGroupFooter renders footer controls for node group view
-func (m Model) renderNodeGroupFooter() string {
-	keys := []struct {
-		key  string
-		desc string
-	}{
-		{"↑/k", "up"},
-		{"↓/j", "down"},
-		{"g/G", "top/bottom"},
-		{"enter", "scale"},
-		{"u/U", "update LT"},
-		{"r", "refresh"},
-		{"/", "search"},
-		{"esc", "back"},
-	}
-
-	var parts []string
-	for _, k := range keys {
-		keyStyle := StatusBarKeyStyle().Render(k.key)
-		descStyle := StatusBarValueStyle().Render(k.desc)
-		parts = append(parts, fmt.Sprintf("%s %s", keyStyle, descStyle))
-	}
-
-	return HelpStyle().Render(strings.Join(parts, " • "))
 }
 
 // clampIndex ensures cursor stays within list bounds

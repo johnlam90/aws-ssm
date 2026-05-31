@@ -8,8 +8,11 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/johnlam90/aws-ssm/pkg/aws"
+	"github.com/johnlam90/aws-ssm/pkg/ui/tui/chrome"
 	"github.com/johnlam90/aws-ssm/pkg/ui/tui/layout"
+	"github.com/johnlam90/aws-ssm/pkg/ui/tui/sidebar"
 )
 
 // Model represents the main TUI model
@@ -202,13 +205,12 @@ func (m Model) updateNonKeyMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// View renders the current screen by composing through the layout pipeline.
+// View renders the current screen by composing the four screen regions:
+// top chrome bar, left sidebar, main panel, and bottom hint bar.
 //
-// Phase 1 of the foundation redesign: layout.Compute is consulted for
-// the screen rectangles, but only the Main region is non-empty, so the
-// visible output is byte-identical to the prior implementation. The
-// indirection is the seam that lets later phases populate sidebar, top
-// bar, and bottom hint bar without rewriting View again.
+// Phase 2 of the foundation redesign makes the chrome and sidebar live;
+// per-view renderers no longer emit their own header, footer, or status
+// bar — those concerns now live in the chrome and sidebar packages.
 func (m Model) View() string {
 	if !m.ready {
 		return "Initializing..."
@@ -216,21 +218,35 @@ func (m Model) View() string {
 
 	rects := layout.Compute(m.width, m.height)
 	if rects.Main.IsEmpty() {
-		return "Initializing..."
+		return fmt.Sprintf(
+			"Terminal too small (%d×%d). Resize to at least %d×%d.",
+			m.width, m.height, layout.MinTerminalWidth, layout.MinTerminalHeight,
+		)
 	}
 
-	return m.renderMainPanel()
+	top := chrome.RenderTopBar(chrome.TopBarInput{
+		Brand:      "aws-ssm",
+		Breadcrumb: m.breadcrumb(),
+		Region:     m.getRegion(),
+		Profile:    m.getProfile(),
+		Width:      rects.TopBar.Width,
+	})
+
+	sideContent := sidebar.Render(rects.Sidebar.Width, rects.Sidebar.Height, m.sidebarItems())
+	mainContent := padOrFitMainPanel(m.renderMainPanel(), rects.Main)
+
+	bottom := chrome.RenderBottomBar(chrome.BottomBarInput{
+		Hints:  m.hintsForView(),
+		Status: m.statusFooter(),
+		Width:  rects.BottomBar.Width,
+	})
+
+	body := lipgloss.JoinHorizontal(lipgloss.Top, sideContent, mainContent)
+	return lipgloss.JoinVertical(lipgloss.Left, top, body, bottom)
 }
 
-// renderMainPanel renders the main region's contents by dispatching to
-// the per-view renderer for the current view, mirroring the previous
-// switch in View() exactly. Phase 1 deliberately keeps each per-view
-// renderer untouched; Phase 2 onward will pass region dimensions in.
+// renderMainPanel returns the per-view content for the main region.
 func (m Model) renderMainPanel() string {
-	if m.loading {
-		return fmt.Sprintf("\n\n   %s %s\n\n", m.spinner.View(), m.loadingMsg)
-	}
-
 	switch m.currentView {
 	case ViewDashboard:
 		return m.renderDashboard()
@@ -249,6 +265,136 @@ func (m Model) renderMainPanel() string {
 	default:
 		return "Unknown view"
 	}
+}
+
+// breadcrumb returns the chrome breadcrumb for the current view.
+func (m Model) breadcrumb() string {
+	if m.currentView == ViewDashboard {
+		return "Home"
+	}
+	return "Home ▸ " + m.currentView.String()
+}
+
+// sidebarItems returns the sidebar entry list with the focus flag set
+// on the entry matching the current view.
+func (m Model) sidebarItems() []sidebar.Item {
+	items := []sidebar.Item{
+		{Icon: "⬡", Label: "Home", Count: -1},
+		{Icon: "▣", Label: "EC2", Count: len(m.ec2Instances)},
+		{Icon: "☸", Label: "EKS", Count: len(m.eksClusters)},
+		{Icon: "⚖", Label: "ASG", Count: len(m.asgs)},
+		{Icon: "⛁", Label: "NG", Count: len(m.nodeGroups)},
+		{Icon: "⌥", Label: "ENI", Count: len(m.netInterfaces)},
+		{Icon: "?", Label: "Help", Count: -1},
+	}
+
+	idx := -1
+	switch m.currentView {
+	case ViewDashboard:
+		idx = 0
+	case ViewEC2Instances:
+		idx = 1
+	case ViewEKSClusters:
+		idx = 2
+	case ViewASGs:
+		idx = 3
+	case ViewNodeGroups:
+		idx = 4
+	case ViewNetworkInterfaces:
+		idx = 5
+	case ViewHelp:
+		idx = 6
+	}
+	if idx >= 0 && idx < len(items) {
+		items[idx].Focus = true
+	}
+	return items
+}
+
+// hintsForView returns the bottom hint bar's per-view key hints.
+func (m Model) hintsForView() []chrome.Hint {
+	var view []chrome.Hint
+	switch m.currentView {
+	case ViewDashboard:
+		view = []chrome.Hint{
+			{Key: "↑↓", Label: "navigate"},
+			{Key: "↵", Label: "select"},
+		}
+	case ViewEC2Instances:
+		view = []chrome.Hint{
+			{Key: "↵", Label: "connect"},
+			{Key: "↑↓", Label: "navigate"},
+		}
+	case ViewEKSClusters:
+		view = []chrome.Hint{
+			{Key: "↵", Label: "details"},
+			{Key: "↑↓", Label: "navigate"},
+		}
+	case ViewASGs:
+		view = []chrome.Hint{
+			{Key: "↵", Label: "scale"},
+			{Key: "↑↓", Label: "navigate"},
+		}
+	case ViewNodeGroups:
+		view = []chrome.Hint{
+			{Key: "↵", Label: "scale"},
+			{Key: "u", Label: "update LT"},
+			{Key: "↑↓", Label: "navigate"},
+		}
+	case ViewNetworkInterfaces:
+		view = []chrome.Hint{
+			{Key: "↑↓", Label: "navigate"},
+		}
+	default:
+		view = nil
+	}
+	common := []chrome.Hint{
+		{Key: "/", Label: "search"},
+		{Key: "r", Label: "refresh"},
+		{Key: "esc", Label: "back"},
+		{Key: "?", Label: "help"},
+		{Key: "q", Label: "quit"},
+	}
+	return append(view, common...)
+}
+
+// statusFooter returns the line under the hint bar — pagination,
+// selection state, or transient status messages.
+func (m Model) statusFooter() string {
+	if strings.TrimSpace(m.statusMessage) != "" {
+		return m.statusMessage
+	}
+	n := m.viewLength(m.currentView)
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s · %d items · %s", m.currentView.String(), n, m.getRegion())
+}
+
+// padOrFitMainPanel pads or trims the per-view content so the main
+// region renders at exactly rect.Width × rect.Height. Lines wider
+// than rect.Width are not truncated (the per-view content already
+// targets m.width); shorter lines are padded with spaces. Extra rows
+// are added (or excess rows truncated) to match rect.Height so the
+// bottom chrome bar lands at a stable y position.
+func padOrFitMainPanel(content string, rect layout.Rect) string {
+	if rect.IsEmpty() {
+		return ""
+	}
+	lines := strings.Split(content, "\n")
+	if len(lines) > rect.Height {
+		lines = lines[:rect.Height]
+	}
+	for len(lines) < rect.Height {
+		lines = append(lines, "")
+	}
+	for i, line := range lines {
+		w := lipgloss.Width(line)
+		if w < rect.Width {
+			lines[i] = line + strings.Repeat(" ", rect.Width-w)
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // handleKeyPress handles keyboard input using the navigation manager

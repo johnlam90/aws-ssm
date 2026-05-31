@@ -20,50 +20,44 @@ func TestBeautifulDashboardRendering(t *testing.T) {
 	model.height = 30
 	model.ready = true
 
-	// Test dashboard rendering
-	view := model.renderDashboard()
-
-	// Verify key components are present
-	if !strings.Contains(view, "AWS SSM Manager") {
-		t.Error("Dashboard should contain title 'AWS SSM Manager'")
-	}
-
-	if !strings.Contains(view, "Region: us-west-2") {
-		t.Error("Dashboard should contain region information")
-	}
-
-	if !strings.Contains(view, "Profile: test-profile") {
-		t.Error("Dashboard should contain profile information")
-	}
+	// Phase 2: chrome (top bar, sidebar, bottom hint bar) is composed
+	// at the View() level. Assert on the full screen so we capture
+	// chrome contributions like region, profile, navigation hints.
+	view := model.View()
 
 	if !strings.Contains(view, "Services") {
 		t.Error("Dashboard should contain 'Services' section title")
 	}
 
-	// Verify services are present
+	if !strings.Contains(view, "us-west-2") {
+		t.Error("View should contain region information (chrome top bar)")
+	}
+
+	if !strings.Contains(view, "test-profile") {
+		t.Error("View should contain profile information (chrome top bar)")
+	}
+
+	if !strings.Contains(view, "aws-ssm") {
+		t.Error("View should contain app brand (chrome top bar)")
+	}
+
+	if !strings.Contains(view, "Home") {
+		t.Error("View should contain breadcrumb 'Home' (chrome top bar)")
+	}
+
+	// Service tiles are rendered by the dashboard's main panel.
 	services := []string{"EC2 Instances", "EKS Clusters", "Auto Scaling Groups", "EKS Node Groups", "Network Interfaces", "Help"}
 	for _, service := range services {
 		if !strings.Contains(view, service) {
-			t.Errorf("Dashboard should contain service '%s'", service)
+			t.Errorf("View should contain service '%s'", service)
 		}
 	}
 
-	// Verify navigation hints
-	if !strings.Contains(view, "Navigation:") {
-		t.Error("Dashboard should contain navigation hints")
-	}
-
-	if !strings.Contains(view, "↑/k") {
-		t.Error("Dashboard should contain up navigation hint")
-	}
-
-	if !strings.Contains(view, "↓/j") {
-		t.Error("Dashboard should contain down navigation hint")
-	}
-
-	// Verify separator lines are present
-	if !strings.Contains(view, "────────────────────────────────────────────────────────────────────────────────") {
-		t.Error("Dashboard should contain horizontal separator lines")
+	// Bottom hint bar carries navigation hints.
+	for _, hint := range []string{"navigate", "select", "search", "help", "quit"} {
+		if !strings.Contains(view, hint) {
+			t.Errorf("View should contain hint label %q (bottom hint bar)", hint)
+		}
 	}
 }
 

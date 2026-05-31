@@ -3,11 +3,29 @@
 // Compute returns a Layout describing the four screen regions (top bar,
 // sidebar, main, bottom bar) for a given terminal size. Each region is
 // expressed as a Rect; consumers render their content into those Rects.
-//
-// Phase 1 returns only a non-empty Main region — sidebar/top/bottom are
-// reserved for later phases and are zero-sized in Phase 1, preserving
-// today's visual output exactly.
 package layout
+
+// Chrome and sidebar dimensions. Exported so chrome/sidebar packages
+// can import them and stay in sync with the layout's reservations.
+const (
+	// TopBarHeight is the vertical reservation for the top chrome bar.
+	TopBarHeight = 1
+	// BottomBarHeight is the vertical reservation for the bottom hint
+	// bar (line 1: key hints; line 2: status footer).
+	BottomBarHeight = 2
+	// SidebarFullWidth is the column reservation for the full sidebar.
+	SidebarFullWidth = 14
+	// SidebarMinTerminalWidth is the minimum terminal width at which
+	// the full sidebar is shown. Phase 2 only supports the full mode;
+	// later phases add compact and hidden modes for narrower terminals.
+	SidebarMinTerminalWidth = 90
+	// MinTerminalWidth is the minimum width below which Compute returns
+	// an empty Layout — the screen cannot show the four-region skeleton
+	// at any reasonable density.
+	MinTerminalWidth = 50
+	// MinTerminalHeight is the minimum height for the same reason.
+	MinTerminalHeight = 6
+)
 
 // Rect describes a region's outer dimensions in cells.
 type Rect struct {
@@ -31,22 +49,39 @@ type Layout struct {
 // Compute returns a Layout describing how to subdivide a terminal of
 // the given width and height into the four screen regions.
 //
-// Phase 1 reserves the entire screen for the Main region; TopBar,
-// Sidebar, and BottomBar are deliberately zero-sized so today's
-// per-view rendering is preserved byte-for-byte. Later phases populate
-// the other regions; the API is stable so callers do not change.
+// The top bar reserves 1 row across the full width. The bottom hint
+// bar reserves 2 rows across the full width. The sidebar reserves 14
+// columns on the left side of the inner region when the terminal is
+// at least SidebarMinTerminalWidth wide; below that the sidebar is
+// hidden in Phase 2. The main region takes whatever rectangle remains.
 //
-// Non-positive inputs return an empty Layout (all rects zero) so
-// callers do not have to guard for unrealistic terminal sizes.
+// Inputs below MinTerminalWidth × MinTerminalHeight return an empty
+// Layout — the caller is expected to render a "terminal too small"
+// fallback message.
 func Compute(width, height int) Layout {
-	if width <= 0 || height <= 0 {
+	if width < MinTerminalWidth || height < MinTerminalHeight {
 		return Layout{}
 	}
 
+	sidebarWidth := SidebarFullWidth
+	if width < SidebarMinTerminalWidth {
+		sidebarWidth = 0
+	}
+
+	innerHeight := height - TopBarHeight - BottomBarHeight
+	if innerHeight < 1 {
+		innerHeight = 1
+	}
+
+	mainWidth := width - sidebarWidth
+	if mainWidth < 1 {
+		mainWidth = 1
+	}
+
 	return Layout{
-		TopBar:    Rect{Width: 0, Height: 0},
-		Sidebar:   Rect{Width: 0, Height: 0},
-		Main:      Rect{Width: width, Height: height},
-		BottomBar: Rect{Width: 0, Height: 0},
+		TopBar:    Rect{Width: width, Height: TopBarHeight},
+		Sidebar:   Rect{Width: sidebarWidth, Height: innerHeight},
+		Main:      Rect{Width: mainWidth, Height: innerHeight},
+		BottomBar: Rect{Width: width, Height: BottomBarHeight},
 	}
 }
