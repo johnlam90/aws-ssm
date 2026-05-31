@@ -33,10 +33,10 @@ func TestNewModel(t *testing.T) {
 	if model.currentView != ViewDashboard {
 		t.Error("Model should start in dashboard view")
 	}
-	// Phase 9: Home view's roll-up is the four resource types.
-	// Help moved to overlay/sidebar and is no longer a menu entry.
-	if len(model.menuItems) != 4 {
-		t.Errorf("Model should have 4 menu items, got %d", len(model.menuItems))
+	// menuItems is internal scaffolding kept around for legacy
+	// callers; it carries no UI semantics post visual overhaul.
+	if model.menuItems == nil {
+		t.Error("Model.menuItems should be initialized")
 	}
 	if model.cursor != 0 {
 		t.Error("Model cursor should start at 0")

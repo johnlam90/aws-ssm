@@ -5,26 +5,20 @@
 // expressed as a Rect; consumers render their content into those Rects.
 package layout
 
-// Chrome and sidebar dimensions. Exported so chrome/sidebar packages
-// can import them and stay in sync with the layout's reservations.
+// Chrome dimensions for the flat three-region layout: top chrome bar
+// (1 row), main panel (fills the middle), bottom hint bar (2 rows).
+// The sidebar is gone — view switching happens via the command
+// palette and Mod+1..N hotkeys. Sidebar/SidebarMinTerminalWidth
+// constants remain at zero for backwards-compat imports.
 const (
-	// TopBarHeight is the vertical reservation for the top chrome bar.
-	TopBarHeight = 1
-	// BottomBarHeight is the vertical reservation for the bottom hint
-	// bar (line 1: key hints; line 2: status footer).
-	BottomBarHeight = 2
-	// SidebarFullWidth is the column reservation for the full sidebar
-	// (including its rounded panel border on each side).
-	SidebarFullWidth = 18
-	// SidebarMinTerminalWidth is the minimum terminal width at which
-	// the full sidebar is shown.
-	SidebarMinTerminalWidth = 90
-	// MinTerminalWidth is the minimum width below which Compute returns
-	// an empty Layout — the screen cannot show the four-region skeleton
-	// at any reasonable density.
-	MinTerminalWidth = 50
-	// MinTerminalHeight is the minimum height for the same reason.
-	MinTerminalHeight = 6
+	TopBarHeight            = 1
+	BottomBarHeight         = 2
+	TopRuleHeight           = 1
+	BottomRuleHeight        = 1
+	SidebarFullWidth        = 0
+	SidebarMinTerminalWidth = 0
+	MinTerminalWidth        = 50
+	MinTerminalHeight       = 8
 )
 
 // Rect describes a region's outer dimensions in cells.
@@ -46,55 +40,45 @@ type Layout struct {
 	BottomBar Rect
 }
 
-// Options carry user-toggleable layout preferences (e.g. the sidebar
-// has been manually hidden via Ctrl+B). They override the auto-fit
-// behavior in Compute.
+// Options carry user-toggleable layout preferences. The HideSidebar
+// option is retained for source compatibility; the flat layout has
+// no sidebar so the option is currently a no-op.
 type Options struct {
 	HideSidebar bool
 }
 
 // Compute returns a Layout describing how to subdivide a terminal of
-// the given width and height into the four screen regions.
+// the given width and height into the screen regions.
 //
-// The top bar reserves 1 row across the full width. The bottom hint
-// bar reserves 2 rows across the full width. The sidebar reserves 14
-// columns on the left side of the inner region when the terminal is
-// at least SidebarMinTerminalWidth wide; below that the sidebar is
-// auto-hidden. Options.HideSidebar forces the sidebar hidden at any
-// width.
+// Flat three-region layout:
 //
-// Inputs below MinTerminalWidth × MinTerminalHeight return an empty
-// Layout — the caller is expected to render a "terminal too small"
-// fallback message.
+//	row 0:           top chrome bar (brand · breadcrumb / region · profile)
+//	row 1:           horizontal rule
+//	rows 2..H-4:     main panel (full width)
+//	row H-3:         horizontal rule
+//	rows H-2..H-1:   bottom hint bar (key hints / status footer)
+//
+// Sidebar rect is always zero in the flat layout but remains in
+// Layout for backwards-compat with imports that read it.
 func Compute(width, height int) Layout {
 	return ComputeWith(width, height, Options{})
 }
 
 // ComputeWith is the option-aware version of Compute.
-func ComputeWith(width, height int, opts Options) Layout {
+func ComputeWith(width, height int, _ Options) Layout {
 	if width < MinTerminalWidth || height < MinTerminalHeight {
 		return Layout{}
 	}
 
-	sidebarWidth := SidebarFullWidth
-	if width < SidebarMinTerminalWidth || opts.HideSidebar {
-		sidebarWidth = 0
-	}
-
-	innerHeight := height - TopBarHeight - BottomBarHeight
-	if innerHeight < 1 {
-		innerHeight = 1
-	}
-
-	mainWidth := width - sidebarWidth
-	if mainWidth < 1 {
-		mainWidth = 1
+	mainHeight := height - TopBarHeight - TopRuleHeight - BottomRuleHeight - BottomBarHeight
+	if mainHeight < 1 {
+		mainHeight = 1
 	}
 
 	return Layout{
 		TopBar:    Rect{Width: width, Height: TopBarHeight},
-		Sidebar:   Rect{Width: sidebarWidth, Height: innerHeight},
-		Main:      Rect{Width: mainWidth, Height: innerHeight},
+		Sidebar:   Rect{Width: 0, Height: 0},
+		Main:      Rect{Width: width, Height: mainHeight},
 		BottomBar: Rect{Width: width, Height: BottomBarHeight},
 	}
 }

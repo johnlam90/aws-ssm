@@ -12,7 +12,6 @@ import (
 	"github.com/johnlam90/aws-ssm/pkg/aws"
 	"github.com/johnlam90/aws-ssm/pkg/ui/tui/chrome"
 	"github.com/johnlam90/aws-ssm/pkg/ui/tui/layout"
-	"github.com/johnlam90/aws-ssm/pkg/ui/tui/sidebar"
 )
 
 // Model represents the main TUI model
@@ -63,7 +62,6 @@ type Model struct {
 	ltUpdate        *LaunchTemplateUpdateState
 	palette         *PaletteState
 	helpOverlay     bool
-	hideSidebar     bool
 	hideDetail      bool
 	statusMessage   string
 	statusAnimation *StatusAnimation
@@ -161,11 +159,6 @@ func (m Model) updateKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.String() == ":" {
 		return m.openPalette(), nil
 	}
-	// Ctrl+B toggles the sidebar visibility (manual override).
-	if msg.Type == tea.KeyCtrlB {
-		m.hideSidebar = !m.hideSidebar
-		return m, nil
-	}
 	// `i` toggles the detail block visibility on list views.
 	if msg.String() == "i" && isListView(m.currentView) {
 		m.hideDetail = !m.hideDetail
@@ -215,18 +208,17 @@ func (m Model) updateNonKeyMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// View renders the current screen by composing the four screen regions:
-// top chrome bar, left sidebar, main panel, and bottom hint bar.
-//
-// Phase 2 of the foundation redesign makes the chrome and sidebar live;
-// per-view renderers no longer emit their own header, footer, or status
-// bar — those concerns now live in the chrome and sidebar packages.
+// View renders the current screen with a flat three-region layout:
+// top chrome bar, horizontal rule, main panel (full width), horizontal
+// rule, bottom hint bar. The sidebar was removed in the visual
+// overhaul because it duplicated the Home rollup; navigation now goes
+// through the command palette (`:`) and Mod+1..N hotkeys.
 func (m Model) View() string {
 	if !m.ready {
 		return "Initializing..."
 	}
 
-	rects := layout.ComputeWith(m.width, m.height, layout.Options{HideSidebar: m.hideSidebar})
+	rects := layout.Compute(m.width, m.height)
 	if rects.Main.IsEmpty() {
 		return fmt.Sprintf(
 			"Terminal too small (%d×%d). Resize to at least %d×%d.",
@@ -242,11 +234,6 @@ func (m Model) View() string {
 		Width:      rects.TopBar.Width,
 	})
 
-	sideContent := sidebar.Render(rects.Sidebar.Width, rects.Sidebar.Height, m.sidebarItems())
-
-	// Overlays replace the main panel content while open; chrome
-	// (top + sidebar + bottom) stays visible so the user keeps
-	// context. Palette wins over help.
 	mainRaw := m.renderMainPanel()
 	switch {
 	case m.palette != nil:
@@ -254,29 +241,7 @@ func (m Model) View() string {
 	case m.helpOverlay:
 		mainRaw = m.renderHelpOverlay()
 	}
-
-	// Wrap the main panel in a rounded border. Border eats 2 cells of
-	// width and 2 rows of height, so the inner content is
-	// (Main.Width - 2) × (Main.Height - 2). Per-view content bakes
-	// in its own 1-cell horizontal inset so we don't double-count
-	// against lipgloss padding.
-	innerW := rects.Main.Width - 2
-	innerH := rects.Main.Height - 2
-	if innerW < 1 {
-		innerW = 1
-	}
-	if innerH < 1 {
-		innerH = 1
-	}
-	mainPanelStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#30363D")).
-		Width(innerW).
-		Height(innerH)
-	mainContent := mainPanelStyle.Render(padOrFitMainPanel(mainRaw, layout.Rect{
-		Width:  innerW,
-		Height: innerH,
-	}))
+	mainContent := padOrFitMainPanel(mainRaw, rects.Main)
 
 	bottom := chrome.RenderBottomBar(chrome.BottomBarInput{
 		Hints:  m.hintsForView(),
@@ -284,8 +249,27 @@ func (m Model) View() string {
 		Width:  rects.BottomBar.Width,
 	})
 
-	body := lipgloss.JoinHorizontal(lipgloss.Top, sideContent, mainContent)
-	return lipgloss.JoinVertical(lipgloss.Left, top, body, bottom)
+	rule := horizontalRule(rects.TopBar.Width)
+
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		top,
+		rule,
+		mainContent,
+		rule,
+		bottom,
+	)
+}
+
+// horizontalRule returns a single-line, full-width divider in muted
+// foreground color.
+func horizontalRule(width int) string {
+	if width <= 0 {
+		return ""
+	}
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#30363D")).
+		Render(strings.Repeat("─", width))
 }
 
 // renderMainPanel returns the per-view content for the main region.
@@ -330,51 +314,16 @@ func (m Model) breadcrumb() string {
 }
 
 // mainWidth returns the inner content width of the main panel
-// region (after subtracting the rounded panel border and the 1-cell
-// left inset). Per-view renderers use this to size their table column
-// allocators so content fits without overflow.
+// region (after subtracting the 2-cell left inset baked into
+// padOrFitMainPanel). Per-view renderers use this to size their
+// table column allocators so content fits without overflow.
 func (m Model) mainWidth() int {
-	rects := layout.ComputeWith(m.width, m.height, layout.Options{HideSidebar: m.hideSidebar})
-	w := rects.Main.Width - 2 - 1 // border + 1-cell left inset
+	rects := layout.Compute(m.width, m.height)
+	w := rects.Main.Width - 2 // 2-cell left inset
 	if w < 1 {
 		return 1
 	}
 	return w
-}
-
-// sidebarItems returns the sidebar entry list with the focus flag set
-// on the entry matching the current view. Labels are intentionally
-// short so they fit comfortably in the 18-cell sidebar.
-func (m Model) sidebarItems() []sidebar.Item {
-	items := []sidebar.Item{
-		{Label: "Home", Count: -1},
-		{Label: "EC2", Count: len(m.ec2Instances)},
-		{Label: "EKS", Count: len(m.eksClusters)},
-		{Label: "ASG", Count: len(m.asgs)},
-		{Label: "NG", Count: len(m.nodeGroups)},
-		{Label: "Help", Count: -1},
-	}
-
-	idx := -1
-	switch m.currentView {
-	case ViewDashboard:
-		idx = 0
-	case ViewEC2Instances, ViewNetworkInterfaces:
-		// ENI redirects to EC2's sidebar focus.
-		idx = 1
-	case ViewEKSClusters:
-		idx = 2
-	case ViewASGs:
-		idx = 3
-	case ViewNodeGroups:
-		idx = 4
-	case ViewHelp:
-		idx = 5
-	}
-	if idx >= 0 && idx < len(items) {
-		items[idx].Focus = true
-	}
-	return items
 }
 
 // hintsForView returns the bottom hint bar's per-view key hints.
@@ -382,9 +331,10 @@ func (m Model) hintsForView() []chrome.Hint {
 	var view []chrome.Hint
 	switch m.currentView {
 	case ViewDashboard:
+		// Home has no list to navigate; surface the most useful
+		// global keys — palette and view shortcuts.
 		view = []chrome.Hint{
-			{Key: "↑↓", Label: "navigate"},
-			{Key: "↵", Label: "select"},
+			{Key: "↵", Label: "open palette"},
 		}
 	case ViewEC2Instances:
 		view = []chrome.Hint{
@@ -439,8 +389,8 @@ func (m Model) statusFooter() string {
 
 // padOrFitMainPanel pads or trims the per-view content so the main
 // region renders at exactly rect.Width × rect.Height. Each line is
-// inset by 1 cell on the left so content doesn't jam against the
-// rounded border the panel wrapper renders. Lines longer than
+// inset by 2 cells on the left so content has clear left-margin
+// rhythm against the chrome rules above and below. Lines longer than
 // rect.Width are NOT truncated; the per-view code is expected to
 // have already targeted mainWidth(). Shorter lines are padded with
 // spaces. Extra rows are added (or excess rows truncated) to match
@@ -457,8 +407,7 @@ func padOrFitMainPanel(content string, rect layout.Rect) string {
 		lines = append(lines, "")
 	}
 	for i, line := range lines {
-		// 1-cell inset from the left border, plus right-pad to width.
-		inset := " " + line
+		inset := "  " + line
 		w := lipgloss.Width(inset)
 		if w < rect.Width {
 			lines[i] = inset + strings.Repeat(" ", rect.Width-w)
@@ -642,58 +591,14 @@ func (m *Model) scheduleSSMSession(instanceID string) tea.Cmd {
 
 // Navigation handler methods
 
-// handleDashboardNavigation handles navigation actions for dashboard
+// handleDashboardNavigation handles navigation actions for the Home
+// view. Since the rollup was removed, Up/Down/Enter on Home are
+// no-ops; users navigate by `:` palette or Mod+1..N hotkeys.
 func (m Model) handleDashboardNavigation(action NavigationKey) (tea.Model, tea.Cmd) {
-	switch action {
-	case NavUp:
-		if m.cursor > 0 {
-			m.cursor--
-		}
-	case NavDown:
-		if m.cursor < len(m.menuItems)-1 {
-			m.cursor++
-		}
-	case NavSelect:
-		selectedItem := m.menuItems[m.cursor]
-		m.pushView(selectedItem.View)
-
-		var cmd tea.Cmd
-		switch selectedItem.View {
-		case ViewEC2Instances:
-			m.loading = true
-			m.loadingMsg = "Loading EC2 instances..."
-			// Phase 5: load EC2 instances and their network
-			// interfaces in parallel so the ENI count column and
-			// Interfaces detail section populate together.
-			cmd = tea.Batch(
-				LoadEC2InstancesCmd(m.ctx, m.client),
-				LoadNetworkInterfacesCmd(m.ctx, m.client),
-			)
-		case ViewEKSClusters:
-			m.loading = true
-			m.loadingMsg = "Loading EKS clusters..."
-			cmd = LoadEKSClustersCmd(m.ctx, m.client)
-		case ViewASGs:
-			m.loading = true
-			m.loadingMsg = "Loading Auto Scaling Groups..."
-			cmd = LoadASGsCmd(m.ctx, m.client)
-		case ViewNodeGroups:
-			m.loading = true
-			m.loadingMsg = "Loading EKS node groups..."
-			cmd = LoadNodeGroupsCmd(m.ctx, m.client)
-		case ViewNetworkInterfaces:
-			// ENI redirect: route to EC2 (interfaces are now part of
-			// the EC2 detail block). Defensive fallback for any code
-			// path that still selects ViewNetworkInterfaces.
-			m.currentView = ViewEC2Instances
-			m.loading = true
-			m.loadingMsg = "Loading EC2 instances..."
-			cmd = tea.Batch(
-				LoadEC2InstancesCmd(m.ctx, m.client),
-				LoadNetworkInterfacesCmd(m.ctx, m.client),
-			)
-		}
-		return m, cmd
+	if action == NavSelect {
+		// Open the palette as a friendly default for someone hitting
+		// Enter on the Home view.
+		return m.openPalette(), nil
 	}
 	return m, nil
 }
