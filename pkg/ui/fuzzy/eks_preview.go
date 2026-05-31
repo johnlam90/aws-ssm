@@ -55,11 +55,11 @@ func (r *EKSPreviewRenderer) renderBasicWithError(cluster *EKSCluster, width int
 
 	preview.WriteString(r.colors.BoldColor("Basic Information:"))
 	preview.WriteString("\n")
-	preview.WriteString(fmt.Sprintf("  Name:              %s\n", cluster.Name))
+	fmt.Fprintf(&preview, "  Name:              %s\n", cluster.Name)
 	preview.WriteString("\n")
 
 	preview.WriteString("⚠ Failed to load full cluster details\n")
-	preview.WriteString(fmt.Sprintf("  Error: %v\n", err))
+	fmt.Fprintf(&preview, "  Error: %v\n", err)
 
 	return preview.String()
 }
@@ -81,32 +81,32 @@ func (r *EKSPreviewRenderer) Render(cluster *EKSCluster, width, _ int) string {
 	// Basic Information
 	preview.WriteString(r.colors.BoldColor("Basic Information:"))
 	preview.WriteString("\n")
-	preview.WriteString(fmt.Sprintf("  Name:              %s\n", cluster.Name))
-	preview.WriteString(fmt.Sprintf("  Status:            %s\n", r.colors.StatusColor(cluster.Status)))
-	preview.WriteString(fmt.Sprintf("  Version:           %s\n", cluster.Version))
-	preview.WriteString(fmt.Sprintf("  Created:           %s\n", cluster.CreatedAt))
-	preview.WriteString(fmt.Sprintf("  ARN:               %s\n", cluster.ARN))
+	fmt.Fprintf(&preview, "  Name:              %s\n", cluster.Name)
+	fmt.Fprintf(&preview, "  Status:            %s\n", r.colors.StatusColor(cluster.Status))
+	fmt.Fprintf(&preview, "  Version:           %s\n", cluster.Version)
+	fmt.Fprintf(&preview, "  Created:           %s\n", cluster.CreatedAt)
+	fmt.Fprintf(&preview, "  ARN:               %s\n", cluster.ARN)
 	preview.WriteString("\n")
 
 	// API Server Endpoint
 	preview.WriteString(r.colors.BoldColor("API Server:"))
 	preview.WriteString("\n")
-	preview.WriteString(fmt.Sprintf("  Endpoint:          %s\n", cluster.Endpoint))
+	fmt.Fprintf(&preview, "  Endpoint:          %s\n", cluster.Endpoint)
 	preview.WriteString("\n")
 
 	// Networking Configuration
 	preview.WriteString(r.colors.BoldColor("Networking:"))
 	preview.WriteString("\n")
-	preview.WriteString(fmt.Sprintf("  VPC ID:            %s\n", cluster.VpcID))
-	preview.WriteString(fmt.Sprintf("  Subnets:           %d\n", cluster.SubnetCount))
-	preview.WriteString(fmt.Sprintf("  Security Groups:   %d\n", cluster.SecurityGroupCount))
+	fmt.Fprintf(&preview, "  VPC ID:            %s\n", cluster.VpcID)
+	fmt.Fprintf(&preview, "  Subnets:           %d\n", cluster.SubnetCount)
+	fmt.Fprintf(&preview, "  Security Groups:   %d\n", cluster.SecurityGroupCount)
 	preview.WriteString("\n")
 
 	// Compute Resources
 	preview.WriteString(r.colors.BoldColor("Compute Resources:"))
 	preview.WriteString("\n")
-	preview.WriteString(fmt.Sprintf("  Node Groups:       %d\n", cluster.NodeGroupCount))
-	preview.WriteString(fmt.Sprintf("  Fargate Profiles:  %d\n", cluster.FargateProfileCount))
+	fmt.Fprintf(&preview, "  Node Groups:       %d\n", cluster.NodeGroupCount)
+	fmt.Fprintf(&preview, "  Fargate Profiles:  %d\n", cluster.FargateProfileCount)
 	preview.WriteString("\n")
 
 	// Tags
@@ -114,7 +114,7 @@ func (r *EKSPreviewRenderer) Render(cluster *EKSCluster, width, _ int) string {
 		preview.WriteString(r.colors.BoldColor("Tags:"))
 		preview.WriteString("\n")
 		for key, value := range cluster.Tags {
-			preview.WriteString(fmt.Sprintf("  %s\n", r.colors.TagColor(key, value)))
+			fmt.Fprintf(&preview, "  %s\n", r.colors.TagColor(key, value))
 		}
 	}
 
@@ -138,25 +138,25 @@ func (r *EKSPreviewRenderer) RenderDetailed(cluster *EKSCluster, nodeGroups []st
 	// Basic Information
 	preview.WriteString(r.colors.BoldColor("Basic Information:"))
 	preview.WriteString("\n")
-	preview.WriteString(fmt.Sprintf("  Name:              %s\n", cluster.Name))
-	preview.WriteString(fmt.Sprintf("  Status:            %s\n", r.colors.StatusColor(cluster.Status)))
-	preview.WriteString(fmt.Sprintf("  Version:           %s\n", cluster.Version))
-	preview.WriteString(fmt.Sprintf("  Created:           %s\n", cluster.CreatedAt))
-	preview.WriteString(fmt.Sprintf("  ARN:               %s\n", cluster.ARN))
+	fmt.Fprintf(&preview, "  Name:              %s\n", cluster.Name)
+	fmt.Fprintf(&preview, "  Status:            %s\n", r.colors.StatusColor(cluster.Status))
+	fmt.Fprintf(&preview, "  Version:           %s\n", cluster.Version)
+	fmt.Fprintf(&preview, "  Created:           %s\n", cluster.CreatedAt)
+	fmt.Fprintf(&preview, "  ARN:               %s\n", cluster.ARN)
 	preview.WriteString("\n")
 
 	// API Server Endpoint
 	preview.WriteString(r.colors.BoldColor("API Server:"))
 	preview.WriteString("\n")
-	preview.WriteString(fmt.Sprintf("  Endpoint:          %s\n", cluster.Endpoint))
+	fmt.Fprintf(&preview, "  Endpoint:          %s\n", cluster.Endpoint)
 	preview.WriteString("\n")
 
 	// Networking Configuration
 	preview.WriteString(r.colors.BoldColor("Networking:"))
 	preview.WriteString("\n")
-	preview.WriteString(fmt.Sprintf("  VPC ID:            %s\n", cluster.VpcID))
-	preview.WriteString(fmt.Sprintf("  Subnets:           %d\n", cluster.SubnetCount))
-	preview.WriteString(fmt.Sprintf("  Security Groups:   %d\n", cluster.SecurityGroupCount))
+	fmt.Fprintf(&preview, "  VPC ID:            %s\n", cluster.VpcID)
+	fmt.Fprintf(&preview, "  Subnets:           %d\n", cluster.SubnetCount)
+	fmt.Fprintf(&preview, "  Security Groups:   %d\n", cluster.SecurityGroupCount)
 	preview.WriteString("\n")
 
 	// Node Groups
@@ -164,7 +164,7 @@ func (r *EKSPreviewRenderer) RenderDetailed(cluster *EKSCluster, nodeGroups []st
 		preview.WriteString(r.colors.BoldColor("Node Groups:"))
 		preview.WriteString("\n")
 		for _, ng := range nodeGroups {
-			preview.WriteString(fmt.Sprintf("  • %s\n", ng))
+			fmt.Fprintf(&preview, "  • %s\n", ng)
 		}
 		preview.WriteString("\n")
 	}
@@ -174,7 +174,7 @@ func (r *EKSPreviewRenderer) RenderDetailed(cluster *EKSCluster, nodeGroups []st
 		preview.WriteString(r.colors.BoldColor("Fargate Profiles:"))
 		preview.WriteString("\n")
 		for _, fp := range fargateProfiles {
-			preview.WriteString(fmt.Sprintf("  • %s\n", fp))
+			fmt.Fprintf(&preview, "  • %s\n", fp)
 		}
 		preview.WriteString("\n")
 	}
@@ -184,7 +184,7 @@ func (r *EKSPreviewRenderer) RenderDetailed(cluster *EKSCluster, nodeGroups []st
 		preview.WriteString(r.colors.BoldColor("Tags:"))
 		preview.WriteString("\n")
 		for key, value := range cluster.Tags {
-			preview.WriteString(fmt.Sprintf("  %s\n", r.colors.TagColor(key, value)))
+			fmt.Fprintf(&preview, "  %s\n", r.colors.TagColor(key, value))
 		}
 	}
 

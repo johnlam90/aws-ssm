@@ -2,6 +2,8 @@ package tui
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -220,6 +222,76 @@ func TestModelNavigation(t *testing.T) {
 	model = model.navigateBack()
 	if model.currentView != ViewDashboard {
 		t.Error("Model should navigate back to dashboard")
+	}
+}
+
+func TestListNavigation_EmptyListsKeepCursorValid(t *testing.T) {
+	ctx := context.Background()
+	client := &aws.Client{}
+	config := Config{}
+
+	tests := []struct {
+		name    string
+		view    ViewMode
+		actions []NavigationKey
+	}{
+		{name: "ec2", view: ViewEC2Instances, actions: []NavigationKey{NavEnd, NavPageDown, NavSSH, NavDetails}},
+		{name: "eks", view: ViewEKSClusters, actions: []NavigationKey{NavEnd, NavPageDown, NavSelect, NavDetails}},
+		{name: "asg", view: ViewASGs, actions: []NavigationKey{NavEnd, NavPageDown, NavScale, NavDetails}},
+		{name: "node_groups", view: ViewNodeGroups, actions: []NavigationKey{NavEnd, NavPageDown, NavScale, NavSelect, NavDetails}},
+		{name: "network", view: ViewNetworkInterfaces, actions: []NavigationKey{NavEnd, NavPageDown, NavDetails}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			model := NewModel(ctx, client, config)
+			model.currentView = tt.view
+
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("empty %s navigation panicked: %v", tt.view, r)
+				}
+			}()
+
+			for _, action := range tt.actions {
+				updated, _ := model.handleNavigation(action)
+				model = updated.(Model)
+				if model.cursor < 0 {
+					t.Fatalf("cursor should stay non-negative after %v, got %d", action, model.cursor)
+				}
+			}
+		})
+	}
+}
+
+func TestRenderNodeGroups_FitsTerminalHeightWhenScrolled(t *testing.T) {
+	model := NewModel(context.Background(), &aws.Client{}, Config{})
+	model.currentView = ViewNodeGroups
+	model.ready = true
+	model.width = 120
+	model.height = 18
+	model.cursor = 15
+	model.nodeGroups = make([]NodeGroup, 23)
+	for i := range model.nodeGroups {
+		model.nodeGroups[i] = NodeGroup{
+			ClusterName: fmt.Sprintf("cluster-%02d", i),
+			Name:        fmt.Sprintf("node-group-%02d", i),
+			Status:      "ACTIVE",
+			Version:     "1.29",
+			DesiredSize: 3,
+			MinSize:     1,
+			MaxSize:     5,
+			CurrentSize: 3,
+		}
+	}
+
+	view := model.renderNodeGroups()
+	lines := strings.Split(strings.TrimSuffix(view, "\n"), "\n")
+	if len(lines) > model.height {
+		t.Fatalf("node-group view rendered %d lines for height %d", len(lines), model.height)
+	}
+	if !strings.Contains(view, "CLUSTER") || !strings.Contains(view, "NODE GROUP") {
+		t.Fatalf("node-group table header should remain rendered")
 	}
 }
 

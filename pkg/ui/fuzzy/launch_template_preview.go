@@ -49,11 +49,11 @@ func (r *LaunchTemplateVersionPreviewRenderer) renderVersionInfo(v *LaunchTempla
 	b.WriteString(r.colors.BoldColor("Version:\n"))
 
 	versionStr := r.formatVersionNumber(v)
-	b.WriteString(fmt.Sprintf("  %s\n", versionStr))
+	fmt.Fprintf(&b, "  %s\n", versionStr)
 
 	if v.VersionDescription != "" {
 		b.WriteString(r.colors.BoldColor("Description:\n"))
-		b.WriteString(fmt.Sprintf("  %s\n", v.VersionDescription))
+		fmt.Fprintf(&b, "  %s\n", v.VersionDescription)
 	}
 
 	return b.String()
@@ -63,8 +63,8 @@ func (r *LaunchTemplateVersionPreviewRenderer) renderTemplateInfo(v *LaunchTempl
 	var b strings.Builder
 
 	b.WriteString(r.colors.BoldColor("Launch Template:\n"))
-	b.WriteString(fmt.Sprintf("  Name: %s\n", v.LaunchTemplateName))
-	b.WriteString(fmt.Sprintf("  ID:   %s\n", v.LaunchTemplateID))
+	fmt.Fprintf(&b, "  Name: %s\n", v.LaunchTemplateName)
+	fmt.Fprintf(&b, "  ID:   %s\n", v.LaunchTemplateID)
 
 	return b.String()
 }
@@ -75,11 +75,11 @@ func (r *LaunchTemplateVersionPreviewRenderer) renderMetadata(v *LaunchTemplateV
 	b.WriteString(r.colors.BoldColor("Metadata:\n"))
 
 	if v.CreateTime != "" {
-		b.WriteString(fmt.Sprintf("  Created: %s\n", v.CreateTime))
+		fmt.Fprintf(&b, "  Created: %s\n", v.CreateTime)
 	}
 
 	if v.CreatedBy != "" {
-		b.WriteString(fmt.Sprintf("  Created By: %s\n", v.CreatedBy))
+		fmt.Fprintf(&b, "  Created By: %s\n", v.CreatedBy)
 	}
 
 	return b.String()

@@ -12,14 +12,18 @@ func (m Model) renderNodeGroups() string {
 		return s
 	}
 	var b strings.Builder
+	cursor := clampIndex(m.cursor, len(groups))
+	selected := groups[cursor]
+	details := renderNodeGroupDetails(selected)
+	visibleRows := calculateNodeGroupTableRows(m.height, details)
+
 	header := m.renderHeader("EKS Node Groups", fmt.Sprintf("%d node groups", len(groups)))
 	b.WriteString(header)
 	b.WriteString("\n\n")
 	b.WriteString(TableHeaderStyle().Render(fmt.Sprintf("  %-24s %-28s %-10s %8s %8s %8s %8s",
 		"CLUSTER", "NODE GROUP", "STATUS", "DESIRED", "MIN", "MAX", "CURRENT")))
 	b.WriteString("\n")
-	cursor := clampIndex(m.cursor, len(groups))
-	startIdx, endIdx := calculateNodeGroupVisibleRange(len(groups), cursor, m.height-12)
+	startIdx, endIdx := calculateNodeGroupVisibleRange(len(groups), cursor, visibleRows)
 	for i := startIdx; i < endIdx; i++ {
 		ng := groups[i]
 		cluster := normalizeValue(ng.ClusterName, "unknown", 24)
@@ -30,37 +34,11 @@ func (m Model) renderNodeGroups() string {
 		b.WriteString(RenderSelectableRow(row, i == cursor))
 		b.WriteString("\n")
 	}
-	selected := groups[cursor]
 	b.WriteString("\n")
 	b.WriteString(SubtitleStyle().Render(fmt.Sprintf("%s / %s", selected.ClusterName, selected.Name)))
 	b.WriteString("\n")
-
-	instanceTypes := strings.Join(selected.InstanceTypes, ", ")
-	if instanceTypes == "" {
-		instanceTypes = "n/a"
-	}
-
-	b.WriteString(fmt.Sprintf("  Version: %s\n", normalizeValue(selected.Version, "unknown", 0)))
-	b.WriteString(fmt.Sprintf("  Status:  %s\n", StateStyle(strings.ToLower(selected.Status))))
-	b.WriteString(fmt.Sprintf("  Scaling: desired %d | min %d | max %d | current %d\n",
-		selected.DesiredSize, selected.MinSize, selected.MaxSize, selected.CurrentSize))
-	b.WriteString(fmt.Sprintf("  Instances: %s\n", instanceTypes))
-	if strings.TrimSpace(selected.LaunchTemplateID) != "" || strings.TrimSpace(selected.LaunchTemplateName) != "" {
-		ltName := normalizeValue(selected.LaunchTemplateName, "n/a", 0)
-		ltVersion := normalizeValue(selected.LaunchTemplateVersion, "n/a", 0)
-		b.WriteString(fmt.Sprintf("  Launch template: %s (version %s)\n", ltName, ltVersion))
-		b.WriteString(fmt.Sprintf("  Launch template ID: %s\n", normalizeValue(selected.LaunchTemplateID, "n/a", 0)))
-	} else {
-		b.WriteString("  Launch template: n/a\n")
-	}
-	b.WriteString(fmt.Sprintf("  Created:   %s\n", normalizeValue(selected.CreatedAt, "unknown", 0)))
-	if lines := renderTagLines(selected.Tags); len(lines) > 0 {
-		b.WriteString("  Tags:\n")
-		for _, line := range lines {
-			b.WriteString(line)
-			b.WriteString("\n")
-		}
-	}
+	b.WriteString(details)
+	b.WriteString("\n")
 
 	b.WriteString("\n")
 	if overlay := m.renderScalingPrompt(ViewNodeGroups); overlay != "" {
@@ -83,6 +61,57 @@ func (m Model) renderNodeGroups() string {
 	b.WriteString("\n")
 	b.WriteString(StatusBarStyle().Width(m.width).Render(m.getStatusBar()))
 	return b.String()
+}
+
+func renderNodeGroupDetails(selected NodeGroup) string {
+	var b strings.Builder
+	instanceTypes := strings.Join(selected.InstanceTypes, ", ")
+	if instanceTypes == "" {
+		instanceTypes = "n/a"
+	}
+
+	fmt.Fprintf(&b, "  Version: %s\n", normalizeValue(selected.Version, "unknown", 0))
+	fmt.Fprintf(&b, "  Status:  %s\n", StateStyle(strings.ToLower(selected.Status)))
+	fmt.Fprintf(&b, "  Scaling: desired %d | min %d | max %d | current %d\n",
+		selected.DesiredSize, selected.MinSize, selected.MaxSize, selected.CurrentSize)
+	fmt.Fprintf(&b, "  Instances: %s\n", instanceTypes)
+	if strings.TrimSpace(selected.LaunchTemplateID) != "" || strings.TrimSpace(selected.LaunchTemplateName) != "" {
+		ltName := normalizeValue(selected.LaunchTemplateName, "n/a", 0)
+		ltVersion := normalizeValue(selected.LaunchTemplateVersion, "n/a", 0)
+		fmt.Fprintf(&b, "  Launch template: %s (version %s)\n", ltName, ltVersion)
+		fmt.Fprintf(&b, "  Launch template ID: %s\n", normalizeValue(selected.LaunchTemplateID, "n/a", 0))
+	} else {
+		b.WriteString("  Launch template: n/a\n")
+	}
+	fmt.Fprintf(&b, "  Created:   %s\n", normalizeValue(selected.CreatedAt, "unknown", 0))
+	if lines := renderTagLines(selected.Tags); len(lines) > 0 {
+		b.WriteString("  Tags:\n")
+		for _, line := range lines {
+			b.WriteString(line)
+			b.WriteString("\n")
+		}
+	}
+	return strings.TrimSuffix(b.String(), "\n")
+}
+
+func calculateNodeGroupTableRows(terminalHeight int, details string) int {
+	if terminalHeight <= 0 {
+		return 5
+	}
+	const fixedLines = 9 // title, blank, table header, detail title, spacing, footer, status bar
+	detailLines := countRenderedLines(details)
+	rows := terminalHeight - fixedLines - detailLines
+	if rows < 1 {
+		return 1
+	}
+	return rows
+}
+
+func countRenderedLines(s string) int {
+	if s == "" {
+		return 0
+	}
+	return strings.Count(strings.TrimSuffix(s, "\n"), "\n") + 1
 }
 
 // renderNodeGroupState renders loading/error/empty states
@@ -117,7 +146,13 @@ func (m Model) renderNodeGroupState(groups []NodeGroup) string {
 }
 
 func calculateNodeGroupVisibleRange(total, cursor, visibleHeight int) (int, int) {
-	if visibleHeight < 5 {
+	if total <= 0 {
+		return 0, 0
+	}
+	if visibleHeight < 1 {
+		visibleHeight = 1
+	}
+	if visibleHeight >= total {
 		return 0, total
 	}
 	start := cursor - visibleHeight/2

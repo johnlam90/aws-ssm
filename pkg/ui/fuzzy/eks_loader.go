@@ -160,7 +160,7 @@ func (l *AWSEKSLoader) convertToEKSCluster(clusterDetail any) EKSCluster {
 	}
 
 	val := reflect.ValueOf(clusterDetail)
-	if val.Kind() == reflect.Ptr {
+	if val.Kind() == reflect.Pointer {
 		val = val.Elem()
 	}
 
@@ -206,7 +206,7 @@ func (l *AWSEKSLoader) extractBasicFields(val reflect.Value, cluster *EKSCluster
 func (l *AWSEKSLoader) extractVPCInfo(val reflect.Value, cluster *EKSCluster) {
 	if vpcField := val.FieldByName("VPC"); vpcField.IsValid() {
 		vpcVal := vpcField
-		if vpcVal.Kind() == reflect.Ptr {
+		if vpcVal.Kind() == reflect.Pointer {
 			vpcVal = vpcVal.Elem()
 		}
 		if vpcIDField := vpcVal.FieldByName("VpcID"); vpcIDField.IsValid() {

@@ -2,7 +2,9 @@ package cache
 
 import (
 	"context"
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -188,4 +190,44 @@ func TestEnhancedCache_Metrics(t *testing.T) {
 
 	t.Logf("Metrics: hits=%d, misses=%d, stale_hits=%d, hit_rate=%.2f%%",
 		metrics.hits, metrics.misses, metrics.staleHits, hitRate)
+}
+
+func TestEnhancedCacheRejectsTraversalKeys(t *testing.T) {
+	parent := t.TempDir()
+	cacheDir := filepath.Join(parent, "cache")
+	outsideDir := filepath.Join(parent, "cache_evil")
+	if err := os.MkdirAll(outsideDir, 0700); err != nil {
+		t.Fatalf("create outside cache dir: %v", err)
+	}
+
+	outsideEntry := EnhancedEntry{
+		Data:        map[string]string{"outside": "value"},
+		Timestamp:   time.Now(),
+		Region:      "us-west-2",
+		Query:       "query",
+		LastRefresh: time.Now(),
+	}
+	payload, err := json.Marshal(outsideEntry)
+	if err != nil {
+		t.Fatalf("marshal outside entry: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(outsideDir, "pwn.json"), payload, 0600); err != nil {
+		t.Fatalf("write outside cache entry: %v", err)
+	}
+
+	cfg := DefaultEnhancedCacheConfig()
+	cfg.CacheDir = cacheDir
+	enhanced, err := NewEnhancedCacheService(cfg)
+	if err != nil {
+		t.Fatalf("create enhanced cache service: %v", err)
+	}
+	defer enhanced.Close()
+
+	refreshFn := func(context.Context, string, string, string) (interface{}, error) {
+		return map[string]string{"refreshed": "data"}, nil
+	}
+	data, found, stale := enhanced.GetWithRefresh("../cache_evil/pwn", "us-west-2", "query", refreshFn)
+	if found || stale || data != nil {
+		t.Fatalf("expected traversal key to miss, got data=%v found=%v stale=%v", data, found, stale)
+	}
 }

@@ -223,8 +223,8 @@ func (m Model) renderScalingPrompt(view ViewMode) string {
 
 	b.WriteString(ModalLabelStyle().Render("Current capacity"))
 	b.WriteString("\n")
-	b.WriteString(fmt.Sprintf("  Desired %d  |  Min %d  |  Max %d  |  Actual %d\n\n",
-		s.CurrentDesired, s.CurrentMin, s.CurrentMax, s.CurrentSize))
+	fmt.Fprintf(&b, "  Desired %d  |  Min %d  |  Max %d  |  Actual %d\n\n",
+		s.CurrentDesired, s.CurrentMin, s.CurrentMax, s.CurrentSize)
 
 	b.WriteString(ModalLabelStyle().Render("New desired capacity"))
 	b.WriteString("\n")

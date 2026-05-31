@@ -262,7 +262,7 @@ func FormatKeyBindings(bindings []KeyBinding) string {
 	for _, binding := range bindings {
 		key := HelpKeyStyle().Render(binding.Key)
 		desc := binding.Description
-		result.WriteString(fmt.Sprintf("  %-20s %s\n", key, desc))
+		fmt.Fprintf(&result, "  %-20s %s\n", key, desc)
 	}
 
 	return result.String()
@@ -314,7 +314,7 @@ func GetQuickReference() string {
 		result.WriteString(SubtitleStyle().Render(section.title) + "\n")
 		for _, binding := range section.bindings {
 			key := HelpKeyStyle().Render(binding.Key)
-			result.WriteString(fmt.Sprintf("  %-12s %s\n", key, binding.Description))
+			fmt.Fprintf(&result, "  %-12s %s\n", key, binding.Description)
 		}
 		result.WriteString("\n")
 	}

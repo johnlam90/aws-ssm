@@ -56,6 +56,28 @@ func TestCacheStatsAndCleanup(t *testing.T) {
 	verifySecondCleanup(t, svc)
 }
 
+func TestCacheRejectsTraversalKeys(t *testing.T) {
+	parent := t.TempDir()
+	cacheDir := filepath.Join(parent, "cache")
+	svc := setupTestCacheService(t, cacheDir)
+
+	key := "../cache_evil/pwn"
+	if err := svc.Set(key, "value", "us-west-2", "query"); err == nil {
+		t.Fatalf("expected traversal key to be rejected")
+	}
+	if _, ok := svc.Get(key); ok {
+		t.Fatalf("expected traversal key lookup to miss")
+	}
+	if err := svc.Delete(key); err == nil {
+		t.Fatalf("expected traversal key delete to be rejected")
+	}
+
+	outsidePath := filepath.Join(parent, "cache_evil", "pwn.json")
+	if _, err := os.Stat(outsidePath); !os.IsNotExist(err) {
+		t.Fatalf("cache wrote outside cache dir: %v", err)
+	}
+}
+
 func setupTestCacheService(t *testing.T, dir string) *Service {
 	svc, err := NewCacheService(dir, 1)
 	if err != nil {

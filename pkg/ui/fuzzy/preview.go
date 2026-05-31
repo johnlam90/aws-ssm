@@ -34,20 +34,20 @@ func (r *DefaultPreviewRenderer) Render(instance *Instance, width, _ int) string
 	// Basic information
 	preview.WriteString(r.colors.BoldColor("Basic Info:"))
 	preview.WriteString("\n")
-	preview.WriteString(fmt.Sprintf("  Name:           %s\n", instance.Name))
+	fmt.Fprintf(&preview, "  Name:           %s\n", instance.Name)
 	if instance.Name == "" {
 		preview.WriteString("  (no name tag)\n")
 	}
-	preview.WriteString(fmt.Sprintf("  Instance ID:    %s\n", instance.InstanceID))
-	preview.WriteString(fmt.Sprintf("  State:          %s\n", r.colors.StateColor(instance.State)))
-	preview.WriteString(fmt.Sprintf("  Instance Type:  %s\n", instance.InstanceType))
-	preview.WriteString(fmt.Sprintf("  Availability:   %s\n", instance.AvailabilityZone))
+	fmt.Fprintf(&preview, "  Instance ID:    %s\n", instance.InstanceID)
+	fmt.Fprintf(&preview, "  State:          %s\n", r.colors.StateColor(instance.State))
+	fmt.Fprintf(&preview, "  Instance Type:  %s\n", instance.InstanceType)
+	fmt.Fprintf(&preview, "  Availability:   %s\n", instance.AvailabilityZone)
 
 	// Launch time and uptime
 	if !instance.LaunchTime.IsZero() {
 		uptime := time.Since(instance.LaunchTime)
-		preview.WriteString(fmt.Sprintf("  Launch Time:    %s\n", instance.LaunchTime.Format("2006-01-02 15:04:05")))
-		preview.WriteString(fmt.Sprintf("  Uptime:         %s\n", r.formatUptime(uptime)))
+		fmt.Fprintf(&preview, "  Launch Time:    %s\n", instance.LaunchTime.Format("2006-01-02 15:04:05"))
+		fmt.Fprintf(&preview, "  Uptime:         %s\n", r.formatUptime(uptime))
 	}
 
 	preview.WriteString("\n")
@@ -56,16 +56,16 @@ func (r *DefaultPreviewRenderer) Render(instance *Instance, width, _ int) string
 	preview.WriteString(r.colors.BoldColor("Network:"))
 	preview.WriteString("\n")
 	if instance.PrivateIP != "" {
-		preview.WriteString(fmt.Sprintf("  Private IP:     %s\n", instance.PrivateIP))
+		fmt.Fprintf(&preview, "  Private IP:     %s\n", instance.PrivateIP)
 	}
 	if instance.PublicIP != "" {
-		preview.WriteString(fmt.Sprintf("  Public IP:      %s\n", instance.PublicIP))
+		fmt.Fprintf(&preview, "  Public IP:      %s\n", instance.PublicIP)
 	}
 	if instance.PrivateDNS != "" {
-		preview.WriteString(fmt.Sprintf("  Private DNS:    %s\n", instance.PrivateDNS))
+		fmt.Fprintf(&preview, "  Private DNS:    %s\n", instance.PrivateDNS)
 	}
 	if instance.PublicDNS != "" {
-		preview.WriteString(fmt.Sprintf("  Public DNS:     %s\n", instance.PublicDNS))
+		fmt.Fprintf(&preview, "  Public DNS:     %s\n", instance.PublicDNS)
 	}
 
 	preview.WriteString("\n")
@@ -74,12 +74,12 @@ func (r *DefaultPreviewRenderer) Render(instance *Instance, width, _ int) string
 	preview.WriteString(r.colors.BoldColor("Security:"))
 	preview.WriteString("\n")
 	if instance.InstanceProfile != "" {
-		preview.WriteString(fmt.Sprintf("  Instance Profile: %s\n", instance.InstanceProfile))
+		fmt.Fprintf(&preview, "  Instance Profile: %s\n", instance.InstanceProfile)
 	}
 	if len(instance.SecurityGroups) > 0 {
 		preview.WriteString("  Security Groups:\n")
 		for _, sg := range instance.SecurityGroups {
-			preview.WriteString(fmt.Sprintf("    • %s\n", sg))
+			fmt.Fprintf(&preview, "    • %s\n", sg)
 		}
 	}
 
@@ -90,7 +90,7 @@ func (r *DefaultPreviewRenderer) Render(instance *Instance, width, _ int) string
 		preview.WriteString("\n")
 		for key, value := range instance.Tags {
 			if key != "Name" { // Name already shown in basic info
-				preview.WriteString(fmt.Sprintf("  %s\n", r.colors.TagColor(key, value)))
+				fmt.Fprintf(&preview, "  %s\n", r.colors.TagColor(key, value))
 			}
 		}
 	}

@@ -24,6 +24,33 @@ type Service struct {
 	ttl      time.Duration
 }
 
+func (c *Service) cachePathForKey(key string) (string, error) {
+	if strings.TrimSpace(key) == "" {
+		return "", fmt.Errorf("cache key cannot be empty")
+	}
+	return c.safeCachePath(filepath.Join(c.cacheDir, key+".json"))
+}
+
+func (c *Service) safeCachePath(path string) (string, error) {
+	cacheDir, err := filepath.Abs(filepath.Clean(c.cacheDir))
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve cache directory: %w", err)
+	}
+	cleanPath, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve cache path: %w", err)
+	}
+
+	rel, err := filepath.Rel(cacheDir, cleanPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to validate cache path: %w", err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
+		return "", fmt.Errorf("invalid cache path outside cache directory")
+	}
+	return cleanPath, nil
+}
+
 // NewCacheService creates a new cache service
 func NewCacheService(cacheDir string, ttlMinutes int) (*Service, error) {
 	if cacheDir == "" {
@@ -47,10 +74,8 @@ func NewCacheService(cacheDir string, ttlMinutes int) (*Service, error) {
 
 // Get retrieves cached data for the given key
 func (c *Service) Get(key string) (interface{}, bool) {
-	cacheFile := filepath.Join(c.cacheDir, key+".json")
-	// Validate path to prevent directory traversal
-	cleanPath := filepath.Clean(cacheFile)
-	if !strings.HasPrefix(cleanPath, filepath.Clean(c.cacheDir)) {
+	cleanPath, err := c.cachePathForKey(key)
+	if err != nil {
 		return nil, false
 	}
 
@@ -60,13 +85,13 @@ func (c *Service) Get(key string) (interface{}, bool) {
 	if err != nil {
 		if !os.IsNotExist(err) {
 			// Log error but don't fail
-			fmt.Fprintf(os.Stderr, "Warning: failed to stat cache file %s: %v\n", cacheFile, err)
+			fmt.Fprintf(os.Stderr, "Warning: failed to stat cache file %s: %v\n", cleanPath, err)
 		}
 		return nil, false
 	}
 
 	if fileInfo.Size() > maxCacheFileSize {
-		fmt.Fprintf(os.Stderr, "Warning: cache file %s exceeds size limit (%d > %d bytes)\n", cacheFile, fileInfo.Size(), maxCacheFileSize)
+		fmt.Fprintf(os.Stderr, "Warning: cache file %s exceeds size limit (%d > %d bytes)\n", cleanPath, fileInfo.Size(), maxCacheFileSize)
 		return nil, false
 	}
 
@@ -74,14 +99,14 @@ func (c *Service) Get(key string) (interface{}, bool) {
 	if err != nil {
 		if !os.IsNotExist(err) {
 			// Log error but don't fail
-			fmt.Fprintf(os.Stderr, "Warning: failed to read cache file %s: %v\n", cacheFile, err)
+			fmt.Fprintf(os.Stderr, "Warning: failed to read cache file %s: %v\n", cleanPath, err)
 		}
 		return nil, false
 	}
 
 	var entry Entry
 	if unmarshalErr := json.Unmarshal(data, &entry); unmarshalErr != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to unmarshal cache entry %s: %v\n", cacheFile, unmarshalErr)
+		fmt.Fprintf(os.Stderr, "Warning: failed to unmarshal cache entry %s: %v\n", cleanPath, unmarshalErr)
 		return nil, false
 	}
 
@@ -89,7 +114,7 @@ func (c *Service) Get(key string) (interface{}, bool) {
 	if time.Since(entry.Timestamp) > c.ttl {
 		// Remove expired cache file (ignore error as it's cleanup)
 		//nolint:errcheck // Cleanup operation, error is not critical
-		_ = os.Remove(cacheFile)
+		_ = os.Remove(cleanPath)
 		return nil, false
 	}
 
@@ -98,7 +123,10 @@ func (c *Service) Get(key string) (interface{}, bool) {
 
 // Set stores data in cache with the given key
 func (c *Service) Set(key string, data interface{}, region, query string) error {
-	cacheFile := filepath.Join(c.cacheDir, key+".json")
+	cacheFile, err := c.cachePathForKey(key)
+	if err != nil {
+		return err
+	}
 
 	entry := Entry{
 		Data:      data,
@@ -123,7 +151,10 @@ func (c *Service) Set(key string, data interface{}, region, query string) error 
 
 // Delete removes cached data for the given key
 func (c *Service) Delete(key string) error {
-	cacheFile := filepath.Join(c.cacheDir, key+".json")
+	cacheFile, err := c.cachePathForKey(key)
+	if err != nil {
+		return err
+	}
 	return os.Remove(cacheFile)
 }
 
@@ -157,10 +188,8 @@ func (c *Service) Cleanup() error {
 			continue
 		}
 
-		cacheFile := filepath.Join(c.cacheDir, file.Name())
-		// Validate path to prevent directory traversal
-		cleanPath := filepath.Clean(cacheFile)
-		if !strings.HasPrefix(cleanPath, filepath.Clean(c.cacheDir)) {
+		cleanPath, pathErr := c.safeCachePath(filepath.Join(c.cacheDir, file.Name()))
+		if pathErr != nil {
 			fmt.Fprintf(os.Stderr, "Warning: invalid cache file path %s\n", file.Name())
 			continue
 		}
@@ -174,13 +203,13 @@ func (c *Service) Cleanup() error {
 		if unmarshalErr := json.Unmarshal(data, &entry); unmarshalErr != nil {
 			// Invalid cache file, remove it (ignore error as it's cleanup)
 			//nolint:errcheck // Cleanup operation, error is not critical
-			_ = os.Remove(cacheFile)
+			_ = os.Remove(cleanPath)
 			continue
 		}
 
 		if time.Since(entry.Timestamp) > c.ttl {
 			// Remove expired cache file
-			if removeErr := os.Remove(cacheFile); removeErr != nil {
+			if removeErr := os.Remove(cleanPath); removeErr != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to remove expired cache file %s: %v\n", file.Name(), removeErr)
 			}
 		}
@@ -208,10 +237,8 @@ func (c *Service) GetCacheStats() (totalFiles, expiredFiles int, totalSize int64
 		}
 		totalSize += info.Size()
 
-		cacheFile := filepath.Join(c.cacheDir, file.Name())
-		// Validate path to prevent directory traversal
-		cleanPath := filepath.Clean(cacheFile)
-		if !strings.HasPrefix(cleanPath, filepath.Clean(c.cacheDir)) {
+		cleanPath, pathErr := c.safeCachePath(filepath.Join(c.cacheDir, file.Name()))
+		if pathErr != nil {
 			continue
 		}
 		data, err := os.ReadFile(cleanPath)

@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -127,10 +125,8 @@ func NewEnhancedCacheService(cfg *EnhancedCacheConfig) (*EnhancedService, error)
 // Returns stale data immediately if available, triggers background refresh if needed
 // If no cache exists, performs synchronous refresh and caches the result
 func (ec *EnhancedService) GetWithRefresh(key, region, query string, refreshFn RefreshFunc) (interface{}, bool, bool) {
-	cacheFile := filepath.Join(ec.cacheDir, key+".json")
-	cleanPath := filepath.Clean(cacheFile)
-
-	if !strings.HasPrefix(cleanPath, filepath.Clean(ec.cacheDir)) {
+	cleanPath, pathErr := ec.cachePathForKey(key)
+	if pathErr != nil {
 		ec.recordMiss()
 		return nil, false, false
 	}
@@ -148,14 +144,14 @@ func (ec *EnhancedService) GetWithRefresh(key, region, query string, refreshFn R
 			}
 			return data, false, false // found (just refreshed), not stale
 		}
-		ec.logger.Warn("Failed to stat cache file", logging.String("file", cacheFile), logging.String("error", err.Error()))
+		ec.logger.Warn("Failed to stat cache file", logging.String("file", cleanPath), logging.String("error", err.Error()))
 		ec.recordMiss()
 		return nil, false, false
 	}
 
 	if fileInfo.Size() > maxCacheFileSize {
 		ec.logger.Warn("Cache file exceeds size limit",
-			logging.String("file", cacheFile),
+			logging.String("file", cleanPath),
 			logging.Int64("size", fileInfo.Size()))
 		ec.recordMiss()
 		return nil, false, false
@@ -163,14 +159,14 @@ func (ec *EnhancedService) GetWithRefresh(key, region, query string, refreshFn R
 
 	data, err := os.ReadFile(cleanPath)
 	if err != nil {
-		ec.logger.Warn("Failed to read cache file", logging.String("file", cacheFile), logging.String("error", err.Error()))
+		ec.logger.Warn("Failed to read cache file", logging.String("file", cleanPath), logging.String("error", err.Error()))
 		ec.recordMiss()
 		return nil, false, false
 	}
 
 	var entry EnhancedEntry
 	if unmarshalErr := json.Unmarshal(data, &entry); unmarshalErr != nil {
-		ec.logger.Warn("Failed to unmarshal cache entry", logging.String("file", cacheFile), logging.String("error", unmarshalErr.Error()))
+		ec.logger.Warn("Failed to unmarshal cache entry", logging.String("file", cleanPath), logging.String("error", unmarshalErr.Error()))
 		ec.recordMiss()
 		return nil, false, false
 	}

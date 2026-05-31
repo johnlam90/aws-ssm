@@ -38,8 +38,8 @@ func (m Model) renderNetworkInterfaces() string {
 	b.WriteString("\n")
 	b.WriteString(SubtitleStyle().Render(fmt.Sprintf("Interfaces for %s (%s)", normalizeValue(selected.InstanceName, "(no name)", 0), selected.InstanceID)))
 	b.WriteString("\n")
-	b.WriteString(fmt.Sprintf("  DNS Name:   %s\n", normalizeValue(selected.DNSName, "n/a", 0)))
-	b.WriteString(fmt.Sprintf("  Interfaces: %d\n\n", len(selected.Interfaces)))
+	fmt.Fprintf(&b, "  DNS Name:   %s\n", normalizeValue(selected.DNSName, "n/a", 0))
+	fmt.Fprintf(&b, "  Interfaces: %d\n\n", len(selected.Interfaces))
 	if len(selected.Interfaces) == 0 {
 		b.WriteString(HelpStyle().Render("No interfaces found for this instance"))
 		b.WriteString("\n")
