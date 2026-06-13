@@ -152,7 +152,7 @@ jobs:
           EOF
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           body_path: release_notes.md
           files: |
@@ -169,9 +169,6 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Get version from tag
         id: get_version
         run: |
@@ -211,12 +208,18 @@ jobs:
             fi
           done
 
-      - name: Create Homebrew formula
+      - name: Checkout homebrew-tap repository
+        uses: actions/checkout@v4
+        with:
+          repository: johnlam90/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
         run: |
           VERSION=${{ steps.get_version.outputs.VERSION }}
           TAG=v${VERSION}
-          mkdir -p homebrew-formula
-          cat > homebrew-formula/aws-ssm.rb << EOF
+          cat > homebrew-tap/aws-ssm.rb << EOF
           # typed: false
           # frozen_string_literal: true
 
@@ -272,9 +275,18 @@ jobs:
           end
           EOF
 
-      - name: Upload Homebrew formula as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: homebrew-formula
-          path: homebrew-formula/aws-ssm.rb
+      - name: Commit and push formula
+        run: |
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add aws-ssm.rb
+          if git diff --staged --quiet; then
+            echo "No formula changes to commit"
+            exit 0
+          fi
+          git commit -m "Update aws-ssm formula to v${{ steps.get_version.outputs.VERSION }}
+
+          Automated update triggered by release v${{ steps.get_version.outputs.VERSION }}."
+          git push
 
