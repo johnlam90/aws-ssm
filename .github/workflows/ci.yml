@@ -192,7 +192,10 @@ jobs:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/release/')
     services:
       localstack:
-        image: localstack/localstack:latest
+        # Pinned to the last free community release. LocalStack 2026.3.0+
+        # (released 2026-03-23, CalVer) requires a LOCALSTACK_AUTH_TOKEN even
+        # for community use; 4.14.0 (2026-02-26) is the last token-free image.
+        image: localstack/localstack:4.14.0
         ports:
           - 4566:4566
         env:
