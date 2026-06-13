@@ -150,6 +150,8 @@ aws-ssm eks nodegroup scale my-cluster my-nodegroup --desired 5
 
 **New in v1.0.3:** The table-header scrolling fix now applies consistently across EC2, EKS clusters, ASGs, Network Interfaces, and Node Groups.
 
+**New in v1.0.4:** Launching a session from the TUI now uses the native (pure Go) path—no session-manager-plugin required—plus a cleaner, flat dashboard restyle.
+
 ### Auto Scaling Groups
 
 ```bash
