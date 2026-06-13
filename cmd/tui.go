@@ -109,7 +109,7 @@ func runTUI(_ *cobra.Command, _ []string) error {
 	// Check if we need to start an SSM session
 	if instanceID := m.GetPendingSSMSession(); instanceID != nil {
 		fmt.Printf("\nStarting session with instance %s...\n\n", *instanceID)
-		if err := client.StartSession(ctx, *instanceID); err != nil {
+		if err := startPendingSSMSession(ctx, client, *instanceID); err != nil {
 			return fmt.Errorf("failed to start SSM session: %w", err)
 		}
 		return nil
@@ -127,4 +127,20 @@ func runTUI(_ *cobra.Command, _ []string) error {
 	}
 
 	return nil
+}
+
+// ssmSessionStarter abstracts the SSM session launch methods used after the TUI
+// exits. It exists as a seam so the launch path can be unit-tested.
+type ssmSessionStarter interface {
+	StartSession(ctx context.Context, instanceID string) error
+	StartNativeSession(ctx context.Context, instanceID string) error
+}
+
+// startPendingSSMSession launches the SSM session requested from the TUI.
+//
+// It uses the native (pure Go) implementation — the documented default for
+// `aws-ssm session` — so launching a session from the TUI does not require the
+// session-manager-plugin to be installed.
+func startPendingSSMSession(ctx context.Context, client ssmSessionStarter, instanceID string) error {
+	return client.StartNativeSession(ctx, instanceID)
 }
